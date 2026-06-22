@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { products, blogPosts } from "@/lib/products";
+import { searchProducts } from "@/lib/store";
+import { blogPosts } from "@/lib/products";
 
 interface Props {
   open: boolean;
@@ -10,6 +11,7 @@ interface Props {
 
 export function SearchDialog({ open, onClose }: Props) {
   const [q, setQ] = useState("");
+  const [debounced, setDebounced] = useState("");
   useEffect(() => {
     if (!open) setQ("");
     document.body.style.overflow = open ? "hidden" : "";
@@ -18,21 +20,24 @@ export function SearchDialog({ open, onClose }: Props) {
     };
   }, [open]);
 
-  const results = useMemo(() => {
-    const query = q.trim().toLowerCase();
-    if (!query) return { prods: [], blogs: [] };
-    return {
-      prods: products.filter(
-        (p) =>
-          p.name.toLowerCase().includes(query) ||
-          p.subcategory.toLowerCase().includes(query) ||
-          p.category.includes(query),
-      ),
-      blogs: blogPosts.filter(
-        (b) => b.title.toLowerCase().includes(query) || b.excerpt.toLowerCase().includes(query),
-      ),
-    };
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(q.trim()), 350);
+    return () => window.clearTimeout(timer);
   }, [q]);
+
+  const productResults = useMemo(() => {
+    if (!debounced) return [];
+    return searchProducts(debounced);
+  }, [debounced]);
+
+  const blogResults = useMemo(() => {
+    const query = debounced.toLowerCase();
+    if (!query) return [];
+    return blogPosts.filter(
+      (blog) =>
+        blog.title.toLowerCase().includes(query) || blog.excerpt.toLowerCase().includes(query),
+    );
+  }, [debounced]);
 
   if (!open) return null;
   return (
@@ -71,11 +76,11 @@ export function SearchDialog({ open, onClose }: Props) {
 
         {q && (
           <div className="mt-8 space-y-10 max-h-[70vh] overflow-y-auto pb-10">
-            {results.prods.length > 0 && (
+            {productResults.length > 0 && (
               <div>
                 <p className="eyebrow mb-4">Pieces</p>
                 <div className="grid sm:grid-cols-2 gap-5">
-                  {results.prods.map((p) => (
+                  {productResults.slice(0, 12).map((p) => (
                     <Link
                       key={p.id}
                       to="/product/$slug"
@@ -98,11 +103,11 @@ export function SearchDialog({ open, onClose }: Props) {
                 </div>
               </div>
             )}
-            {results.blogs.length > 0 && (
+            {blogResults.length > 0 && (
               <div>
                 <p className="eyebrow mb-4">Journal</p>
                 <div className="space-y-3">
-                  {results.blogs.map((b) => (
+                  {blogResults.map((b) => (
                     <Link
                       key={b.slug}
                       to="/blogs/$slug"
@@ -119,7 +124,7 @@ export function SearchDialog({ open, onClose }: Props) {
                 </div>
               </div>
             )}
-            {results.prods.length === 0 && results.blogs.length === 0 && (
+            {productResults.length === 0 && blogResults.length === 0 && (
               <p className="text-muted-foreground text-sm">No results for "{q}".</p>
             )}
           </div>

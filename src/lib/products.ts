@@ -17,6 +17,8 @@ export interface ColorVariant {
   sizeStock?: Record<string, number>;
   stock: number;
   sku?: string;
+  priceOverride?: number;
+  attributes?: Record<string, unknown>;
 }
 
 export interface Product {
@@ -37,16 +39,11 @@ export interface Product {
   images: string[];
   badge?: string;
   colorVariants?: ColorVariant[];
+  metadata?: Record<string, unknown>;
 }
 
 export const subcategories: Record<Category, string[]> = {
-  clothing: [
-    "Unstitched",
-    "Pret",
-    "Luxury Pret",
-    "Formal Wear",
-    "Casual Wear",
-  ],
+  clothing: ["Unstitched", "Pret", "Luxury Pret", "Formal Wear", "Casual Wear"],
   jewellery: ["Rings", "Earrings", "Bracelets", "Necklaces"],
 };
 
@@ -62,16 +59,29 @@ export const products: Product[] = [
       "An effortless silhouette in liquid silk, cut on the bias to drape weightlessly through movement. Hand-finished seams and a whisper-soft hand-feel.",
     fabric: "100% Mulberry Silk",
     color: "Ivory",
-    sizes: ["XS", "S", "M", "L", "XL"],
+    sizes: ["XS", "S", "M", "L", "XL", "XXL"],
     sku: "ANR-SB-001",
     stock: 12,
-    sizeStock: { "XS": 0, "S": 3, "M": 5, "L": 4, "XL": 0 },
+    sizeStock: { XS: 0, S: 3, M: 5, L: 4, XL: 0, XXL: 0 },
     images: [p1, p2, p3],
     badge: "New",
     colorVariants: [
-      { color: "Ivory", images: [p1, p2, p3], stock: 12, sizeStock: { "XS": 0, "S": 3, "M": 5, "L": 4, "XL": 0 }, sku: "ANR-SB-001" },
-      { color: "Blush", images: [p3, p1, p2], stock: 8, sizeStock: { "XS": 2, "S": 0, "M": 4, "L": 0, "XL": 1 }, sku: "ANR-SB-002" },
+      {
+        color: "Ivory",
+        images: [p1, p2, p3],
+        stock: 12,
+        sizeStock: { XS: 0, S: 3, M: 5, L: 4, XL: 0, XXL: 0 },
+        sku: "ANR-SB-001",
+      },
+      {
+        color: "Blush",
+        images: [p3, p1, p2],
+        stock: 8,
+        sizeStock: { XS: 2, S: 0, M: 4, L: 0, XL: 1, XXL: 0 },
+        sku: "ANR-SB-002",
+      },
     ],
+    metadata: { low_stock: false },
   },
   {
     id: "2",
@@ -84,11 +94,12 @@ export const products: Product[] = [
       "A modern interpretation of the heritage wrap coat in pure cashmere, tailored in our atelier with a self-tie belt and tonal horn buttons.",
     fabric: "100% Italian Cashmere",
     color: "Camel",
-    sizes: ["XS", "S", "M", "L", "XL"],
+    sizes: ["XS", "S", "M", "L", "XL", "XXL"],
     sku: "ANR-CC-002",
     stock: 7,
     images: [p2, p1, p3],
     badge: "Best Seller",
+    metadata: { low_stock: false },
   },
   {
     id: "3",
@@ -101,10 +112,11 @@ export const products: Product[] = [
       "A ceremonial silhouette hand-embroidered with antique-gold zardozi. Lined in soft silk for an opulent drape.",
     fabric: "Raw Silk · Hand Zardozi",
     color: "Ivory & Gold",
-    sizes: ["S", "M", "L"],
+    sizes: ["XS", "S", "M", "L", "XL", "XXL"],
     sku: "ANR-NK-003",
     stock: 5,
     images: [p3, p1, p2],
+    metadata: { low_stock: true },
   },
   {
     id: "4",
@@ -117,11 +129,13 @@ export const products: Product[] = [
       "A six-prong solitaire in 18k recycled gold, set with a brilliant-cut lab-grown diamond. Made to be worn every day, forever.",
     material: "18k Recycled Gold · 0.5ct Diamond",
     color: "Gold",
-    sizes: ["5", "6", "7", "8"],
+    sizes: ["5", "6", "7", "8", "9"],
     sku: "ANR-AR-004",
     stock: 3,
     images: [p4, p5, p6],
     badge: "New",
+    sizeStock: { "5": 0, "6": 1, "7": 1, "8": 1, "9": 0 },
+    metadata: { low_stock: true },
   },
   {
     id: "5",
@@ -138,6 +152,7 @@ export const products: Product[] = [
     sku: "ANR-LP-005",
     stock: 9,
     images: [p5, p4, p6],
+    metadata: { low_stock: false },
   },
   {
     id: "6",
@@ -150,11 +165,13 @@ export const products: Product[] = [
       "A single diamond suspended on a fine 18k gold chain — the most quietly perfect thing you'll ever own.",
     material: "18k Gold · 0.15ct Diamond",
     color: "Gold",
-    sizes: ["16\"", "18\""],
+    sizes: ['16"', '18"', '20"'],
     sku: "ANR-CN-006",
     stock: 14,
     images: [p6, p4, p5],
     badge: "Best Seller",
+    sizeStock: { '16"': 5, '18"': 6, '20"': 3 },
+    metadata: { low_stock: false },
   },
 ];
 
@@ -175,8 +192,7 @@ export const blogPosts: BlogPost[] = [
   {
     slug: "the-language-of-gold",
     title: "The Quiet Language of Gold",
-    excerpt:
-      "A meditation on why the most precious things we own rarely announce themselves.",
+    excerpt: "A meditation on why the most precious things we own rarely announce themselves.",
     category: "Editorial",
     date: "March 12, 2026",
     readTime: "6 min read",

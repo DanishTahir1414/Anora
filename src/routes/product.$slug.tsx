@@ -3,6 +3,7 @@ import { useState, useRef, useCallback } from "react";
 import { ChevronDown, Heart, Minus, Plus, Share2, Truck, X } from "lucide-react";
 import { getProduct, products } from "@/lib/products";
 import { useCart, useWishlist } from "@/lib/store";
+import { getProductAvailability, validateStockBeforeCheckout } from "@/lib/inventory";
 import { ProductCard } from "@/components/site/ProductCard";
 import { toast } from "sonner";
 
@@ -28,32 +29,40 @@ export const Route = createFileRoute("/product/$slug")({
   notFoundComponent: () => (
     <div className="py-32 text-center">
       <h1 className="font-serif text-4xl">Piece not found</h1>
-      <Link to="/shop" className="inline-block mt-6 text-[11px] tracking-[0.32em] uppercase hover-underline">
+      <Link
+        to="/shop"
+        className="inline-block mt-6 text-[11px] tracking-[0.32em] uppercase hover-underline"
+      >
         Return to shop
       </Link>
     </div>
   ),
 });
 
-function getActiveState(product: typeof products[number], color: string) {
-  const variant = product.colorVariants?.find((v) => v.color === color);
+function getActiveState(product: (typeof products)[number], color: string) {
+  const availability = getProductAvailability(product, color);
+  const variant = availability.selectedVariant;
   if (!variant) {
     return {
       images: product.images,
-      sizes: product.sizes,
-      sizeStock: product.sizeStock,
-      stock: product.stock,
-      sku: product.sku,
-      color: product.color,
+      sizes: availability.sizes,
+      sizeStock: availability.sizeStock,
+      stock: availability.stock,
+      sku: availability.sku,
+      color: availability.color,
+      lowStock: availability.lowStock,
+      isAvailable: availability.isAvailable,
     };
   }
   return {
     images: variant.images,
-    sizes: variant.sizes ?? product.sizes,
-    sizeStock: variant.sizeStock ?? product.sizeStock,
+    sizes: variant.sizes,
+    sizeStock: variant.sizeStock,
     stock: variant.stock,
-    sku: variant.sku ?? product.sku,
+    sku: variant.sku,
     color: variant.color,
+    lowStock: variant.lowStock,
+    isAvailable: variant.isAvailable,
   };
 }
 
@@ -74,9 +83,11 @@ function ProductPage() {
 
   const hasSizeStock = active.sizeStock && Object.keys(active.sizeStock).length > 0;
   const allOOS = hasSizeStock && active.sizes.every((s) => (active.sizeStock![s] ?? 1) === 0);
-  const isOOS = active.stock === 0 || allOOS;
+  const isOOS = !active.isAvailable || active.stock === 0 || allOOS;
 
-  const related = products.filter((p) => p.id !== product.id && p.category === product.category).slice(0, 3);
+  const related = products
+    .filter((p) => p.id !== product.id && p.category === product.category)
+    .slice(0, 3);
 
   // ─── Color switch ───
   const switchColor = useCallback(
@@ -119,9 +130,15 @@ function ProductPage() {
     <div className="pt-10 lg:pt-16 pb-24">
       {/* Breadcrumb */}
       <div className="px-5 lg:px-10 mb-8 text-[11px] tracking-[0.28em] uppercase text-muted-foreground">
-        <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
+        <Link to="/" className="hover:text-foreground transition-colors">
+          Home
+        </Link>
         <span className="mx-2">/</span>
-        <Link to="/shop/$category" params={{ category: product.category }} className="hover:text-foreground transition-colors">
+        <Link
+          to="/shop/$category"
+          params={{ category: product.category }}
+          className="hover:text-foreground transition-colors"
+        >
           {product.category}
         </Link>
         <span className="mx-2">/</span>
@@ -138,7 +155,9 @@ function ProductPage() {
                 key={i}
                 onClick={() => setImgIdx(i)}
                 className={`overflow-hidden aspect-[3/4] border transition-all duration-300 ${
-                  i === imgIdx ? "border-foreground" : "border-transparent opacity-60 hover:opacity-100"
+                  i === imgIdx
+                    ? "border-foreground"
+                    : "border-transparent opacity-60 hover:opacity-100"
                 }`}
               >
                 <img src={img} alt="" className="h-full w-full object-cover" />
@@ -178,13 +197,19 @@ function ProductPage() {
 
             {/* Touch arrows */}
             <button
-              onClick={(e) => { e.stopPropagation(); setImgIdx((i) => Math.max(0, i - 1)); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setImgIdx((i) => Math.max(0, i - 1));
+              }}
               className="md:hidden absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8 bg-background/80 grid place-items-center hover:text-gold transition-colors"
             >
               <span className="text-sm">‹</span>
             </button>
             <button
-              onClick={(e) => { e.stopPropagation(); setImgIdx((i) => Math.min(active.images.length - 1, i + 1)); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setImgIdx((i) => Math.min(active.images.length - 1, i + 1));
+              }}
               className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 bg-background/80 grid place-items-center hover:text-gold transition-colors"
             >
               <span className="text-sm">›</span>
@@ -250,13 +275,30 @@ function ProductPage() {
                     key={c}
                     onClick={() => switchColor(c)}
                     className={`relative h-10 w-10 rounded-full border-2 transition-all duration-300 ${
-                      activeColor === c ? "border-gold scale-110" : "border-border/50 hover:border-foreground/50"
+                      activeColor === c
+                        ? "border-gold scale-110"
+                        : "border-border/50 hover:border-foreground/50"
                     }`}
                     title={c}
                   >
                     <span
                       className="absolute inset-1 rounded-full"
-                      style={{ backgroundColor: c === "Ivory" ? "#f5f0e8" : c === "Blush" ? "#f5d6d6" : c === "Gold" ? "#d4af37" : c === "Camel" ? "#c19a6b" : c === "Ivory & Gold" ? "#e8d5b7" : c === "Midnight Blue" ? "#191970" : "#ccc" }}
+                      style={{
+                        backgroundColor:
+                          c === "Ivory"
+                            ? "#f5f0e8"
+                            : c === "Blush"
+                              ? "#f5d6d6"
+                              : c === "Gold"
+                                ? "#d4af37"
+                                : c === "Camel"
+                                  ? "#c19a6b"
+                                  : c === "Ivory & Gold"
+                                    ? "#e8d5b7"
+                                    : c === "Midnight Blue"
+                                      ? "#191970"
+                                      : "#ccc",
+                      }}
                     />
                   </button>
                 ))}
@@ -290,7 +332,9 @@ function ProductPage() {
                 return (
                   <button
                     key={s}
-                    onClick={() => { if (!disabled) setSize(s); }}
+                    onClick={() => {
+                      if (!disabled) setSize(s);
+                    }}
                     className={`min-w-12 h-11 px-3 text-sm border transition-all duration-300 ${
                       size === s && !disabled
                         ? "border-foreground bg-foreground text-background"
@@ -326,7 +370,10 @@ function ProductPage() {
               </button>
             </div>
             <button
-              onClick={() => { wish.toggle(product.id); toast(wish.has(product.id) ? "Removed from wishlist" : "Saved to wishlist"); }}
+              onClick={() => {
+                wish.toggle(product.id);
+                toast(wish.has(product.id) ? "Removed from wishlist" : "Saved to wishlist");
+              }}
               className="h-11 w-11 grid place-items-center border border-border hover:border-foreground transition-all duration-300 hover:scale-105"
               aria-label="wishlist"
             >
@@ -334,8 +381,14 @@ function ProductPage() {
             </button>
             <button
               onClick={() => {
-                if (navigator.share) navigator.share({ title: product.name, url: window.location.href }).catch(() => {});
-                else { navigator.clipboard.writeText(window.location.href); toast("Link copied to clipboard"); }
+                if (navigator.share)
+                  navigator
+                    .share({ title: product.name, url: window.location.href })
+                    .catch(() => {});
+                else {
+                  navigator.clipboard.writeText(window.location.href);
+                  toast("Link copied to clipboard");
+                }
               }}
               className="h-11 w-11 grid place-items-center border border-border hover:border-foreground transition-all duration-300 hover:scale-105"
               aria-label="share"
@@ -349,10 +402,20 @@ function ProductPage() {
             <button
               onClick={() => {
                 if (isOOS) return;
-                const q = active.sizeStock?.[size];
-                if (hasSizeStock && q !== undefined && q === 0) { toast.error("This size is out of stock"); return; }
+                const validation = validateStockBeforeCheckout(product, {
+                  productId: product.id,
+                  size,
+                  quantity: qty,
+                  color: activeColor,
+                });
+                if (!validation.ok) {
+                  toast.error(validation.reason ?? "Selected option is unavailable");
+                  return;
+                }
                 cart.add(product.id, size, qty);
-                toast.success("Added to bag", { description: `${product.name} · ${size} · Qty ${qty}` });
+                toast.success("Added to bag", {
+                  description: `${product.name} · ${size} · Qty ${qty}`,
+                });
               }}
               disabled={isOOS}
               className={`py-4 text-[11px] tracking-[0.32em] uppercase transition-all duration-300 ${
@@ -387,10 +450,16 @@ function ProductPage() {
               <p>Colour — {active.color}</p>
             </Detail>
             <Detail title="Care">
-              <p>Store in the pouch provided. Avoid contact with perfumes, lotions and chlorine. Polish with a soft cloth.</p>
+              <p>
+                Store in the pouch provided. Avoid contact with perfumes, lotions and chlorine.
+                Polish with a soft cloth.
+              </p>
             </Detail>
             <Detail title="Shipping & Returns">
-              <p>Complimentary worldwide shipping. 14-day returns on unworn pieces in original packaging.</p>
+              <p>
+                Complimentary worldwide shipping. 14-day returns on unworn pieces in original
+                packaging.
+              </p>
             </Detail>
           </div>
         </div>
@@ -426,13 +495,19 @@ function ProductPage() {
             />
           </div>
           <button
-            onClick={(e) => { e.stopPropagation(); setImgIdx((i) => Math.max(0, i - 1)); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setImgIdx((i) => Math.max(0, i - 1));
+            }}
             className="absolute left-6 top-1/2 -translate-y-1/2 text-background/70 hover:text-gold text-3xl transition-colors"
           >
             ‹
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); setImgIdx((i) => Math.min(active.images.length - 1, i + 1)); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setImgIdx((i) => Math.min(active.images.length - 1, i + 1));
+            }}
             className="absolute right-6 top-1/2 -translate-y-1/2 text-background/70 hover:text-gold text-3xl transition-colors"
           >
             ›
@@ -452,7 +527,10 @@ function ProductPage() {
           >
             <div className="flex items-center justify-between mb-8">
               <h2 className="font-serif text-2xl">Size Guide</h2>
-              <button onClick={() => setGuideOpen(false)} className="hover:text-gold transition-colors">
+              <button
+                onClick={() => setGuideOpen(false)}
+                className="hover:text-gold transition-colors"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -466,18 +544,25 @@ function ProductPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
-                {["XS", "S", "M", "L", "XL"].map((s) => (
+                {["XS", "S", "M", "L", "XL", "XXL"].map((s) => (
                   <tr key={s}>
                     <td className="py-2.5 font-medium">{s}</td>
-                    <td className="py-2.5 text-muted-foreground">{32 + ["XS", "S", "M", "L", "XL"].indexOf(s) * 2}</td>
-                    <td className="py-2.5 text-muted-foreground">{24 + ["XS", "S", "M", "L", "XL"].indexOf(s) * 2}</td>
-                    <td className="py-2.5 text-muted-foreground">{34 + ["XS", "S", "M", "L", "XL"].indexOf(s) * 2}</td>
+                    <td className="py-2.5 text-muted-foreground">
+                      {32 + ["XS", "S", "M", "L", "XL"].indexOf(s) * 2}
+                    </td>
+                    <td className="py-2.5 text-muted-foreground">
+                      {24 + ["XS", "S", "M", "L", "XL"].indexOf(s) * 2}
+                    </td>
+                    <td className="py-2.5 text-muted-foreground">
+                      {34 + ["XS", "S", "M", "L", "XL"].indexOf(s) * 2}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <p className="text-xs text-muted-foreground mt-6">
-              Measurements are body measurements. For the best fit, we recommend comparing with a piece you already own.
+              Measurements are body measurements. For the best fit, we recommend comparing with a
+              piece you already own.
             </p>
           </div>
         </div>
@@ -495,7 +580,9 @@ function Detail({ title, children }: { title: string; children: React.ReactNode 
         className="w-full flex items-center justify-between py-5 text-left"
       >
         <span className="eyebrow">{title}</span>
-        <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
+        <ChevronDown
+          className={`h-4 w-4 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
+        />
       </button>
       {open && (
         <div className="pb-5 text-sm text-muted-foreground leading-relaxed space-y-2 animate-fade">

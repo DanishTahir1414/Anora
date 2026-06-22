@@ -1,139 +1,128 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { products as catalog, type Product } from "./products";
+import { useAuth } from "./auth-context";
+import {
+  addToCart,
+  addToWishlist,
+  type CartSnapshot,
+  getCartSnapshot,
+  getWishlistSnapshot,
+  isInWishlist,
+  mergeGuestCartToUser,
+  removeFromCart,
+  removeFromWishlist,
+  searchProducts,
+  setCustomerUser,
+  syncCartWithServer,
+  syncWishlistOnLogin,
+  updateCartQuantity,
+  validateCartStock,
+  subscribe,
+} from "./customer-services";
 
-// ───────────────────────── Cart ─────────────────────────
 export interface CartItem {
+  id: string;
   productId: string;
+  variantId?: string | null;
   size: string;
   quantity: number;
+  active: boolean;
+  source: "local" | "server";
+  updatedAt: number;
 }
 
 interface CartCtx {
   items: CartItem[];
-  add: (productId: string, size: string, quantity?: number) => void;
+  add: (productId: string, size: string, quantity?: number, variantId?: string) => void;
   remove: (productId: string, size: string) => void;
   setQty: (productId: string, size: string, quantity: number) => void;
   clear: () => void;
   count: number;
   subtotal: number;
-  detailed: { item: CartItem; product: Product }[];
+  detailed: CartSnapshot["detailed"];
+  syncCartWithServer: () => Promise<CartItem[]>;
+  validateCartStock: () => CartItem[];
 }
 
-const CartContext = createContext<CartCtx | null>(null);
-const CART_KEY = "anora.cart.v1";
-
-// ───────────────────────── Wishlist ─────────────────────
 interface WishCtx {
   ids: string[];
   toggle: (id: string) => void;
   has: (id: string) => boolean;
   remove: (id: string) => void;
   count: number;
+  syncWishlistOnLogin: (userId: string) => Promise<string[]>;
+  addToWishlist: (id: string) => Promise<void>;
+  removeFromWishlist: (id: string) => Promise<void>;
+  isInWishlist: (id: string) => boolean;
 }
 
+const CartContext = createContext<CartCtx | null>(null);
 const WishContext = createContext<WishCtx | null>(null);
-const WISH_KEY = "anora.wish.v1";
-
-function useLocal<T>(key: string, initial: T): [T, (v: T | ((prev: T) => T)) => void] {
-  const [val, setVal] = useState<T>(initial);
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw) setVal(JSON.parse(raw) as T);
-    } catch {
-      /* ignore */
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  useEffect(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify(val));
-    } catch {
-      /* ignore */
-    }
-  }, [key, val]);
-  return [val, setVal];
-}
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useLocal<CartItem[]>(CART_KEY, []);
-  const [ids, setIds] = useLocal<string[]>(WISH_KEY, []);
+  const { user } = useAuth();
+  const cartSnapshot = useSyncExternalStore(subscribe, getCartSnapshot, getCartSnapshot);
+  const wishSnapshot = useSyncExternalStore(subscribe, getWishlistSnapshot, getWishlistSnapshot);
 
-  const add: CartCtx["add"] = useCallback(
-    (productId, size, quantity = 1) => {
-      setItems((prev) => {
-        const i = prev.findIndex((x) => x.productId === productId && x.size === size);
-        if (i >= 0) {
-          const next = [...prev];
-          next[i] = { ...next[i], quantity: next[i].quantity + quantity };
-          return next;
-        }
-        return [...prev, { productId, size, quantity }];
-      });
-    },
-    [setItems],
+  useEffect(() => {
+    setCustomerUser(user?.id ?? null);
+    if (!user) return;
+    void mergeGuestCartToUser(user.id);
+    void syncWishlistOnLogin(user.id);
+  }, [user]);
+
+  const cartValue: CartCtx = useMemo(
+    () => ({
+      items: cartSnapshot.items,
+      add: (productId, size, quantity = 1, variantId) =>
+        void addToCart(productId, variantId, size, quantity),
+      remove: (productId, size) => {
+        const item = cartSnapshot.items.find(
+          (entry) => entry.productId === productId && entry.size === size,
+        );
+        if (item) void removeFromCart(item.id);
+      },
+      setQty: (productId, size, quantity) => {
+        const item = cartSnapshot.items.find(
+          (entry) => entry.productId === productId && entry.size === size,
+        );
+        if (item) void updateCartQuantity(item.id, quantity);
+      },
+      clear: () => {
+        cartSnapshot.items.forEach((item) => void removeFromCart(item.id));
+      },
+      count: cartSnapshot.count,
+      subtotal: cartSnapshot.subtotal,
+      detailed: cartSnapshot.detailed,
+      syncCartWithServer,
+      validateCartStock,
+    }),
+    [cartSnapshot],
   );
 
-  const remove: CartCtx["remove"] = useCallback(
-    (productId, size) =>
-      setItems((prev) => prev.filter((x) => !(x.productId === productId && x.size === size))),
-    [setItems],
+  const wishValue: WishCtx = useMemo(
+    () => ({
+      ids: wishSnapshot.ids,
+      toggle: (id) => {
+        if (isInWishlist(id)) void removeFromWishlist(id);
+        else void addToWishlist(id);
+      },
+      has: isInWishlist,
+      remove: (id) => void removeFromWishlist(id),
+      count: wishSnapshot.ids.length,
+      syncWishlistOnLogin,
+      addToWishlist: (id) => addToWishlist(id),
+      removeFromWishlist: (id) => removeFromWishlist(id),
+      isInWishlist,
+    }),
+    [wishSnapshot],
   );
-
-  const setQty: CartCtx["setQty"] = useCallback(
-    (productId, size, quantity) =>
-      setItems((prev) =>
-        prev
-          .map((x) =>
-            x.productId === productId && x.size === size
-              ? { ...x, quantity: Math.max(1, quantity) }
-              : x,
-          )
-          .filter((x) => x.quantity > 0),
-      ),
-    [setItems],
-  );
-
-  const clear = useCallback(() => setItems([]), [setItems]);
-
-  const detailed = useMemo(
-    () =>
-      items
-        .map((item) => {
-          const product = catalog.find((p) => p.id === item.productId);
-          return product ? { item, product } : null;
-        })
-        .filter((x): x is { item: CartItem; product: Product } => x !== null),
-    [items],
-  );
-
-  const subtotal = useMemo(
-    () => detailed.reduce((sum, { item, product }) => sum + item.quantity * product.price, 0),
-    [detailed],
-  );
-  const count = useMemo(() => items.reduce((n, x) => n + x.quantity, 0), [items]);
-
-  const cartValue: CartCtx = { items, add, remove, setQty, clear, count, subtotal, detailed };
-
-  const toggle = useCallback(
-    (id: string) =>
-      setIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])),
-    [setIds],
-  );
-  const has = useCallback((id: string) => ids.includes(id), [ids]);
-  const wishRemove = useCallback(
-    (id: string) => setIds((prev) => prev.filter((x) => x !== id)),
-    [setIds],
-  );
-  const wishValue: WishCtx = { ids, toggle, has, remove: wishRemove, count: ids.length };
 
   return (
     <CartContext.Provider value={cartValue}>
@@ -153,3 +142,5 @@ export function useWishlist() {
   if (!ctx) throw new Error("useWishlist must be used within StoreProvider");
   return ctx;
 }
+
+export { searchProducts };

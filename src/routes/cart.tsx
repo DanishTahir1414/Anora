@@ -22,9 +22,7 @@ function CartPage() {
       <div className="px-5 lg:px-10 py-24 text-center max-w-md mx-auto">
         <span className="eyebrow">Your Bag</span>
         <h1 className="font-serif text-4xl mt-4">Your bag is empty</h1>
-        <p className="text-muted-foreground mt-3">
-          Begin with a quiet piece from the atelier.
-        </p>
+        <p className="text-muted-foreground mt-3">Begin with a quiet piece from the atelier.</p>
         <Link
           to="/shop"
           className="mt-8 inline-block bg-foreground text-background px-8 py-3 text-[11px] tracking-[0.32em] uppercase hover:bg-gold hover:text-ink transition-colors"
@@ -44,22 +42,37 @@ function CartPage() {
 
       <div className="grid lg:grid-cols-[1fr_360px] gap-12">
         <div className="divide-y divide-border border-t border-b border-border">
-          {cart.detailed.map(({ item, product }) => (
-            <div key={`${item.productId}-${item.size}`} className="py-6 flex gap-5">
+          {cart.detailed.map(({ item, product, active }) => (
+            <div
+              key={`${item.productId}-${item.size}`}
+              className={`py-6 flex gap-5 ${active ? "" : "opacity-60"}`}
+            >
               <Link to="/product/$slug" params={{ slug: product.slug }} className="shrink-0">
-                <img src={product.images[0]} alt={product.name} className="w-24 h-32 object-cover bg-neutral" />
+                <img
+                  src={product.images[0]}
+                  alt={product.name}
+                  className="w-24 h-32 object-cover bg-neutral"
+                />
               </Link>
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <Link to="/product/$slug" params={{ slug: product.slug }} className="font-serif text-xl hover:text-gold">
+                    <Link
+                      to="/product/$slug"
+                      params={{ slug: product.slug }}
+                      className="font-serif text-xl hover:text-gold"
+                    >
                       {product.name}
                     </Link>
                     <p className="text-[11px] tracking-[0.28em] uppercase text-muted-foreground mt-1">
                       Size {item.size} · {product.color}
                     </p>
                   </div>
-                  <button onClick={() => cart.remove(item.productId, item.size)} aria-label="remove" className="text-muted-foreground hover:text-foreground">
+                  <button
+                    onClick={() => cart.remove(item.productId, item.size)}
+                    aria-label="remove"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
@@ -67,6 +80,7 @@ function CartPage() {
                   <div className="flex items-center border border-border">
                     <button
                       onClick={() => cart.setQty(item.productId, item.size, item.quantity - 1)}
+                      disabled={!active}
                       className="h-9 w-9 grid place-items-center hover:bg-neutral"
                       aria-label="decrease"
                     >
@@ -75,6 +89,7 @@ function CartPage() {
                     <span className="w-10 text-center text-sm">{item.quantity}</span>
                     <button
                       onClick={() => cart.setQty(item.productId, item.size, item.quantity + 1)}
+                      disabled={!active}
                       className="h-9 w-9 grid place-items-center hover:bg-neutral"
                       aria-label="increase"
                     >
@@ -127,7 +142,10 @@ function CartPage() {
             >
               Checkout
             </Link>
-            <Link to="/shop" className="mt-3 block text-center text-[11px] tracking-[0.3em] uppercase hover-underline">
+            <Link
+              to="/shop"
+              className="mt-3 block text-center text-[11px] tracking-[0.3em] uppercase hover-underline"
+            >
               Continue Shopping
             </Link>
           </div>
@@ -137,11 +155,23 @@ function CartPage() {
   );
 }
 
-function Row({ label, value, bold, accent }: { label: string; value: string; bold?: boolean; accent?: boolean }) {
+function Row({
+  label,
+  value,
+  bold,
+  accent,
+}: {
+  label: string;
+  value: string;
+  bold?: boolean;
+  accent?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between py-1.5">
       <span className={`text-sm ${bold ? "eyebrow" : "text-muted-foreground"}`}>{label}</span>
-      <span className={`${bold ? "font-serif text-xl" : "text-sm"} ${accent ? "text-gold" : ""}`}>{value}</span>
+      <span className={`${bold ? "font-serif text-xl" : "text-sm"} ${accent ? "text-gold" : ""}`}>
+        {value}
+      </span>
     </div>
   );
 }

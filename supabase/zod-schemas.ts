@@ -10,21 +10,27 @@ import { z } from "zod";
 // ─── ENUMS ───────────────────────────────────────────────────────────────────
 
 export const OrderStatus = z.enum([
-  "pending", "confirmed", "processing", "shipped", "delivered", "cancelled", "refunded",
+  "pending",
+  "confirmed",
+  "processing",
+  "shipped",
+  "delivered",
+  "cancelled",
+  "refunded",
 ]);
 
-export const PaymentStatus = z.enum([
-  "pending", "completed", "failed", "refunded",
-]);
+export const PaymentStatus = z.enum(["pending", "completed", "failed", "refunded"]);
 
 export const DiscountType = z.enum(["percentage", "fixed"]);
 
-export const NotificationType = z.enum([
-  "order_update", "promo", "newsletter", "system",
-]);
+export const NotificationType = z.enum(["order_update", "promo", "newsletter", "system"]);
 
 export const InventoryChangeType = z.enum([
-  "order", "restock", "adjustment", "return", "cancellation",
+  "order",
+  "restock",
+  "adjustment",
+  "return",
+  "cancellation",
 ]);
 
 // ─── PROFILES ────────────────────────────────────────────────────────────────
@@ -56,7 +62,10 @@ export const CategorySchema = z.object({
   id: z.string().uuid(),
   parent_id: z.string().uuid().nullable(),
   name: z.string().min(1),
-  slug: z.string().min(1).regex(/^[a-z0-9-]+$/),
+  slug: z
+    .string()
+    .min(1)
+    .regex(/^[a-z0-9-]+$/),
   description: z.string().nullable(),
   image_url: z.string().url().nullable(),
   sort_order: z.number().int().min(0).default(0),
@@ -73,7 +82,10 @@ export const ProductSchema = z.object({
   id: z.string().uuid(),
   category_id: z.string().uuid(),
   name: z.string().min(1, "Product name is required"),
-  slug: z.string().min(1).regex(/^[a-z0-9-]+$/),
+  slug: z
+    .string()
+    .min(1)
+    .regex(/^[a-z0-9-]+$/),
   description: z.string().nullable(),
   price: numericDecimal,
   compare_price: numericDecimal.nullable(),
@@ -194,6 +206,7 @@ export const CartItemSchema = z.object({
   session_id: z.string().nullable(),
   product_id: z.string().uuid(),
   variant_id: z.string().uuid().nullable(),
+  size: z.string().default(""),
   quantity: z.number().int().min(1).default(1),
 });
 
@@ -235,7 +248,10 @@ export const CouponCreateSchema = CouponSchema.omit({ id: true, used_count: true
 export const BlogSchema = z.object({
   id: z.string().uuid(),
   title: z.string().min(1),
-  slug: z.string().min(1).regex(/^[a-z0-9-]+$/),
+  slug: z
+    .string()
+    .min(1)
+    .regex(/^[a-z0-9-]+$/),
   excerpt: z.string().nullable(),
   content: z.string().nullable(),
   cover_image: z.string().url().nullable(),
@@ -362,16 +378,18 @@ export const LoginSchema = z.object({
   remember: z.boolean().optional(),
 });
 
-export const RegisterSchema = z.object({
-  first_name: z.string().min(1, "First name is required"),
-  last_name: z.string().min(1, "Last name is required"),
-  email: z.string().email("Valid email is required"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  confirm_password: z.string(),
-}).refine((data) => data.password === data.confirm_password, {
-  message: "Passwords do not match",
-  path: ["confirm_password"],
-});
+export const RegisterSchema = z
+  .object({
+    first_name: z.string().min(1, "First name is required"),
+    last_name: z.string().min(1, "Last name is required"),
+    email: z.string().email("Valid email is required"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    confirm_password: z.string(),
+  })
+  .refine((data) => data.password === data.confirm_password, {
+    message: "Passwords do not match",
+    path: ["confirm_password"],
+  });
 
 export const ForgotPasswordSchema = z.object({
   email: z.string().email("Valid email is required"),

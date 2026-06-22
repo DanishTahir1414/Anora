@@ -3,6 +3,7 @@ import { Heart, Eye, X, Minus, Plus } from "lucide-react";
 import { useState } from "react";
 import type { Product } from "@/lib/products";
 import { useCart, useWishlist } from "@/lib/store";
+import { getProductAvailability, validateStockBeforeCheckout } from "@/lib/inventory";
 import { toast } from "sonner";
 
 export function ProductCard({ product }: { product: Product }) {
@@ -14,10 +15,11 @@ export function ProductCard({ product }: { product: Product }) {
   const [quickQty, setQuickQty] = useState(1);
   const second = product.images[1] ?? product.images[0];
 
-  const sizeStock = product.sizeStock ?? {};
+  const availability = getProductAvailability(product);
+  const sizeStock = availability.sizeStock ?? {};
   const hasSizeStock = Object.keys(sizeStock).length > 0;
-  const allOOS = hasSizeStock && product.sizes.every((s) => (sizeStock[s] ?? 1) === 0);
-  const isOOS = product.stock === 0 || allOOS;
+  const allOOS = hasSizeStock && availability.sizes.every((s) => (sizeStock[s] ?? 1) === 0);
+  const isOOS = !availability.isAvailable || availability.stock === 0 || allOOS;
 
   return (
     <>
@@ -61,9 +63,7 @@ export function ProductCard({ product }: { product: Product }) {
             }}
             className="absolute top-3 right-3 h-9 w-9 grid place-items-center bg-background/90 backdrop-blur transition-all duration-300 hover:text-gold hover:scale-105"
           >
-            <Heart
-              className={`h-4 w-4 ${wish.has(product.id) ? "fill-gold text-gold" : ""}`}
-            />
+            <Heart className={`h-4 w-4 ${wish.has(product.id) ? "fill-gold text-gold" : ""}`} />
           </button>
 
           {!isOOS && (
@@ -71,9 +71,14 @@ export function ProductCard({ product }: { product: Product }) {
               <button
                 onClick={() => {
                   const chosen = size ?? product.sizes[0];
-                  const sStock = sizeStock[chosen];
-                  if (hasSizeStock && sStock !== undefined && sStock === 0) {
-                    toast.error("This size is out of stock");
+                  const validation = validateStockBeforeCheckout(product, {
+                    productId: product.id,
+                    size: chosen,
+                    quantity: 1,
+                    color: availability.color,
+                  });
+                  if (!validation.ok) {
+                    toast.error(validation.reason ?? "This size is out of stock");
                     return;
                   }
                   cart.add(product.id, chosen, 1);
@@ -85,7 +90,7 @@ export function ProductCard({ product }: { product: Product }) {
               </button>
               <button
                 onClick={() => {
-                  setQuickSize(product.sizes[0]);
+                  setQuickSize(availability.sizes[0]);
                   setQuickQty(1);
                   setQuickOpen(true);
                 }}
@@ -115,7 +120,7 @@ export function ProductCard({ product }: { product: Product }) {
         </div>
 
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {product.sizes.map((s) => {
+          {availability.sizes.map((s) => {
             const qty = sizeStock[s];
             const disabled = hasSizeStock && qty !== undefined && qty === 0;
             return (
@@ -169,9 +174,7 @@ export function ProductCard({ product }: { product: Product }) {
                 <X className="h-5 w-5" />
               </button>
 
-              {product.badge && (
-                <span className="eyebrow text-gold mb-2">{product.badge}</span>
-              )}
+              {product.badge && <span className="eyebrow text-gold mb-2">{product.badge}</span>}
               <h2 className="font-serif text-3xl md:text-4xl">{product.name}</h2>
               <p className="text-[11px] tracking-[0.28em] uppercase text-muted-foreground mt-2">
                 {product.subcategory} · SKU {product.sku}
@@ -186,7 +189,7 @@ export function ProductCard({ product }: { product: Product }) {
               <div className="mt-6">
                 <p className="eyebrow mb-3">Size</p>
                 <div className="flex flex-wrap gap-2">
-                  {product.sizes.map((s) => {
+                  {availability.sizes.map((s) => {
                     const qty = sizeStock[s];
                     const disabled = hasSizeStock && qty !== undefined && qty === 0;
                     return (
@@ -234,9 +237,14 @@ export function ProductCard({ product }: { product: Product }) {
 
               <button
                 onClick={() => {
-                  const qty = sizeStock[quickSize];
-                  if (hasSizeStock && qty !== undefined && qty === 0) {
-                    toast.error("This size is out of stock");
+                  const validation = validateStockBeforeCheckout(product, {
+                    productId: product.id,
+                    size: quickSize,
+                    quantity: quickQty,
+                    color: availability.color,
+                  });
+                  if (!validation.ok) {
+                    toast.error(validation.reason ?? "This size is out of stock");
                     return;
                   }
                   cart.add(product.id, quickSize, quickQty);

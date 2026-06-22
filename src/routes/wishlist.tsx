@@ -37,7 +37,12 @@ function WishlistPage() {
             <div key={p.id} className="relative group">
               <Link to="/product/$slug" params={{ slug: p.slug }}>
                 <div className="aspect-[3/4] bg-neutral overflow-hidden">
-                  <img src={p.images[0]} alt={p.name} loading="lazy" className="h-full w-full object-cover transition-transform duration-1000 group-hover:scale-105" />
+                  <img
+                    src={p.images[0]}
+                    alt={p.name}
+                    loading="lazy"
+                    className="h-full w-full object-cover transition-transform duration-1000 group-hover:scale-105"
+                  />
                 </div>
               </Link>
               <button
@@ -49,8 +54,16 @@ function WishlistPage() {
               </button>
               <div className="pt-4 flex items-start justify-between">
                 <div>
-                  <Link to="/product/$slug" params={{ slug: p.slug }} className="font-serif text-lg hover:text-gold">{p.name}</Link>
-                  <p className="text-[11px] tracking-[0.28em] uppercase text-muted-foreground mt-1">{p.subcategory}</p>
+                  <Link
+                    to="/product/$slug"
+                    params={{ slug: p.slug }}
+                    className="font-serif text-lg hover:text-gold"
+                  >
+                    {p.name}
+                  </Link>
+                  <p className="text-[11px] tracking-[0.28em] uppercase text-muted-foreground mt-1">
+                    {p.subcategory}
+                  </p>
                 </div>
                 <span className="font-serif">${p.price}</span>
               </div>
