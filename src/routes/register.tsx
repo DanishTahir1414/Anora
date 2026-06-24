@@ -39,7 +39,7 @@ function RegisterPage() {
           We've sent a confirmation link to <strong className="text-foreground">{email}</strong>.
           Click the link to activate your account.
         </p>
-        <Link to="/login" className="inline-block mt-8 text-[11px] tracking-[0.32em] uppercase hover-underline">
+        <Link to="/login" search={{ redirectTo: "/account", confirmed: undefined }} className="inline-block mt-8 text-[11px] tracking-[0.32em] uppercase hover-underline">
           Back to sign in
         </Link>
       </div>
@@ -163,7 +163,7 @@ function RegisterPage() {
 
         <p className="text-center text-xs text-muted-foreground pt-2">
           Already have an account?{" "}
-          <Link to="/login" className="hover-underline">Sign in</Link>
+          <Link to="/login" search={{ redirectTo: "/account", confirmed: undefined }} className="hover-underline">Sign in</Link>
         </p>
       </form>
     </div>

@@ -20,7 +20,7 @@ SET search_path = ''
 AS $$
   SELECT EXISTS (
     SELECT 1
-    FROM admin_roles
+    FROM public.admin_roles
     WHERE user_id = auth.uid()
       AND (required IS NULL OR role = required)
   );
@@ -34,7 +34,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-  SELECT has_admin_role('admin');
+  SELECT public.has_admin_role('admin');
 $$;
 
 CREATE OR REPLACE FUNCTION is_staff()
@@ -44,7 +44,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-  SELECT has_admin_role(NULL);
+  SELECT public.has_admin_role(NULL);
 $$;
 
 -- Returns TRUE if the current user owns the given profile or is staff
@@ -55,7 +55,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-  SELECT auth.uid() = profile_id OR is_staff();
+  SELECT auth.uid() = profile_id OR public.is_staff();
 $$;
 
 -- ─── ENABLE RLS ──────────────────────────────────────────────────────────────
@@ -207,7 +207,7 @@ CREATE POLICY "Users can create items on own orders"
   );
 
 CREATE POLICY "Staff can manage order items"
-  ON order_items FOR UPDATE DELETE
+  ON order_items FOR ALL
   USING (is_staff());
 
 -- ─── CART ITEMS ──────────────────────────────────────────────────────────────
@@ -292,7 +292,7 @@ CREATE POLICY "Anyone can read active FAQs"
 
 CREATE POLICY "Editors and above can manage FAQs"
   ON faqs FOR INSERT
-  USING (has_admin_role('editor') OR has_admin_role('admin') OR has_admin_role('manager'));
+  WITH CHECK (has_admin_role('editor') OR has_admin_role('admin') OR has_admin_role('manager'));
 
 CREATE POLICY "Editors and above can update FAQs"
   ON faqs FOR UPDATE
@@ -332,7 +332,7 @@ CREATE POLICY "Anyone can read own subscription (by email)"
   USING (email = current_setting('request.email', true) OR is_staff());
 
 CREATE POLICY "Staff can manage newsletters"
-  ON newsletters FOR UPDATE DELETE
+  ON newsletters FOR ALL
   USING (is_staff());
 
 -- ─── INVENTORY LOGS ──────────────────────────────────────────────────────────

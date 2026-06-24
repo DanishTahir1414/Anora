@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useAuth, ProtectedRoute } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { Camera, Heart, LogOut, Package } from "lucide-react";
+import { Camera, Heart, LogOut, Package, LayoutDashboard } from "lucide-react";
 
 export const Route = createFileRoute("/account")({
   head: () => ({ meta: [{ title: "My Account — ANORA" }] }),
@@ -41,7 +41,7 @@ function AccountPage() {
 }
 
 function AccountInner() {
-  const { user, signOut } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
   const [tab, setTab] = useState<Tab>("orders");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -70,15 +70,16 @@ function AccountInner() {
       }
     });
 
-    supabase
-      .from("orders")
-      .select("id, order_number, total, status, payment_status, created_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        if (data) setOrders(data);
-      })
-      .finally(() => setLoading(false));
+    Promise.resolve(
+      supabase
+        .from("orders")
+        .select("id, order_number, total, status, payment_status, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .then(({ data }) => {
+          if (data) setOrders(data);
+        }),
+    ).finally(() => setLoading(false));
   }, [user]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -169,6 +170,15 @@ function AccountInner() {
               <Heart className="h-4 w-4" />
               Wishlist
             </Link>
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="flex items-center gap-3 w-full text-left text-sm py-2.5 text-muted-foreground hover:text-foreground transition-colors duration-300"
+              >
+                <LayoutDashboard className="h-4 w-4" />
+                Admin Dashboard
+              </Link>
+            )}
             <button
               onClick={handleLogout}
               className="flex items-center gap-3 w-full text-left text-sm py-2.5 text-muted-foreground hover:text-red/80 transition-colors duration-300"

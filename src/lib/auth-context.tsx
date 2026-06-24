@@ -6,7 +6,8 @@ import type { User, AuthError } from "@supabase/supabase-js";
 interface AuthState {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  isAdmin: boolean;
+  signIn: (email: string, password: string, remember?: boolean) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{ error: AuthError | null; needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
@@ -18,21 +19,45 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileRole, setProfileRole] = useState<string | null>(null);
+
+  const isAdmin = profileRole === "admin";
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
+      const u = session?.user ?? null;
+      setUser(u);
+      if (u) {
+        fetchProfileRole(u.id).then(() => setLoading(false));
+      } else {
+        setLoading(false);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      const u = session?.user ?? null;
+      setUser(u);
+      if (u) fetchProfileRole(u.id);
+      else setProfileRole(null);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  async function fetchProfileRole(userId: string) {
+    try {
+      const { data } = await supabase
+        .from("admin_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .single();
+      if (data?.role) setProfileRole(data.role);
+    } catch {
+      setProfileRole(null);
+    }
+  }
+
+  const signIn = async (email: string, password: string, _remember?: boolean) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error };
   };
@@ -65,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setProfileRole(null);
   };
 
   const resetPassword = async (email: string) => {
@@ -77,10 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     setUser(user);
+    if (user) fetchProfileRole(user.id);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, resetPassword, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, isAdmin, signIn, signUp, signOut, resetPassword, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
@@ -98,7 +125,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate({ to: "/login", search: { redirectTo: window.location.pathname } });
+      navigate({ to: "/login", search: { redirectTo: window.location.pathname, confirmed: undefined } });
     }
   }, [user, loading, navigate]);
 

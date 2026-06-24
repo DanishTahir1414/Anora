@@ -78,13 +78,15 @@ function Home() {
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-4">
             <Link
-              to="/shop/clothing"
+              to="/shop/$category"
+              params={{ category: "clothing" }}
               className="bg-background text-foreground px-10 py-4 text-[11px] tracking-[0.32em] uppercase hover:bg-gold hover:text-ink transition-all duration-300"
             >
               Shop Clothing
             </Link>
             <Link
-              to="/shop/jewellery"
+              to="/shop/$category"
+              params={{ category: "jewellery" }}
               className="border border-background text-background px-10 py-4 text-[11px] tracking-[0.32em] uppercase hover:bg-background hover:text-foreground transition-all duration-300"
             >
               Shop Jewellery
@@ -124,13 +126,15 @@ function Home() {
             title="Clothing"
             subtitle="Silks, cashmere & ceremonial dress"
             img={catClothing}
-            to="/shop/clothing"
+            to="/shop/$category"
+            params={{ category: "clothing" }}
           />
           <CategoryCard
             title="Jewellery"
             subtitle="Recycled 18k gold, fine stones"
             img={catJewellery}
-            to="/shop/jewellery"
+            to="/shop/$category"
+            params={{ category: "jewellery" }}
           />
         </div>
       </section>
@@ -269,15 +273,18 @@ function CategoryCard({
   subtitle,
   img,
   to,
+  params,
 }: {
   title: string;
   subtitle: string;
   img: string;
   to: string;
+  params?: Record<string, string>;
 }) {
+  const linkProps = params ? { to, params } : { to };
   return (
     <Link
-      to={to}
+      {...linkProps}
       className="group relative block overflow-hidden bg-neutral aspect-[4/5] md:aspect-[4/5.2]"
     >
       <img

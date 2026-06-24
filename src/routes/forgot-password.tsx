@@ -39,7 +39,7 @@ function ForgotPasswordPage() {
           We've sent a password reset link to <strong className="text-foreground">{email}</strong>.
           It expires in 1 hour.
         </p>
-        <Link to="/login" className="inline-block mt-8 text-[11px] tracking-[0.32em] uppercase hover-underline">
+        <Link to="/login" search={{ redirectTo: "/account", confirmed: undefined }} className="inline-block mt-8 text-[11px] tracking-[0.32em] uppercase hover-underline">
           Back to sign in
         </Link>
       </div>
@@ -82,7 +82,7 @@ function ForgotPasswordPage() {
         </button>
 
         <p className="text-center text-xs text-muted-foreground pt-2">
-          <Link to="/login" className="hover-underline">Back to sign in</Link>
+          <Link to="/login" search={{ redirectTo: "/account", confirmed: undefined }} className="hover-underline">Back to sign in</Link>
         </p>
       </form>
     </div>

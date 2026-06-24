@@ -5,11 +5,13 @@ import { useCart, useWishlist } from "@/lib/store";
 import { useAuth } from "@/lib/auth-context";
 import { MenuDrawer } from "./MenuDrawer";
 import { SearchDialog } from "./SearchDialog";
+import { AccountDropdown } from "./AccountDropdown";
 
 export function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const cart = useCart();
   const wish = useWishlist();
   const { user } = useAuth();
@@ -71,17 +73,28 @@ export function Header() {
                 </span>
               )}
             </Link>
-            <Link
-              to="/account"
-              aria-label="Account"
-              className="hidden sm:grid place-items-center h-[30px] w-[30px] hover:text-gold transition-all duration-300 hover:scale-105"
-            >
+            <div className="relative hidden sm:block">
               {user ? (
-                <span className="text-[11px] font-serif font-bold tracking-wide">{user.email![0].toUpperCase()}</span>
+                <>
+                  <button
+                    onClick={() => setAccountOpen((v) => !v)}
+                    aria-label="Account"
+                    className="grid place-items-center h-[30px] w-[30px] hover:text-gold transition-all duration-300 hover:scale-105"
+                  >
+                    <span className="text-[11px] font-serif font-bold tracking-wide">{(user.email ?? "A")[0].toUpperCase()}</span>
+                  </button>
+                  <AccountDropdown open={accountOpen} onClose={() => setAccountOpen(false)} />
+                </>
               ) : (
-                <User className="h-[18px] w-[18px]" />
+                <Link
+                  to="/account"
+                  aria-label="Account"
+                  className="grid place-items-center h-[30px] w-[30px] hover:text-gold transition-all duration-300 hover:scale-105"
+                >
+                  <User className="h-[18px] w-[18px]" />
+                </Link>
               )}
-            </Link>
+            </div>
           </div>
         </div>
       </header>

@@ -13,7 +13,8 @@ VALUES
   ('product-images', 'product-images', true, 5242880,  '{image/jpeg,image/png,image/webp,image/avif}'),
   ('blog-images',    'blog-images',    true, 5242880,  '{image/jpeg,image/png,image/webp,image/avif}'),
   ('banners',        'banners',        true, 10485760, '{image/jpeg,image/png,image/webp,image/avif}'),
-  ('avatars',        'avatars',        true, 2097152,  '{image/jpeg,image/png,image/webp}');
+  ('avatars',        'avatars',        true, 2097152,  '{image/jpeg,image/png,image/webp}')
+ON CONFLICT (id) DO NOTHING;
 
 -- Notes:
 --   file_size_limit is in bytes:
@@ -29,10 +30,12 @@ VALUES
 
 -- 1. Product images ──────────────────────────────────────────────────────────
 
+DROP POLICY IF EXISTS "Anyone can read product images" ON storage.objects;
 CREATE POLICY "Anyone can read product images"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'product-images');
 
+DROP POLICY IF EXISTS "Staff can upload product images" ON storage.objects;
 CREATE POLICY "Staff can upload product images"
   ON storage.objects FOR INSERT
   WITH CHECK (
@@ -40,20 +43,24 @@ CREATE POLICY "Staff can upload product images"
     AND is_staff()
   );
 
+DROP POLICY IF EXISTS "Staff can update product images" ON storage.objects;
 CREATE POLICY "Staff can update product images"
   ON storage.objects FOR UPDATE
   USING (bucket_id = 'product-images' AND is_staff());
 
+DROP POLICY IF EXISTS "Staff can delete product images" ON storage.objects;
 CREATE POLICY "Staff can delete product images"
   ON storage.objects FOR DELETE
   USING (bucket_id = 'product-images' AND is_staff());
 
 -- 2. Blog images ─────────────────────────────────────────────────────────────
 
+DROP POLICY IF EXISTS "Anyone can read blog images" ON storage.objects;
 CREATE POLICY "Anyone can read blog images"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'blog-images');
 
+DROP POLICY IF EXISTS "Staff can upload blog images" ON storage.objects;
 CREATE POLICY "Staff can upload blog images"
   ON storage.objects FOR INSERT
   WITH CHECK (
@@ -61,6 +68,7 @@ CREATE POLICY "Staff can upload blog images"
     AND (has_admin_role('editor') OR has_admin_role('admin') OR has_admin_role('manager'))
   );
 
+DROP POLICY IF EXISTS "Staff can update blog images" ON storage.objects;
 CREATE POLICY "Staff can update blog images"
   ON storage.objects FOR UPDATE
   USING (
@@ -68,6 +76,7 @@ CREATE POLICY "Staff can update blog images"
     AND (has_admin_role('editor') OR has_admin_role('admin') OR has_admin_role('manager'))
   );
 
+DROP POLICY IF EXISTS "Staff can delete blog images" ON storage.objects;
 CREATE POLICY "Staff can delete blog images"
   ON storage.objects FOR DELETE
   USING (
@@ -77,28 +86,34 @@ CREATE POLICY "Staff can delete blog images"
 
 -- 3. Banners ──────────────────────────────────────────────────────────────────
 
+DROP POLICY IF EXISTS "Anyone can read banners" ON storage.objects;
 CREATE POLICY "Anyone can read banners"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'banners');
 
+DROP POLICY IF EXISTS "Staff can upload banners" ON storage.objects;
 CREATE POLICY "Staff can upload banners"
   ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'banners' AND is_staff());
 
+DROP POLICY IF EXISTS "Staff can update banners" ON storage.objects;
 CREATE POLICY "Staff can update banners"
   ON storage.objects FOR UPDATE
   USING (bucket_id = 'banners' AND is_staff());
 
+DROP POLICY IF EXISTS "Staff can delete banners" ON storage.objects;
 CREATE POLICY "Staff can delete banners"
   ON storage.objects FOR DELETE
   USING (bucket_id = 'banners' AND is_staff());
 
 -- 4. Avatars ──────────────────────────────────────────────────────────────────
 
+DROP POLICY IF EXISTS "Anyone can read avatars" ON storage.objects;
 CREATE POLICY "Anyone can read avatars"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'avatars');
 
+DROP POLICY IF EXISTS "Users can upload own avatar" ON storage.objects;
 CREATE POLICY "Users can upload own avatar"
   ON storage.objects FOR INSERT
   WITH CHECK (
@@ -106,6 +121,7 @@ CREATE POLICY "Users can upload own avatar"
     AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Users can update own avatar" ON storage.objects;
 CREATE POLICY "Users can update own avatar"
   ON storage.objects FOR UPDATE
   USING (
@@ -113,6 +129,7 @@ CREATE POLICY "Users can update own avatar"
     AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Users can delete own avatar" ON storage.objects;
 CREATE POLICY "Users can delete own avatar"
   ON storage.objects FOR DELETE
   USING (
@@ -120,6 +137,7 @@ CREATE POLICY "Users can delete own avatar"
     AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Staff can manage any avatar" ON storage.objects;
 CREATE POLICY "Staff can manage any avatar"
   ON storage.objects FOR ALL
   USING (bucket_id = 'avatars' AND is_staff());
