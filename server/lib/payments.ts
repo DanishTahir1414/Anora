@@ -29,8 +29,8 @@ export interface CreateCheckoutSessionInput {
   items: CheckoutItemInput[];
   shippingAddress?: CheckoutAddress;
   billingAddress?: CheckoutAddress;
-  successUrl: string;
-  cancelUrl: string;
+  successUrl?: string;
+  cancelUrl?: string;
   checkoutSessionToken?: string;
 }
 
@@ -286,6 +286,109 @@ export async function createStripeCheckoutSession(
   };
 }
 
+export async function createCODOrder(
+  input: CreateCheckoutSessionInput,
+): Promise<CheckoutSessionResult> {
+  const validated = validateCartItems(input.items);
+  if (!validated.ok) {
+    throw new Error(validated.error ?? "Cart validation failed");
+  }
+
+  const lineItems = buildLineItems(input.items);
+  const shippingCost = 0;
+  const total = clampMoney(validated.subtotal + shippingCost);
+  const orderNumber = buildOrderNumber();
+  const cartSnapshot = JSON.stringify(validated.items);
+
+  const insertFields: Record<string, unknown> = {
+    user_id: input.userId,
+    status: "confirmed",
+    subtotal: validated.subtotal,
+    shipping_cost: shippingCost,
+    discount: 0,
+    total,
+    coupon_code: null,
+    payment_status: "pending",
+    payment_method: "cod",
+    shipping_address: input.shippingAddress ?? null,
+    billing_address: input.billingAddress ?? null,
+    notes: "Cash on Delivery",
+    order_number: orderNumber,
+    payment_provider: "cod",
+    cart_snapshot: cartSnapshot,
+    paid_at: null,
+    checkout_started_at: new Date().toISOString(),
+  };
+
+  if (input.checkoutSessionToken) {
+    insertFields.checkout_session_token = input.checkoutSessionToken;
+  }
+
+  const { data: order, error: orderError } = await supabaseAdmin
+    .from("orders")
+    .insert(insertFields)
+    .select("id, order_number")
+    .single();
+
+  if (orderError || !order) {
+    throw new Error(orderError?.message ?? "Unable to create COD order");
+  }
+
+  const { error: itemsError } = await supabaseAdmin.from("order_items").insert(
+    lineItems.map((line) => ({
+      order_id: order.id,
+      product_id: line.product.id,
+      variant_id: line.variantId,
+      name: line.product.name,
+      price: Number(line.unitAmount) / 100,
+      quantity: line.quantity,
+      image_url: line.product.images[0] ?? null,
+      attributes: {
+        size: line.size,
+        color: line.product.color,
+        sku: line.product.sku,
+      },
+    })),
+  );
+
+  if (itemsError) {
+    await supabaseAdmin.from("orders").delete().eq("id", order.id);
+    throw new Error(itemsError.message);
+  }
+
+  // Decrement stock for each item
+  const decrements = await Promise.all(
+    lineItems.map((line) =>
+      supabaseAdmin.rpc("decrement_checkout_stock", {
+        p_product_id: line.product.id,
+        p_quantity: line.quantity,
+        p_size: line.size ?? "",
+        p_variant_id: line.variantId,
+        p_reference: orderNumber,
+        p_notes: `cod:${orderNumber}`,
+      }),
+    ),
+  );
+
+  const anyFailed = decrements.some(({ data, error }) => error || data !== true);
+  if (anyFailed) {
+    await supabaseAdmin
+      .from("orders")
+      .update({
+        status: "cancelled",
+        notes: "Stock conflict at COD placement",
+      })
+      .eq("id", order.id);
+    throw new Error("Stock conflict — unable to place order");
+  }
+
+  return {
+    orderId: order.id,
+    orderNumber: order.order_number,
+    checkoutUrl: `/account/orders/${order.id}`,
+  };
+}
+
 function hmacSha256(value: string, secret: string) {
   return crypto.createHmac("sha256", secret).update(value, "utf8").digest("hex");
 }
@@ -357,15 +460,12 @@ export async function confirmStripeOrder(event: {
   // ─── Idempotency: claim the webhook atomically ─────────────────────────
   // This prevents double-processing from retried webhook deliveries.
   const idempotencyKey = `${event.id}::${order.id}`;
-  const { data: claimed, error: claimError } = await supabaseAdmin.rpc(
-    "try_claim_webhook",
-    {
-      p_order_id: order.id,
-      p_idempotency_key: idempotencyKey,
-      p_payment_intent: paymentIntentId || null,
-      p_session_id: sessionId || null,
-    },
-  );
+  const { data: claimed, error: claimError } = await supabaseAdmin.rpc("try_claim_webhook", {
+    p_order_id: order.id,
+    p_idempotency_key: idempotencyKey,
+    p_payment_intent: paymentIntentId || null,
+    p_session_id: sessionId || null,
+  });
 
   if (claimError) {
     throw new Error(claimError.message);

@@ -9,6 +9,11 @@ export interface CategoryRow {
   created_at: string;
   updated_at: string;
   product_count: number;
+  parent_id: string | null;
+  description: string | null;
+  image_url: string | null;
+  sort_order: number;
+  parent_name: string | null;
 }
 
 export interface CategoriesResponse {
@@ -67,14 +72,58 @@ export function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-export async function createCategory(name: string, slug: string): Promise<RpcResult> {
-  return rpc<RpcResult>("create_category", { p_name: name, p_slug: slug });
+export async function createCategory(
+  name: string,
+  slug: string,
+  parentId?: string | null,
+  description?: string | null,
+  imageUrl?: string | null,
+  sortOrder?: number,
+  isActive?: boolean,
+): Promise<RpcResult> {
+  return rpc<RpcResult>("create_category", {
+    p_name: name,
+    p_slug: slug,
+    p_parent_id: parentId ?? null,
+    p_description: description ?? null,
+    p_image_url: imageUrl ?? null,
+    p_sort_order: sortOrder ?? 0,
+    p_is_active: isActive ?? true,
+  });
 }
 
-export async function updateCategory(id: string, name: string, slug: string): Promise<RpcResult> {
-  return rpc<RpcResult>("update_category", { p_id: id, p_name: name, p_slug: slug });
+export async function updateCategory(
+  id: string,
+  name: string,
+  slug: string,
+  parentId?: string | null,
+  description?: string | null,
+  imageUrl?: string | null,
+  sortOrder?: number,
+  isActive?: boolean,
+): Promise<RpcResult> {
+  return rpc<RpcResult>("update_category", {
+    p_id: id,
+    p_name: name,
+    p_slug: slug,
+    p_parent_id: parentId ?? null,
+    p_description: description ?? null,
+    p_image_url: imageUrl ?? null,
+    p_sort_order: sortOrder ?? 0,
+    p_is_active: isActive ?? true,
+  });
 }
 
 export async function deleteCategory(id: string): Promise<RpcResult> {
   return rpc<RpcResult>("delete_category", { p_id: id });
+}
+
+export interface ParentCategoryOption {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export async function getParentCategories(): Promise<ParentCategoryOption[]> {
+  return rpc<ParentCategoryOption[]>("get_parent_categories");
 }

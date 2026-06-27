@@ -1,17 +1,24 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState, useRef, useCallback } from "react";
 import { ChevronDown, Heart, Minus, Plus, Share2, Truck, X } from "lucide-react";
-import { getProduct, products } from "@/lib/products";
+import { products } from "@/lib/products";
+import { getProductBySlug } from "@/lib/products-db";
+import { mapDbProductToStatic } from "@/lib/product-mapper";
 import { useCart, useWishlist } from "@/lib/store";
+import { registerProduct } from "@/lib/customer-services";
 import { getProductAvailability, validateStockBeforeCheckout } from "@/lib/inventory";
 import { ProductCard } from "@/components/site/ProductCard";
 import { toast } from "sonner";
+import type { Product } from "@/lib/products";
 
 export const Route = createFileRoute("/product/$slug")({
-  loader: ({ params }) => {
-    const product = getProduct(params.slug);
-    if (!product) throw notFound();
-    return { product };
+  loader: async ({ params }) => {
+    const dbResult = await getProductBySlug(params.slug);
+    if (!dbResult || !dbResult.product) throw notFound();
+    const parentSlug = dbResult.parent_category?.slug ?? "clothing";
+    const subName = dbResult.category?.name ?? "";
+    const product = mapDbProductToStatic(dbResult.product, dbResult.images, parentSlug, subName);
+    return { product, related: getRelatedProducts(product) };
   },
   head: ({ loaderData }) => {
     const p = loaderData?.product;
@@ -38,6 +45,10 @@ export const Route = createFileRoute("/product/$slug")({
     </div>
   ),
 });
+
+function getRelatedProducts(product: Product): Product[] {
+  return products.filter((p) => p.id !== product.id && p.category === product.category).slice(0, 3);
+}
 
 function getActiveState(product: (typeof products)[number], color: string) {
   const availability = getProductAvailability(product, color);
@@ -67,9 +78,12 @@ function getActiveState(product: (typeof products)[number], color: string) {
 }
 
 function ProductPage() {
-  const { product } = Route.useLoaderData();
+  const { product, related } = Route.useLoaderData();
   const cart = useCart();
   const wish = useWishlist();
+
+  // Register the product so cart operations can find it by ID
+  registerProduct(product);
 
   const colors = product.colorVariants?.map((v) => v.color) ?? [product.color];
   const [activeColor, setActiveColor] = useState(product.color);
@@ -84,10 +98,6 @@ function ProductPage() {
   const hasSizeStock = active.sizeStock && Object.keys(active.sizeStock).length > 0;
   const allOOS = hasSizeStock && active.sizes.every((s) => (active.sizeStock![s] ?? 1) === 0);
   const isOOS = !active.isAvailable || active.stock === 0 || allOOS;
-
-  const related = products
-    .filter((p) => p.id !== product.id && p.category === product.category)
-    .slice(0, 3);
 
   // ─── Color switch ───
   const switchColor = useCallback(
@@ -136,7 +146,7 @@ function ProductPage() {
         <span className="mx-2">/</span>
         <Link
           to="/shop/$category"
-          params={{ category: product.category }}
+          params={{ category: product.category as string }}
           className="hover:text-foreground transition-colors"
         >
           {product.category}

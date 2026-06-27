@@ -22,34 +22,37 @@ const AddressSchema = z
   })
   .optional();
 
-export const CreateStripeCheckoutSchema = z.object({
+const StripeCheckoutSchema = z.object({
   items: z.array(CheckoutItemSchema).min(1),
   shippingAddress: AddressSchema,
   billingAddress: AddressSchema,
   email: z.string().email(),
+  accessToken: z.string(),
 });
 
-export type CreateStripeCheckoutInput = z.infer<typeof CreateStripeCheckoutSchema>;
-
-export interface CreateStripeCheckoutResult {
-  orderId: string;
-  orderNumber: string;
-  checkoutUrl: string;
-}
-
 export const createStripeCheckoutSession = createServerFn({ method: "POST" })
-  .validator(CreateStripeCheckoutSchema)
+  .validator(StripeCheckoutSchema)
   .handler(async ({ data }) => {
-    const response = await fetch("/api/stripe/checkout", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    const { accessToken, email, items, shippingAddress, billingAddress } = data;
 
-    if (!response.ok) {
-      const message = await response.text();
-      throw new Error(message || "Unable to start Stripe checkout");
+    const { createStripeCheckoutSession: serverCreateSession } =
+      await import("../../server/lib/payments");
+    const { supabaseAdmin } = await import("../../server/lib/supabase-admin");
+
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
+    if (userError || !userData?.user) {
+      throw new Error("Authentication required");
     }
 
-    return (await response.json()) as CreateStripeCheckoutResult;
+    const baseUrl = process.env.PUBLIC_APP_URL ?? "http://localhost:5173";
+
+    return await serverCreateSession({
+      userId: userData.user.id,
+      email,
+      items,
+      shippingAddress: shippingAddress ?? undefined,
+      billingAddress: billingAddress ?? undefined,
+      successUrl: `${baseUrl}/checkout?success=1`,
+      cancelUrl: `${baseUrl}/checkout?canceled=1`,
+    });
   });

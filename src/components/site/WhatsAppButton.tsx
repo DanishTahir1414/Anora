@@ -13,7 +13,7 @@ export function WhatsAppButton() {
     <div className="fixed bottom-5 left-5 z-40 animate-fade-up">
       <div className="relative">
         <a
-          href="https://wa.me/15555555555?text=Hello%20ANORA"
+          href="https://wa.me/13473256525?text=Hello%20ANORA"
           target="_blank"
           rel="noreferrer"
           aria-label="WhatsApp us"

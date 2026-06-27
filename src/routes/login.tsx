@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -37,6 +38,12 @@ function LoginPage() {
 
   const isLoggedInAndConfirmed = user && confirmed;
 
+  async function determineRedirect(): Promise<string> {
+    if (redirectTo !== "/account") return redirectTo;
+    const { data } = await supabase.rpc("has_admin_role", { required: "admin" });
+    return data ? "/admin" : "/account";
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -51,7 +58,7 @@ function LoginPage() {
     }
 
     toast.success("Welcome back");
-    window.location.href = redirectTo;
+    window.location.href = await determineRedirect();
   };
 
   return (

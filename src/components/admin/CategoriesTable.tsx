@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Table,
   TableHeader,
@@ -34,7 +34,9 @@ import {
   updateCategory,
   deleteCategory,
   slugify,
+  getParentCategories,
   type CategoryRow,
+  type ParentCategoryOption,
 } from "@/lib/admin-categories";
 
 export function CategoriesTable() {
@@ -88,17 +90,12 @@ export function CategoriesTable() {
               <TableHead className="cursor-pointer select-none" onClick={() => handleSort("name")}>
                 Name{sortIndicator("name")}
               </TableHead>
+              <TableHead>Parent</TableHead>
               <TableHead>Slug</TableHead>
-              <TableHead
-                className="cursor-pointer select-none text-right"
-                onClick={() => handleSort("product_count")}
-              >
+              <TableHead className="cursor-pointer select-none text-right" onClick={() => handleSort("product_count")}>
                 Products{sortIndicator("product_count")}
               </TableHead>
-              <TableHead
-                className="cursor-pointer select-none"
-                onClick={() => handleSort("created_at")}
-              >
+              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("created_at")}>
                 Created{sortIndicator("created_at")}
               </TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -107,20 +104,23 @@ export function CategoriesTable() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : (result?.categories?.length ?? 0) === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                   No categories found
                 </TableCell>
               </TableRow>
             ) : (
               result?.categories.map((cat) => (
                 <TableRow key={cat.id}>
-                  <TableCell className="font-medium">{cat.name}</TableCell>
+                  <TableCell className="font-medium">
+                    {cat.parent_id ? <span className="ml-4">{cat.name}</span> : <strong>{cat.name}</strong>}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{cat.parent_name ?? "—"}</TableCell>
                   <TableCell className="font-mono text-sm">{cat.slug}</TableCell>
                   <TableCell className="text-right">{cat.product_count}</TableCell>
                   <TableCell>{new Date(cat.created_at).toLocaleDateString()}</TableCell>
@@ -171,8 +171,14 @@ function CreateCategoryDialog({ onSuccess }: { onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [parentId, setParentId] = useState("");
+  const [parents, setParents] = useState<ParentCategoryOption[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open) getParentCategories().then(setParents).catch(() => {});
+  }, [open]);
 
   function handleNameChange(val: string) {
     setName(val);
@@ -184,13 +190,15 @@ function CreateCategoryDialog({ onSuccess }: { onSuccess: () => void }) {
     setError("");
     if (!name.trim()) { setError("Name is required"); return; }
     if (!slug.trim()) { setError("Slug is required"); return; }
+    if (!parentId) { setError("Parent category is required"); return; }
     setLoading(true);
-    const result = await createCategory(name.trim(), slug.trim());
+    const result = await createCategory(name.trim(), slug.trim(), parentId);
     setLoading(false);
     if (result.success) {
       setOpen(false);
       setName("");
       setSlug("");
+      setParentId("");
       onSuccess();
     } else {
       setError(result.error ?? "Failed to create category");
@@ -199,20 +207,34 @@ function CreateCategoryDialog({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button onClick={() => setOpen(true)}>Add Category</Button>
+      <Button onClick={() => setOpen(true)}>Add Subcategory</Button>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create Category</DialogTitle>
-          <DialogDescription>Add a new product category.</DialogDescription>
+          <DialogTitle>Create Subcategory</DialogTitle>
+          <DialogDescription>Add a new subcategory under Clothing or Jewellery.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="cat-parent">Parent Category</Label>
+            <select
+              id="cat-parent"
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+              className="w-full bg-background border border-border px-4 py-3 text-sm outline-none focus:border-foreground transition-colors"
+            >
+              <option value="">Select parent...</option>
+              {parents.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="cat-name">Name</Label>
             <Input
               id="cat-name"
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
-              placeholder="Category name"
+              placeholder="Subcategory name"
             />
           </div>
           <div className="space-y-2">
@@ -221,7 +243,7 @@ function CreateCategoryDialog({ onSuccess }: { onSuccess: () => void }) {
               id="cat-slug"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
-              placeholder="category-slug"
+              placeholder="subcategory-slug"
             />
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
@@ -240,8 +262,15 @@ function EditCategoryDialog({ category, onSuccess }: { category: CategoryRow; on
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(category.name);
   const [slug, setSlug] = useState(category.slug);
+  const [parentId, setParentId] = useState(category.parent_id ?? "");
+  const [parents, setParents] = useState<ParentCategoryOption[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const isRoot = !category.parent_id;
+
+  useEffect(() => {
+    if (open) getParentCategories().then(setParents).catch(() => {});
+  }, [open]);
 
   function handleNameChange(val: string) {
     setName(val);
@@ -254,7 +283,12 @@ function EditCategoryDialog({ category, onSuccess }: { category: CategoryRow; on
     if (!name.trim()) { setError("Name is required"); return; }
     if (!slug.trim()) { setError("Slug is required"); return; }
     setLoading(true);
-    const result = await updateCategory(category.id, name.trim(), slug.trim());
+    const result = await updateCategory(
+      category.id,
+      name.trim(),
+      slug.trim(),
+      isRoot ? null : parentId || null,
+    );
     setLoading(false);
     if (result.success) {
       setOpen(false);
@@ -266,7 +300,7 @@ function EditCategoryDialog({ category, onSuccess }: { category: CategoryRow; on
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button variant="ghost" size="sm" onClick={() => { setName(category.name); setSlug(category.slug); setError(""); setOpen(true); }}>
+      <Button variant="ghost" size="sm" onClick={() => { setName(category.name); setSlug(category.slug); setParentId(category.parent_id ?? ""); setError(""); setOpen(true); }}>
         Edit
       </Button>
       <DialogContent>
@@ -275,21 +309,29 @@ function EditCategoryDialog({ category, onSuccess }: { category: CategoryRow; on
           <DialogDescription>Update category details.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {!isRoot && (
+            <div className="space-y-2">
+              <Label htmlFor="edit-parent">Parent Category</Label>
+              <select
+                id="edit-parent"
+                value={parentId}
+                onChange={(e) => setParentId(e.target.value)}
+                className="w-full bg-background border border-border px-4 py-3 text-sm outline-none focus:border-foreground transition-colors"
+              >
+                <option value="">Select parent...</option>
+                {parents.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="edit-name">Name</Label>
-            <Input
-              id="edit-name"
-              value={name}
-              onChange={(e) => handleNameChange(e.target.value)}
-            />
+            <Input id="edit-name" value={name} onChange={(e) => handleNameChange(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="edit-slug">Slug</Label>
-            <Input
-              id="edit-slug"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-            />
+            <Input id="edit-slug" value={slug} onChange={(e) => setSlug(e.target.value)} />
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <DialogFooter>

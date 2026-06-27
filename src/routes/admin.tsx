@@ -130,10 +130,6 @@ function AdminPage() {
   const { data: giftCardData, loading: giftCardLoading, refetch: refetchGiftCards } = useGiftCardAnalytics();
   const [, setTick] = useState(0);
 
-  if (!isDashboard) {
-    return <Outlet />;
-  }
-
   const lastUpdated = summary ? Date.now() : null;
 
   useEffect(() => {
@@ -141,6 +137,10 @@ function AdminPage() {
     const id = setInterval(() => setTick((n) => n + 1), 10_000);
     return () => clearInterval(id);
   }, [lastUpdated]);
+
+  if (!isDashboard) {
+    return <Outlet />;
+  }
 
   const timestamp = lastUpdated !== null ? formatRelativeTime(lastUpdated) : "—";
 

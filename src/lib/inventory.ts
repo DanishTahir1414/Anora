@@ -67,9 +67,11 @@ function clampStock(value: number | undefined | null) {
 }
 
 function normalizeSizeStock(sizeStock?: Record<string, number> | null) {
-  return Object.fromEntries(
+  const raw = Object.fromEntries(
     Object.entries(sizeStock ?? {}).map(([size, quantity]) => [size, clampStock(quantity)]),
   );
+  const hasAnyNonZero = Object.values(raw).some((v) => v > 0);
+  return hasAnyNonZero ? raw : {};
 }
 
 function getVariantRecord(product: Product, color?: string) {

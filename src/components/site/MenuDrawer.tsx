@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { useEffect } from "react";
 import { subcategories } from "@/lib/products";
+import { useActiveCategories, type CategoryNode } from "@/lib/categories";
 
 interface Props {
   open: boolean;
@@ -9,9 +10,16 @@ interface Props {
 }
 
 export function MenuDrawer({ open, onClose }: Props) {
+  const { data: dbCategories = [] } = useActiveCategories();
+
+  const categories = dbCategories.length > 0 ? dbCategories : [];
+
   useEffect(() => {
-    if (open) document.body.style.overflow = "hidden";
-    else document.body.style.overflow = "";
+    if (open) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
     return () => {
       document.body.style.overflow = "";
     };
@@ -40,18 +48,30 @@ export function MenuDrawer({ open, onClose }: Props) {
         </div>
 
         <div className="h-[calc(100%-5rem)] overflow-y-auto px-7 py-10 space-y-10">
-          <Section
-            title="Clothing"
-            items={subcategories.clothing}
-            base="/shop/clothing"
-            onNav={onClose}
-          />
-          <Section
-            title="Jewellery"
-            items={subcategories.jewellery}
-            base="/shop/jewellery"
-            onNav={onClose}
-          />
+            {categories.length > 0 ? categories.map((cat) => (
+            <Section
+              key={cat.id}
+              title={cat.name}
+              items={cat.children.map((c) => ({ name: c.name, slug: c.slug }))}
+              base={`/shop/${cat.slug}`}
+              onNav={onClose}
+            />
+          )) : (
+            <>
+              <Section
+                title="Clothing"
+                items={subcategories.clothing.map((c) => ({ name: c, slug: c.toLowerCase() }))}
+                base="/shop/clothing"
+                onNav={onClose}
+              />
+              <Section
+                title="Jewellery"
+                items={subcategories.jewellery.map((c) => ({ name: c, slug: c.toLowerCase() }))}
+                base="/shop/jewellery"
+                onNav={onClose}
+              />
+            </>
+          )}
           <div className="pt-6 border-t border-border/60 space-y-5">
             {[
               { to: "/blogs", label: "Blogs" },
@@ -83,7 +103,7 @@ function Section({
   onNav,
 }: {
   title: string;
-  items: string[];
+  items: { name: string; slug: string }[];
   base: string;
   onNav: () => void;
 }) {
@@ -98,13 +118,13 @@ function Section({
       </Link>
       <ul className="space-y-3">
         {items.map((s) => (
-          <li key={s}>
+          <li key={s.slug}>
             <Link
-              to={base}
+              to={`${base}/${s.slug}`}
               onClick={onNav}
               className="text-[13px] text-muted-foreground hover:text-foreground transition-all duration-300 tracking-wide inline-block hover:translate-x-1"
             >
-              {s}
+              {s.name}
             </Link>
           </li>
         ))}

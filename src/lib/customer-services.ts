@@ -41,7 +41,13 @@ let hydrated = false;
 let cartSnapshotCache: CartSnapshot = { items: [], count: 0, subtotal: 0, detailed: [] };
 let wishlistSnapshotCache: WishlistState = { ids: [] };
 const listeners = new Set<Listener>();
+const productRegistry = new Map<string, Product>();
 const searchCache = new Map<string, Product[]>();
+
+// Initialize registry with hardcoded catalog products
+for (const p of catalog) {
+  productRegistry.set(p.id, p);
+}
 
 interface CartRow {
   id: string;
@@ -98,6 +104,18 @@ function hydrate() {
   wishIds = readJson<string[]>(WISH_KEY, []);
   ensureSessionId();
   rebuildSnapshots();
+
+  // Kick off async product loading for any cart items referencing
+  // DB products not yet in the registry (e.g. after a page reload).
+  const missingIds = cartItems
+    .map((i) => i.productId)
+    .filter((id) => !productRegistry.has(id) && !catalog.find((p) => p.id === id));
+  if (missingIds.length > 0) {
+    loadProductsByIds(missingIds).then(() => {
+      rebuildSnapshots();
+      notify();
+    });
+  }
 }
 
 function persist() {
@@ -108,7 +126,33 @@ function persist() {
 function rebuildSnapshots() {
   const detailed = cartItems.flatMap((item) => {
     const product = getProduct(item.productId);
-    if (!product) return [];
+    if (!product) {
+      // Product data unavailable (e.g. DB product not yet loaded after page reload).
+      // Keep the item in snapshots so the cart isn't empty; subtotal defaults to 0
+      // until product data arrives. Use a stub product to avoid null crashes in consumers.
+      return [
+        {
+          item,
+          product: {
+            id: item.productId,
+            slug: "",
+            name: "",
+            price: 0,
+            category: "clothing" as const,
+            subcategory: "",
+            description: "",
+            color: "",
+            sizes: [],
+            sku: "",
+            stock: 0,
+            sizeStock: {},
+            images: [],
+          },
+          active: item.active,
+          availableQuantity: item.quantity,
+        },
+      ];
+    }
     const validation = validateStockBeforeCheckout(product, {
       productId: item.productId,
       variantId: item.variantId ?? undefined,
@@ -125,19 +169,93 @@ function rebuildSnapshots() {
     ];
   });
 
+  const activeDetailed = detailed.filter((entry) => entry.active);
   cartSnapshotCache = {
     items: cartItems,
     count: cartItems.reduce((sum, item) => sum + activeQuantity(item), 0),
-    subtotal: detailed
-      .filter((entry) => entry.active)
-      .reduce((sum, entry) => sum + entry.item.quantity * entry.product.price, 0),
+    subtotal: activeDetailed.reduce((sum, entry) => {
+      const price = entry.product?.price ?? 0;
+      return sum + entry.item.quantity * price;
+    }, 0),
     detailed,
   };
   wishlistSnapshotCache = { ids: wishIds };
 }
 
+/** Register a product so cart operations can find it by ID. */
+export function registerProduct(product: Product) {
+  productRegistry.set(product.id, product);
+}
+
+/** Look up a product by ID — checks the registry first, then the hardcoded catalog. */
 function getProduct(productId: string) {
-  return catalog.find((entry) => entry.id === productId);
+  return productRegistry.get(productId) ?? catalog.find((entry) => entry.id === productId);
+}
+
+/**
+ * Fetch product data from the DB for IDs not yet in the registry.
+ * This handles the post-login page-reload case where the registry is empty
+ * but cart items from localStorage reference DB products (UUIDs).
+ */
+const productsLoading = new Set<string>();
+
+async function loadProductsByIds(ids: string[]) {
+  const missing = ids.filter(
+    (id) =>
+      !productRegistry.has(id) && !catalog.find((p) => p.id === id) && !productsLoading.has(id),
+  );
+  if (missing.length === 0) return;
+  for (const id of missing) productsLoading.add(id);
+
+  try {
+    const { data: stockRows } = await supabase
+      .from("products")
+      .select(
+        "id, stock, size_stock, sizes, sku, price, name, slug, color, description, material, fabric, is_new, is_best_seller, low_stock_threshold, category_id",
+      )
+      .in("id", missing);
+
+    const { data: imageRows } = await supabase
+      .from("product_images")
+      .select("product_id, image_url, sort_order")
+      .in("product_id", missing)
+      .order("sort_order");
+
+    const imageMap = new Map<string, string[]>();
+    if (imageRows) {
+      for (const row of imageRows) {
+        const list = imageMap.get(row.product_id) ?? [];
+        list.push(row.image_url);
+        imageMap.set(row.product_id, list);
+      }
+    }
+
+    if (stockRows) {
+      for (const row of stockRows) {
+        const stub: Product = {
+          id: row.id,
+          slug: row.slug,
+          name: row.name,
+          price: row.price,
+          category: "clothing" as const,
+          subcategory: "",
+          description: row.description ?? "",
+          color: row.color ?? "Ivory",
+          sizes: (row.sizes as string[]) ?? [],
+          sku: row.sku ?? "",
+          stock: row.stock,
+          sizeStock: (row.size_stock as Record<string, number>) ?? {},
+          images: imageMap.get(row.id) ?? [],
+          badge: row.is_new ? "New" : row.is_best_seller ? "Best Seller" : undefined,
+        };
+        productRegistry.set(row.id, stub);
+      }
+    }
+  } catch {
+    // Best-effort: if fetch fails, cart items stay but won't have full product data
+  } finally {
+    for (const id of missing) productsLoading.delete(id);
+  }
 }
 
 function cartKey(productId: string, variantId?: string | null, size?: string) {
@@ -177,7 +295,8 @@ export function validateCartStock(items: CartItem[] = cartItems) {
   const validated = items.map((item) => {
     const product = getProduct(item.productId);
     if (!product) {
-      return { ...item, active: false, quantity: 0 };
+      // Product data not available — keep item active with current quantity
+      return { ...item };
     }
     const validation = validateStockBeforeCheckout(product, {
       productId: item.productId,
@@ -204,28 +323,29 @@ export function validateCartStock(items: CartItem[] = cartItems) {
 export async function addToCart(productId: string, variantId?: string | null, size = "", qty = 1) {
   hydrate();
   const product = getProduct(productId);
-  if (!product) return;
-  const validation = validateStockBeforeCheckout(product, {
-    productId,
-    variantId: variantId ?? undefined,
-    size,
-    quantity: qty,
-  });
-  if (!validation.ok) return;
+  const validation = product
+    ? validateStockBeforeCheckout(product, {
+        productId,
+        variantId: variantId ?? undefined,
+        size,
+        quantity: qty,
+      })
+    : null;
+  if (validation && !validation.ok) return;
 
   const key = cartKey(productId, variantId, size);
   const existing = cartItems.find(
     (item) => cartKey(item.productId, item.variantId, item.size) === key,
   );
   const nextQuantity = clamp((existing?.quantity ?? 0) + qty);
-  const capped = Math.min(nextQuantity, validation.availableQuantity);
+  const capped = validation ? Math.min(nextQuantity, validation.availableQuantity) : nextQuantity;
   const next: CartItem = {
     id: existing?.id ?? crypto.randomUUID(),
     productId,
     variantId: variantId ?? null,
     size,
     quantity: capped,
-    active: capped > 0 && validation.ok,
+    active: capped > 0 && (validation ? validation.ok : true),
     source: currentUserId ? "server" : "local",
     updatedAt: Date.now(),
   };
@@ -242,11 +362,28 @@ export async function addToCart(productId: string, variantId?: string | null, si
 
 export async function removeFromCart(itemId: string) {
   hydrate();
+  const removedItem = cartItems.find((item) => item.id === itemId);
   cartItems = cartItems.filter((item) => item.id !== itemId);
   persist();
   rebuildSnapshots();
   notify();
-  if (currentUserId) {
+  if (currentUserId && removedItem) {
+    // Delete the server row BEFORE syncing so syncCartWithServer() does NOT
+    // fetch it and merge it back in.
+    const q = supabase
+      .from("cart_items")
+      .delete()
+      .eq("user_id", currentUserId)
+      .eq("product_id", removedItem.productId)
+      .eq("size", removedItem.size);
+    // Supabase .eq(null) generates `= null` which PostgREST treats as
+    // literal string, NOT `IS NULL`.  Use .is() for null variant_id.
+    if (removedItem.variantId != null) {
+      q.eq("variant_id", removedItem.variantId);
+    } else {
+      q.is("variant_id", null);
+    }
+    await q;
     await syncCartWithServer();
   }
 }
@@ -294,8 +431,17 @@ export async function syncCartWithServer() {
     updatedAt: Date.now(),
   }));
 
+  // Load product data for any IDs not yet in the registry
+  const allIds = [...serverItems, ...cartItems].map((i) => i.productId);
+  await loadProductsByIds(allIds);
+
+  // Local deletions are authoritative: start with local items as the base,
+  // then only merge server items that already exist locally.
   const merged = new Map<string, CartItem>();
-  for (const item of [...serverItems, ...cartItems]) {
+  for (const item of cartItems) {
+    merged.set(cartKey(item.productId, item.variantId, item.size), item);
+  }
+  for (const item of serverItems) {
     const key = cartKey(item.productId, item.variantId, item.size);
     const existing = merged.get(key);
     if (existing) {
@@ -304,14 +450,15 @@ export async function syncCartWithServer() {
         quantity: Math.max(existing.quantity, item.quantity),
         active: existing.active || item.active,
       });
-    } else {
-      merged.set(key, item);
     }
   }
 
   cartItems = Array.from(merged.values()).map((item) => {
     const product = getProduct(item.productId);
-    if (!product) return { ...item, active: false };
+    if (!product) {
+      // Product data unavailable — keep item active (validation was done at add time)
+      return { ...item, active: true, source: "server" as const };
+    }
     const validation = validateStockBeforeCheckout(product, {
       productId: item.productId,
       variantId: item.variantId ?? undefined,
@@ -352,8 +499,32 @@ export async function mergeGuestCartToUser(userId: string) {
   currentUserId = userId;
   const guestItems = cartItems.filter((item) => item.source === "local");
   if (guestItems.length === 0) {
+    // No guest items – download server cart into local state, then sync.
+    const { data, error } = await supabase
+      .from("cart_items")
+      .select("id, product_id, variant_id, size, quantity")
+      .eq("user_id", userId);
+    if (!error && data && data.length > 0) {
+      cartItems = (data as CartRow[]).map((row) => ({
+        id: row.id,
+        productId: row.product_id,
+        variantId: row.variant_id,
+        size: row.size ?? "",
+        quantity: row.quantity,
+        active: true,
+        source: "server" as const,
+        updatedAt: Date.now(),
+      }));
+      await loadProductsByIds(cartItems.map((i) => i.productId));
+      persist();
+      rebuildSnapshots();
+      notify();
+    }
     return syncCartWithServer();
   }
+
+  // Load product data for guest items, which may reference DB products not yet in registry
+  await loadProductsByIds(guestItems.map((i) => i.productId));
 
   const { data, error } = await supabase
     .from("cart_items")
@@ -380,7 +551,14 @@ export async function mergeGuestCartToUser(userId: string) {
     const key = cartKey(item.productId, item.variantId, item.size);
     const existing = merged.get(key);
     const product = getProduct(item.productId);
-    if (!product) continue;
+    if (!product) {
+      // Product data unavailable — keep the item with its stored values
+      merged.set(key, {
+        ...item,
+        source: "server",
+      });
+      continue;
+    }
     const validation = validateStockBeforeCheckout(product, {
       productId: item.productId,
       variantId: item.variantId ?? undefined,

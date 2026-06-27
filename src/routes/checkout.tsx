@@ -4,6 +4,7 @@ import { ProtectedRoute, useAuth } from "@/lib/auth-context";
 import { useCart } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { createStripeCheckoutSession } from "@/lib/payments";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({ meta: [{ title: "Checkout — ANORA" }] }),
@@ -54,6 +55,14 @@ function Checkout() {
             toast.error("Please sign in to complete checkout");
             return;
           }
+
+          // Read form data synchronously BEFORE any await — after the first
+          // await, React's synthetic event sets currentTarget to null, causing
+          // "Cannot read properties of null (reading 'elements')".
+          const form = e.currentTarget;
+          const val = (name: string) =>
+            (form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? "";
+
           setSubmitting(true);
           try {
             const { data } = await supabase.auth.getSession();
@@ -62,79 +71,94 @@ function Checkout() {
               throw new Error("Your session expired. Please sign in again.");
             }
 
-            // Detect if cart changed since page was loaded
             if (JSON.stringify(cart.items) !== cartSnapshot) {
               toast.error("Your bag has changed. Please review before checking out.");
               setSubmitting(false);
               return;
             }
 
-            const response = await fetch("/api/stripe/checkout", {
-              method: "POST",
-              headers: {
-                "content-type": "application/json",
-                authorization: `Bearer ${accessToken}`,
-              },
-              body: JSON.stringify({
-                email: user.email ?? "",
-                checkoutSessionToken,
-                items: cart.items.map((item) => ({
-                  productId: item.productId,
-                  variantId: item.variantId ?? null,
-                  size: item.size,
-                  quantity: item.quantity,
-                })),
-                shippingAddress: {
-                  firstName: (
-                    e.currentTarget.elements.namedItem("firstName") as HTMLInputElement | null
-                  )?.value,
-                  lastName: (
-                    e.currentTarget.elements.namedItem("lastName") as HTMLInputElement | null
-                  )?.value,
-                  line1: (e.currentTarget.elements.namedItem("address") as HTMLInputElement | null)
-                    ?.value,
-                  city: (e.currentTarget.elements.namedItem("city") as HTMLInputElement | null)
-                    ?.value,
-                  postalCode: (
-                    e.currentTarget.elements.namedItem("postalCode") as HTMLInputElement | null
-                  )?.value,
-                  country: (
-                    e.currentTarget.elements.namedItem("country") as HTMLInputElement | null
-                  )?.value,
-                  phone: (e.currentTarget.elements.namedItem("phone") as HTMLInputElement | null)
-                    ?.value,
+            if (payment === "cod") {
+              const response = await fetch("/api/checkout/cod", {
+                method: "POST",
+                headers: {
+                  "content-type": "application/json",
+                  authorization: `Bearer ${accessToken}`,
                 },
-                billingAddress: billingSame
-                  ? undefined
-                  : {
-                      line1: (
-                        e.currentTarget.elements.namedItem(
-                          "billingAddress",
-                        ) as HTMLInputElement | null
-                      )?.value,
-                      city: (
-                        e.currentTarget.elements.namedItem("billingCity") as HTMLInputElement | null
-                      )?.value,
-                      postalCode: (
-                        e.currentTarget.elements.namedItem(
-                          "billingPostalCode",
-                        ) as HTMLInputElement | null
-                      )?.value,
-                      country: (
-                        e.currentTarget.elements.namedItem(
-                          "billingCountry",
-                        ) as HTMLInputElement | null
-                      )?.value,
-                    },
-              }),
-            });
+                body: JSON.stringify({
+                  email: user.email ?? "",
+                  checkoutSessionToken,
+                  items: cart.items.map((item) => ({
+                    productId: item.productId,
+                    variantId: item.variantId ?? null,
+                    size: item.size,
+                    quantity: item.quantity,
+                  })),
+                  shippingAddress: {
+                    firstName: val("firstName"),
+                    lastName: val("lastName"),
+                    line1: val("address"),
+                    city: val("city"),
+                    postalCode: val("postalCode"),
+                    country: val("country"),
+                    phone: val("phone"),
+                  },
+                  billingAddress: billingSame
+                    ? undefined
+                    : {
+                        line1: val("billingAddress"),
+                        city: val("billingCity"),
+                        postalCode: val("billingPostalCode"),
+                        country: val("billingCountry"),
+                      },
+                }),
+              });
 
-            if (!response.ok) {
-              throw new Error(await response.text());
+              if (!response.ok) {
+                throw new Error(await response.text());
+              }
+
+              const codResult = (await response.json()) as {
+                orderId: string;
+                orderNumber: string;
+                checkoutUrl: string;
+              };
+              cart.clear();
+              toast.success(`Order ${codResult.orderNumber} placed!`, {
+                description: "You'll pay upon delivery. We'll contact you with updates.",
+              });
+              window.location.assign(codResult.checkoutUrl);
+              return;
             }
 
-            const payload = (await response.json()) as { checkoutUrl: string };
-            window.location.assign(payload.checkoutUrl);
+            const result = await createStripeCheckoutSession({
+              accessToken,
+              email: user.email ?? "",
+              items: cart.items.map((item) => ({
+                productId: item.productId,
+                variantId: item.variantId ?? null,
+                size: item.size,
+                quantity: item.quantity,
+              })),
+              shippingAddress: {
+                firstName: val("firstName"),
+                lastName: val("lastName"),
+                line1: val("address"),
+                city: val("city"),
+                postalCode: val("postalCode"),
+                country: val("country"),
+                phone: val("phone"),
+              },
+              billingAddress: billingSame
+                ? undefined
+                : {
+                    line1: val("billingAddress"),
+                    city: val("billingCity"),
+                    postalCode: val("billingPostalCode"),
+                    country: val("billingCountry"),
+                  },
+            });
+
+            window.location.assign(result.checkoutUrl);
           } catch (error) {
             toast.error("Checkout could not start", {
               description: error instanceof Error ? error.message : "Please try again.",

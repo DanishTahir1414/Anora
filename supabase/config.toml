@@ -382,8 +382,14 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
-# [edge_runtime.secrets]
-# secret_key = "env(SECRET_VALUE)"
+[edge_runtime.secrets]
+RESEND_API_KEY = "env(RESEND_API_KEY)"
+FROM_EMAIL = "invoices@anora-elegance.com"
+
+[functions.send-invoice]
+enabled = true
+verify_jwt = false
+import_map = "./supabase/functions/send-invoice/deno.json"
 
 [analytics]
 enabled = true

@@ -51,7 +51,7 @@ function Contact() {
         </form>
 
         <div className="space-y-8">
-          <Info icon={<MessageCircle className="h-4 w-4" />} label="WhatsApp" value="+1 (555) 555-5555" href="https://wa.me/15555555555" />
+          <Info icon={<MessageCircle className="h-4 w-4" />} label="WhatsApp" value="+1 (347) 325-6525" href="https://wa.me/15555555555" />
           <Info icon={<Mail className="h-4 w-4" />} label="Email" value="care@anora.com" href="mailto:care@anora.com" />
           <Info icon={<Phone className="h-4 w-4" />} label="Phone" value="+1 (212) 555-0199" href="tel:+12125550199" />
           <Info icon={<MapPin className="h-4 w-4" />} label="Atelier" value="12 Atelier Lane, SoHo, New York, NY 10012" />

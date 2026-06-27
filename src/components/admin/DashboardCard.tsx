@@ -10,8 +10,8 @@ interface DashboardCardProps {
 
 export function DashboardCard({ label, value, icon, loading }: DashboardCardProps) {
   return (
-    <div className="border border-border/60 p-4 sm:p-6 space-y-2 sm:space-y-3 transition-colors duration-300 hover:border-foreground/20">
-      <div className="flex items-center justify-between gap-2">
+    <div className="border border-border/60 p-4 sm:p-6 space-y-2 sm:space-y-3 transition-colors duration-300 hover:border-foreground/20 min-w-0 overflow-hidden">
+      <div className="flex items-center gap-2 min-w-0">
         <span className="text-[10px] sm:text-[11px] tracking-[0.28em] sm:tracking-[0.32em] uppercase text-muted-foreground truncate">
           {label}
         </span>

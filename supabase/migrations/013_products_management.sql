@@ -143,6 +143,10 @@ DECLARE
   v_new_slug      TEXT;
   v_copy_num      INT;
 BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'permission denied for role admin';
+  END IF;
+
   SELECT * INTO v_product FROM public.products WHERE id = p_product_id;
   IF v_product.id IS NULL THEN
     RETURN jsonb_build_object('success', false, 'error', 'Product not found');
@@ -156,6 +160,11 @@ BEGIN
   END LOOP;
 
   v_new_slug := v_product.slug || '-copy-' || v_copy_num;
+
+  WHILE EXISTS (SELECT 1 FROM public.products WHERE slug = v_new_slug) LOOP
+    v_copy_num := v_copy_num + 1;
+    v_new_slug := v_product.slug || '-copy-' || v_copy_num;
+  END LOOP;
 
   INSERT INTO public.products (
     category_id, name, slug, description, price, compare_price,

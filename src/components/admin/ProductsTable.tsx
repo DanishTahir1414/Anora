@@ -20,7 +20,7 @@ import {
   bulkDeleteProducts,
   type ProductManagementRow,
 } from "@/lib/admin-products";
-import { ProductFormDialog } from "./ProductFormDialog";
+import { ProductForm } from "./ProductForm";
 
 const STATUS_BADGES: Record<string, string> = {
   active: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
@@ -140,7 +140,7 @@ export function ProductsTable() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [stockFilter, setStockFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<ProductManagementRow | null>(null);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [duplicating, setDuplicating] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deletingProducts, setDeletingProducts] = useState<ProductManagementRow[] | null>(null);
@@ -167,7 +167,8 @@ export function ProductsTable() {
   );
 
   const hasFilters = !!(search || statusFilter || categoryFilter || stockFilter);
-  const allSelected = result && result.products.length > 0 && result.products.every((p) => selected.has(p.id));
+  const products = result?.products ?? [];
+  const allSelected = products.length > 0 && products.every((p) => selected.has(p.id));
   const someSelected = selected.size > 0;
 
   function toggleSort(column: string) {
@@ -204,12 +205,12 @@ export function ProductsTable() {
   }
 
   function handleCreate() {
-    setEditingProduct(null);
+    setEditingProductId(null);
     setModalOpen(true);
   }
 
   function handleEdit(product: ProductManagementRow) {
-    setEditingProduct(product);
+    setEditingProductId(product.id);
     setModalOpen(true);
   }
 
@@ -349,7 +350,8 @@ export function ProductsTable() {
                       <Checkbox checked={false} onCheckedChange={(v) => { if (v) toggleAll(); }} />
                     )}
                   </TableHead>
-                  <TableHead className="cursor-pointer min-w-[180px]" onClick={() => toggleSort("name")}>
+                  <TableHead className="w-14">Image</TableHead>
+                  <TableHead className="cursor-pointer min-w-[160px]" onClick={() => toggleSort("name")}>
                     Product Name<SortIcon column="name" />
                   </TableHead>
                   <TableHead className="cursor-pointer" onClick={() => toggleSort("sku")}>
@@ -382,6 +384,13 @@ export function ProductsTable() {
                         onCheckedChange={() => toggleOne(p.id)}
                       />
                     </TableCell>
+                    <TableCell>
+                      {p.thumbnail ? (
+                        <img src={p.thumbnail} alt="" className="w-10 h-13 object-cover rounded" />
+                      ) : (
+                        <div className="w-10 h-13 bg-neutral rounded" />
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell className="text-xs text-muted-foreground font-mono">{p.sku ?? "—"}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{p.category_name}</TableCell>
@@ -405,15 +414,15 @@ export function ProductsTable() {
               </TableBody>
             </Table>
           </div>
-          <Pagination page={page} total={result.total} pageSize={pageSize} onPage={setPage} />
+          <Pagination page={page} total={result?.total ?? 0} pageSize={pageSize} onPage={setPage} />
         </>
       )}
 
-      <ProductFormDialog
+      <ProductForm
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSaved={handleSaved}
-        product={editingProduct}
+        productId={editingProductId}
       />
 
       {deletingProducts && (
