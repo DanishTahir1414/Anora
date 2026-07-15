@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { StorageService } from "./storage";
 import { NotFoundError } from "../lib/errors";
 import { logger } from "../lib/logger";
@@ -54,6 +53,7 @@ function formatDate(dateStr: string): string {
 }
 
 async function generateInvoicePdf(data: InvoiceData): Promise<Uint8Array> {
+  const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib");
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);

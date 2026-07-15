@@ -2,7 +2,6 @@ import { r as __exportAll } from "../_runtime.mjs";
 import { n as env, t as __exportAll$1 } from "./env-kAZsRxGY.mjs";
 import { n as createClient } from "../_libs/@supabase/ssr+[...].mjs";
 import { t as Stripe } from "../_libs/stripe.mjs";
-import { n as StandardFonts, r as rgb, t as PDFDocument } from "../_libs/pdf-lib.mjs";
 import { d as mergeHeaders, i as defaultSerovalPlugins, s as makeSerovalPlugin } from "../_libs/@tanstack/router-core+[...].mjs";
 import { A as parseRedirect, O as isRedirect } from "../_libs/@tanstack/react-router+[...].mjs";
 import { i as stringType, n as numberType, r as objectType, t as arrayType } from "../_libs/zod.mjs";
@@ -811,6 +810,7 @@ function formatDate(dateStr) {
 	});
 }
 async function generateInvoicePdf(data) {
+	const { PDFDocument, rgb, StandardFonts } = await import("../_libs/pdf-lib.mjs").then((n) => n.t);
 	const pdfDoc = await PDFDocument.create();
 	const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 	const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
