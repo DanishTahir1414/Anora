@@ -32,21 +32,9 @@ export type InvoiceData = {
   }>;
 };
 
-type AddressInput = string | Record<string, unknown>;
+import { formatAddress } from "../../src/lib/payments";
 
-function formatAddress(addr: AddressInput): string {
-  const parsed = typeof addr === "string" ? tryParseJson(addr) : addr;
-  if (!parsed) return typeof addr === "string" ? addr : "";
-  const parts = [
-    parsed.line1,
-    parsed.line2,
-    parsed.city,
-    parsed.state,
-    parsed.postal_code,
-    parsed.country,
-  ].filter(Boolean) as string[];
-  return parts.join(", ");
-}
+type AddressInput = string | Record<string, unknown>;
 
 function tryParseJson(s: string): Record<string, unknown> | null {
   try {

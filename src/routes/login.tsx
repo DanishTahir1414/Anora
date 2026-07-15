@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { mapSignInError } from "@/lib/auth-errors";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -53,7 +54,7 @@ function LoginPage() {
     setSubmitting(false);
 
     if (signInError) {
-      setError(signInError.message);
+      setError(mapSignInError(signInError));
       return;
     }
 

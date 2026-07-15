@@ -61,6 +61,14 @@ export interface Refund {
   processed_at: string | null;
 }
 
+export interface StatusHistoryEntry {
+  id: string;
+  previous_status: string | null;
+  new_status: string;
+  note: string | null;
+  created_at: string;
+}
+
 export interface OrderDetails {
   id: string;
   order_number: string | null;
@@ -72,7 +80,11 @@ export interface OrderDetails {
   discount: number;
   total: number;
   notes: string | null;
+  internal_notes: string | null;
   coupon_code: string | null;
+  cancelled_by: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
   created_at: string;
   updated_at: string;
   customer: OrderCustomer;
@@ -81,6 +93,7 @@ export interface OrderDetails {
   items: OrderItem[];
   return_requests: ReturnRequest[];
   refunds: Refund[];
+  status_history: StatusHistoryEntry[];
 }
 
 export interface OrderDetailsResponse {
@@ -266,4 +279,39 @@ export async function processRefund(refundId: string, status: string): Promise<R
     p_refund_id: refundId,
     p_status: status,
   });
+}
+
+export async function cancelOrder(
+  orderId: string,
+  reason: string,
+  cancelledBy: "customer" | "admin" = "admin",
+): Promise<RpcResult> {
+  return rpc<RpcResult>("cancel_order", {
+    p_order_id: orderId,
+    p_reason: reason,
+    p_cancelled_by: cancelledBy,
+  });
+}
+
+export async function addInternalNote(
+  orderId: string,
+  note: string,
+): Promise<RpcResult> {
+  return rpc<RpcResult>("add_internal_note", {
+    p_order_id: orderId,
+    p_note: note,
+  });
+}
+
+export async function requestRefund(
+  orderId: string,
+  reason: string,
+  description?: string,
+): Promise<RpcResult> {
+  const params: Record<string, unknown> = {
+    p_order_id: orderId,
+    p_reason: reason,
+  };
+  if (description) params.p_description = description;
+  return rpc<RpcResult>("request_refund", params);
 }

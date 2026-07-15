@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { ProtectedRoute, useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { CheckCircle, FileDown, Loader } from "lucide-react";
+import { formatAddress, getInvoicePdfUrl } from "@/lib/payments";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/order/success")({
   validateSearch: (search: Record<string, string | undefined>) => ({
@@ -23,13 +25,37 @@ function OrderSuccessPage() {
   );
 }
 
-async function downloadInvoice(invoiceId: string) {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData.session?.access_token;
-  if (!token) return;
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const apiUrl = `${origin}/api/invoice/${invoiceId}/pdf?token=${encodeURIComponent(token)}`;
-  window.open(apiUrl, "_blank");
+async function downloadInvoice(invoiceId: string): Promise<boolean> {
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) {
+      toast.error("Please sign in to download your invoice.");
+      return false;
+    }
+
+    const result = await getInvoicePdfUrl({
+      data: {
+        invoiceId,
+        accessToken: token,
+      },
+    });
+
+    const response = await fetch(result.signedUrl);
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${result.invoiceNumber}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    return true;
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : "Failed to download invoice PDF.");
+    return false;
+  }
 }
 
 function DownloadInvoice({ invoiceId }: { invoiceId: string }) {
@@ -37,16 +63,16 @@ function DownloadInvoice({ invoiceId }: { invoiceId: string }) {
   return (
     <button
       type="button"
-      onClick={() => {
+      onClick={async () => {
         setLoading(true);
-        downloadInvoice(invoiceId);
-        setTimeout(() => setLoading(false), 3000);
+        await downloadInvoice(invoiceId);
+        setLoading(false);
       }}
       disabled={loading}
       className="mt-3 inline-flex items-center gap-2 text-sm text-gold hover:underline disabled:opacity-50"
     >
       {loading ? <Loader className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-      {loading ? "Opening..." : "Download Invoice PDF"}
+      {loading ? "Downloading..." : "Download Invoice PDF"}
     </button>
   );
 }
@@ -279,15 +305,8 @@ function OrderSuccess() {
         {shippingAddr && (
           <div className="p-6">
             <h2 className="eyebrow mb-3">Shipping Address</h2>
-            <div className="text-sm text-muted-foreground leading-relaxed">
-              {Object.entries(shippingAddr)
-                .filter(([_, v]) => v)
-                .map(([k, v]) => (
-                  <span key={k}>
-                    {v}
-                    <br />
-                  </span>
-                ))}
+            <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+              {formatAddress(shippingAddr)}
             </div>
           </div>
         )}

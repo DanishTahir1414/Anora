@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { mapSignUpError } from "@/lib/auth-errors";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -54,8 +55,8 @@ function RegisterPage() {
     e.preventDefault();
     setError("");
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (password.length < 8) {
+      setError("Choose a stronger password (minimum 8 characters).");
       return;
     }
     if (password !== confirmPassword) {
@@ -73,7 +74,7 @@ function RegisterPage() {
     setSubmitting(false);
 
     if (signUpError) {
-      setError(signUpError.message);
+      setError(mapSignUpError(signUpError));
       return;
     }
 
@@ -169,7 +170,7 @@ function RegisterPage() {
           disabled={submitting}
           className="w-full bg-foreground text-background py-3.5 text-[11px] tracking-[0.32em] uppercase hover:bg-gold hover:text-ink transition-all duration-300 disabled:opacity-50"
         >
-          {submitting ? "Creating…" : "Create Account"}
+          {submitting ? "Creating account…" : "Create Account"}
         </button>
 
         <p className="text-center text-xs text-muted-foreground pt-2">

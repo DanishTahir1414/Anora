@@ -19,6 +19,7 @@ const REQUIRED_VARS: EnvVar[] = [
   // PayPal is optional
   { key: "PAYPAL_CLIENT_ID", required: false },
   { key: "PAYPAL_SECRET", required: false },
+  { key: "PAYPAL_WEBHOOK_ID", required: false },
 ];
 
 function loadDotEnv(): Record<string, string> {
@@ -141,11 +142,19 @@ class Environment {
   }
 
   get paypalClientId(): string {
-    return this.get("PAYPAL_CLIENT_ID");
+    return this.get("PAYPAL_CLIENT_ID") || this.get("VITE_PAYPAL_CLIENT_ID");
   }
 
   get paypalSecret(): string {
     return this.get("PAYPAL_SECRET");
+  }
+
+  get paypalEnvironment(): string {
+    return this.get("PAYPAL_ENVIRONMENT") || "sandbox";
+  }
+
+  get paypalWebhookId(): string {
+    return this.get("PAYPAL_WEBHOOK_ID");
   }
 
   get fromEmail(): string {

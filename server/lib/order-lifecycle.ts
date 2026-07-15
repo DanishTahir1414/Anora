@@ -1,12 +1,15 @@
 import { getContainer } from "../container";
 import { logger } from "../lib/logger";
 import { PaymentError, NotFoundError } from "../lib/errors";
+import { validateCartItems, type CartItemInput } from "./cart-validation";
+import { calculateTotals } from "./totals";
 import {
   buildAdminNotificationHtml,
   buildInvoiceEmailHtml,
   buildThankYouHtml,
   type EmailItem,
 } from "../templates";
+import { formatAddress } from "../../src/lib/payments";
 
 export interface OrderCreationResult {
   success: boolean;
@@ -42,11 +45,30 @@ export interface PaymentIntentCreationInput {
   paymentIntentId: string;
 }
 
+export interface PayPalOrderCreationInput {
+  userId: string;
+  email: string;
+  paypalOrderId: string;
+  items: Array<{
+    productId: string;
+    variantId: string | null;
+    size: string;
+    quantity: number;
+    unitPrice: number;
+    productName: string;
+    imageUrl?: string;
+  }>;
+  shippingAddress: Record<string, string>;
+  billingAddress: Record<string, string>;
+  total: number;
+  paymentMethod: string;
+}
+
 type EmailPayloadInput = {
   orderId: string;
   invoiceId: string;
   customerEmail: string;
-  customerName: string;
+  customerProfile?: { firstName?: string | null; lastName?: string | null; displayName?: string | null } | null;
   phone: string;
   orderNumber: string;
   invoiceNumber: string;
@@ -62,19 +84,6 @@ type EmailPayloadInput = {
   paymentStatus: string;
 };
 
-function formatAddress(address: Record<string, string>): string {
-  const name = [address.firstName, address.lastName].filter(Boolean).join(" ");
-  return [
-    name,
-    address.address1 ?? address.address,
-    address.address2,
-    [address.city, address.state, address.zip ?? address.postalCode].filter(Boolean).join(", "),
-    address.country,
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
 function estimatedDeliveryFrom(orderDateIso: string): string {
   const deliveryDate = new Date(orderDateIso);
   deliveryDate.setDate(deliveryDate.getDate() + 7);
@@ -85,12 +94,27 @@ function buildEmailPayload(input: EmailPayloadInput): Record<string, unknown> {
   const shippingAddressText = formatAddress(input.shippingAddress);
   const billingAddressText = formatAddress(input.billingAddress);
 
+  const customerNameInput = {
+    firstName: input.customerProfile?.firstName,
+    lastName: input.customerProfile?.lastName,
+    displayName: input.customerProfile?.displayName,
+    shippingAddress: {
+      firstName: input.shippingAddress.firstName,
+      lastName: input.shippingAddress.lastName
+    },
+    billingAddress: {
+      firstName: input.billingAddress.firstName,
+      lastName: input.billingAddress.lastName
+    },
+    email: input.customerEmail
+  };
+
   return {
     ...input,
     shippingAddressText,
     billingAddressText,
     thankYouHtml: buildThankYouHtml({
-      customerName: input.customerName,
+      customer: customerNameInput,
       orderNumber: input.orderNumber,
       orderDate: input.orderDate,
       items: input.items,
@@ -99,7 +123,7 @@ function buildEmailPayload(input: EmailPayloadInput): Record<string, unknown> {
       estimatedDelivery: estimatedDeliveryFrom(input.orderDate),
     }),
     invoiceEmailHtml: buildInvoiceEmailHtml({
-      customerName: input.customerName,
+      customer: customerNameInput,
       invoiceNumber: input.invoiceNumber,
       orderNumber: input.orderNumber,
       orderDate: input.orderDate,
@@ -115,7 +139,7 @@ function buildEmailPayload(input: EmailPayloadInput): Record<string, unknown> {
     }),
     adminSubject: `New order ${input.orderNumber}`,
     adminHtml: buildAdminNotificationHtml({
-      customerName: input.customerName,
+      customer: customerNameInput,
       customerEmail: input.customerEmail,
       phone: input.phone,
       orderNumber: input.orderNumber,
@@ -421,15 +445,31 @@ export async function createOrderFromPaymentIntent(
   const shippingAddr = verification.shippingAddress ?? {};
   const billingAddr = verification.billingAddress ?? verification.shippingAddress ?? {};
 
+  let customerProfile = null;
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("first_name, last_name, email, metadata")
+      .eq("id", verification.userId)
+      .maybeSingle();
+    if (profile) {
+      customerProfile = {
+        firstName: profile.first_name,
+        lastName: profile.last_name,
+        displayName: (profile.metadata as Record<string, any>)?.displayName || "",
+        email: profile.email
+      };
+    }
+  } catch (err) {
+    logger.warn("Failed to fetch customer profile for order email", { error: String(err) });
+  }
+
   const orderDate = new Date().toISOString();
   const emailPayload = buildEmailPayload({
     orderId,
     invoiceId,
     customerEmail: verification.email ?? "",
-    customerName:
-      shippingAddr.firstName && shippingAddr.lastName
-        ? `${shippingAddr.firstName} ${shippingAddr.lastName}`
-        : (verification.email ?? ""),
+    customerProfile,
     phone: shippingAddr.phone ?? "",
     orderNumber,
     invoiceNumber: outInvoiceNumber,
@@ -546,15 +586,31 @@ export async function createOrderFromPayment(
   const shippingAddr = input.shippingAddress;
   const billingAddr = input.billingAddress || input.shippingAddress;
 
+  let customerProfile = null;
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("first_name, last_name, email, metadata")
+      .eq("id", input.userId)
+      .maybeSingle();
+    if (profile) {
+      customerProfile = {
+        firstName: profile.first_name,
+        lastName: profile.last_name,
+        displayName: (profile.metadata as Record<string, any>)?.displayName || "",
+        email: profile.email
+      };
+    }
+  } catch (err) {
+    logger.warn("Failed to fetch customer profile for order email", { error: String(err) });
+  }
+
   const orderDate = new Date().toISOString();
   const emailPayload = buildEmailPayload({
     orderId,
     invoiceId,
     customerEmail: input.email,
-    customerName:
-      shippingAddr.firstName && shippingAddr.lastName
-        ? `${shippingAddr.firstName} ${shippingAddr.lastName}`
-        : input.email,
+    customerProfile,
     phone: input.phone || "",
     orderNumber,
     invoiceNumber: outInvoiceNumber,
@@ -573,6 +629,158 @@ export async function createOrderFromPayment(
     tax: 0,
     total,
     paymentMethod: verification.paymentMethod ?? input.stripePaymentMethod ?? "card",
+    paymentStatus: "completed",
+  });
+
+  queue.enqueue(orderId, emailPayload).catch((err) => {
+    logger.error("Job enqueue failed", { orderId, error: String(err) });
+  });
+
+  return {
+    success: true,
+    orderId,
+    orderNumber: result.order_number as string,
+    invoiceNumber: outInvoiceNumber,
+    invoiceId,
+  };
+}
+
+export async function createOrderFromPayPal(
+  input: PayPalOrderCreationInput,
+): Promise<OrderCreationResult> {
+  const { supabase, queue } = getContainer();
+
+  logger.info("Creating order from PayPal", { paypalOrderId: input.paypalOrderId });
+
+  const { data: existingOrder } = await supabase
+    .from("orders")
+    .select("id, order_number, status")
+    .eq("paypal_order_id", input.paypalOrderId)
+    .maybeSingle();
+
+  if (existingOrder) {
+    logger.info("Existing order found for PayPal", { orderId: existingOrder.id });
+    const { data: invoiceRecord } = await supabase
+      .from("invoices")
+      .select("id, invoice_number")
+      .eq("order_id", existingOrder.id)
+      .maybeSingle();
+    return {
+      success: true,
+      orderId: existingOrder.id,
+      orderNumber: existingOrder.order_number ?? undefined,
+      invoiceNumber: invoiceRecord?.invoice_number ?? undefined,
+      invoiceId: invoiceRecord?.id ?? undefined,
+    };
+  }
+
+  const orderNumber = await nextOrderNumber();
+  const invoiceNumber = await nextInvoiceNumber();
+  const total = input.total;
+
+  const orderItems = input.items.map((item) => ({
+    product_id: item.productId,
+    variant_id: item.variantId ?? null,
+    name: item.productName,
+    price: item.unitPrice,
+    quantity: item.quantity,
+    image_url: item.imageUrl ?? null,
+    size: item.size,
+    attributes: JSON.stringify({ size: item.size }),
+  }));
+
+  const shippingAddressJson = JSON.stringify(input.shippingAddress);
+  const billingAddressJson = JSON.stringify(input.billingAddress);
+
+  const { data: rpcResult, error: rpcError } = await supabase.rpc("create_order_from_payment", {
+    p_user_id: input.userId,
+    p_order_number: orderNumber,
+    p_subtotal: total,
+    p_total: total,
+    p_shipping_address: shippingAddressJson,
+    p_billing_address: billingAddressJson,
+    p_stripe_session_id: "",
+    p_stripe_payment_intent_id: `paypal_${input.paypalOrderId}`,
+    p_payment_method: input.paymentMethod,
+    p_currency: "usd",
+    p_amount: total,
+    p_invoice_number: invoiceNumber,
+    p_items: JSON.stringify(orderItems),
+    p_checkout_request_id: null,
+  });
+
+  if (rpcError) {
+    logger.error("RPC create_order_from_payment failed for PayPal", { error: rpcError.message });
+    return { success: false, error: `Database error: ${rpcError.message}` };
+  }
+
+  const result = rpcResult as Record<string, unknown>;
+  if (!result?.success) {
+    logger.error("RPC returned failure for PayPal", { error: result?.error });
+    return {
+      success: false,
+      error: (result?.error as string) ?? "Failed to create order",
+    };
+  }
+
+  const orderId = result.order_id as string;
+  const outInvoiceNumber = (result.invoice_number as string) ?? invoiceNumber;
+  const invoiceId = (result.invoice_id as string) ?? "";
+
+  logger.info("Order created via PayPal", { orderId, orderNumber, invoiceId });
+
+  try {
+    await supabase.from("orders").update({ paypal_order_id: input.paypalOrderId }).eq("id", orderId);
+  } catch {
+    // paypal_order_id reference is non-critical
+  }
+
+  const shippingAddr = input.shippingAddress;
+  const billingAddr = input.billingAddress;
+
+  let customerProfile = null;
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("first_name, last_name, email, metadata")
+      .eq("id", input.userId)
+      .maybeSingle();
+    if (profile) {
+      customerProfile = {
+        firstName: profile.first_name,
+        lastName: profile.last_name,
+        displayName: (profile.metadata as Record<string, any>)?.displayName || "",
+        email: profile.email
+      };
+    }
+  } catch (err) {
+    logger.warn("Failed to fetch customer profile for order email", { error: String(err) });
+  }
+
+  const orderDate = new Date().toISOString();
+  const emailPayload = buildEmailPayload({
+    orderId,
+    invoiceId,
+    customerEmail: input.email,
+    customerProfile,
+    phone: shippingAddr.phone ?? "",
+    orderNumber,
+    invoiceNumber: outInvoiceNumber,
+    orderDate,
+    billingAddress: billingAddr,
+    shippingAddress: shippingAddr,
+    items: input.items.map((i) => ({
+      name: i.productName,
+      imageUrl: i.imageUrl,
+      size: i.size,
+      quantity: i.quantity,
+      unitPrice: i.unitPrice,
+    })),
+    subtotal: total,
+    shipping: 0,
+    tax: 0,
+    total,
+    paymentMethod: input.paymentMethod,
     paymentStatus: "completed",
   });
 

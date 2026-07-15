@@ -120,29 +120,42 @@ export async function createPaymentIntent(
     metadata.checkout_request_id = input.checkoutRequestId;
   }
 
+  // Only set receipt_email if the email is valid — during early init it may be a
+  // non-email string and Stripe rejects invalid receipt_email values.
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email);
+
   const params: Stripe.PaymentIntentCreateParams = {
     amount: amountInCents,
     currency: totals.currency,
     automatic_payment_methods: { enabled: true },
     metadata,
-    receipt_email: input.email,
+    ...(isValidEmail ? { receipt_email: input.email } : {}),
     shipping: {
-      name: `${input.shippingAddress.firstName} ${input.shippingAddress.lastName}`,
+      name: `${input.shippingAddress.firstName} ${input.shippingAddress.lastName}`.trim() || "Customer",
       address: {
-        line1: input.shippingAddress.line1,
-        line2: input.shippingAddress.line2,
-        city: input.shippingAddress.city,
-        state: input.shippingAddress.state,
-        postal_code: input.shippingAddress.postalCode,
-        country: input.shippingAddress.country,
+        line1: input.shippingAddress.line1 || undefined,
+        line2: input.shippingAddress.line2 || undefined,
+        city: input.shippingAddress.city || undefined,
+        state: input.shippingAddress.state || undefined,
+        postal_code: input.shippingAddress.postalCode || undefined,
+        country: input.shippingAddress.country || undefined,
       },
-      phone: input.shippingAddress.phone,
+      phone: input.shippingAddress.phone || undefined,
     },
   };
 
-  const paymentIntent = await container.stripe.paymentIntents.create(params, {
-    idempotencyKey: input.idempotencyKey,
-  });
+  let paymentIntent: Stripe.Response<Stripe.PaymentIntent>;
+  try {
+    paymentIntent = await container.stripe.paymentIntents.create(params, {
+      idempotencyKey: input.idempotencyKey,
+    });
+  } catch (stripeErr) {
+    logger.error("Stripe PaymentIntent creation failed", {
+      error: stripeErr instanceof Error ? stripeErr.message : String(stripeErr),
+      userId: input.userId,
+    });
+    throw stripeErr;
+  }
 
   // Create payment session for checkout tracking
   if (input.checkoutRequestId) {
@@ -184,6 +197,45 @@ export async function createPaymentIntent(
       variantId: v.variantId,
     })),
     totals,
+  };
+}
+
+export async function updatePaymentIntent(
+  paymentIntentId: string,
+  input: {
+    email: string;
+    shippingAddress: CheckoutAddress;
+    billingAddress?: CheckoutAddress;
+  },
+): Promise<{ clientSecret: string; id: string }> {
+  const container = getContainer();
+
+  const params: Stripe.PaymentIntentUpdateParams = {
+    receipt_email: input.email,
+    shipping: {
+      name: `${input.shippingAddress.firstName} ${input.shippingAddress.lastName}`,
+      address: {
+        line1: input.shippingAddress.line1,
+        line2: input.shippingAddress.line2,
+        city: input.shippingAddress.city,
+        state: input.shippingAddress.state,
+        postal_code: input.shippingAddress.postalCode,
+        country: input.shippingAddress.country,
+      },
+      phone: input.shippingAddress.phone,
+    },
+    metadata: {
+      email: input.email,
+      shipping_address: JSON.stringify(input.shippingAddress),
+      billing_address: JSON.stringify(input.billingAddress ?? input.shippingAddress),
+    },
+  };
+
+  const paymentIntent = await container.stripe.paymentIntents.update(paymentIntentId, params);
+
+  return {
+    clientSecret: paymentIntent.client_secret!,
+    id: paymentIntent.id,
   };
 }
 
@@ -297,7 +349,10 @@ export async function createPayPalOrder(input: {
     throw new PaymentError("PayPal is not configured");
   }
 
-  const tokenResponse = await fetch("https://api-m.paypal.com/v1/oauth2/token", {
+  const isProduction = env.paypalEnvironment === "production";
+  const apiBase = isProduction ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
+
+  const tokenResponse = await fetch(`${apiBase}/v1/oauth2/token`, {
     method: "POST",
     headers: {
       Authorization: `Basic ${Buffer.from(`${clientId}:${secret}`).toString("base64")}`,
@@ -311,7 +366,7 @@ export async function createPayPalOrder(input: {
 
   const total = input.subtotal + input.shipping + input.tax;
 
-  const orderResponse = await fetch("https://api-m.paypal.com/v2/checkout/orders", {
+  const orderResponse = await fetch(`${apiBase}/v2/checkout/orders`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${tokenData.access_token}`,
@@ -319,6 +374,15 @@ export async function createPayPalOrder(input: {
     },
     body: JSON.stringify({
       intent: "CAPTURE",
+      payment_source: {
+        paypal: {
+          experience_context: {
+            payment_method_preference: "IMMEDIATE_PAYMENT_REQUIRED",
+            landing_page: "LOGIN",
+            user_action: "PAY_NOW",
+          },
+        },
+      },
       purchase_units: [
         {
           amount: {
@@ -366,12 +430,23 @@ export async function createPayPalOrder(input: {
   return { id: orderData.id, approveUrl: approveLink };
 }
 
-export async function capturePayPalOrder(orderId: string): Promise<{ status: string; id: string }> {
+export async function capturePayPalOrder(orderId: string): Promise<{
+  status: string;
+  id: string;
+  purchase_units?: Array<{
+    payments?: {
+      captures?: Array<{ id: string; status: string; amount?: { value: string } }>;
+    };
+  }>;
+}> {
   const clientId = env.paypalClientId;
   const secret = env.paypalSecret;
   if (!clientId || !secret) throw new PaymentError("PayPal is not configured");
 
-  const tokenResponse = await fetch("https://api-m.paypal.com/v1/oauth2/token", {
+  const isProduction = env.paypalEnvironment === "production";
+  const apiBase = isProduction ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
+
+  const tokenResponse = await fetch(`${apiBase}/v1/oauth2/token`, {
     method: "POST",
     headers: {
       Authorization: `Basic ${Buffer.from(`${clientId}:${secret}`).toString("base64")}`,
@@ -383,25 +458,31 @@ export async function capturePayPalOrder(orderId: string): Promise<{ status: str
   const tokenData = (await tokenResponse.json()) as { access_token?: string };
   if (!tokenData.access_token) throw new PaymentError("PayPal authentication failed");
 
-  const captureResponse = await fetch(
-    `https://api-m.paypal.com/v2/checkout/orders/${orderId}/capture`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${tokenData.access_token}`,
-        "Content-Type": "application/json",
-      },
+  const captureResponse = await fetch(`${apiBase}/v2/checkout/orders/${orderId}/capture`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${tokenData.access_token}`,
+      "Content-Type": "application/json",
     },
-  );
+  });
 
   const captureData = (await captureResponse.json()) as {
     status?: string;
     id?: string;
+    purchase_units?: Array<{
+      payments?: {
+        captures?: Array<{ id: string; status: string; amount?: { value: string } }>;
+      };
+    }>;
   };
 
   if (!captureData.id) throw new PaymentError("PayPal capture failed");
 
-  return { status: captureData.status ?? "UNKNOWN", id: captureData.id };
+  return {
+    status: captureData.status ?? "UNKNOWN",
+    id: captureData.id,
+    purchase_units: captureData.purchase_units,
+  };
 }
 
 function hmacSha256(value: string, secret: string) {
