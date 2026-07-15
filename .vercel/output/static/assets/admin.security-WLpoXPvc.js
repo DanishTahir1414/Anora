@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-DsKLSDJq.js";import{r as t}from"./utils-Bxw0RvTN.js";import{t as n}from"./AuditLogsTable-DAD5JUSo.js";import{I as r,L as i}from"./index-DA2pukuv.js";var a=e();function o(){return r().pathname===`/admin/security`?(0,a.jsx)(t,{children:(0,a.jsx)(n,{})}):(0,a.jsx)(i,{})}export{o as component};

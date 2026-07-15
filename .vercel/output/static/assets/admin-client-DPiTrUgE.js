@@ -1,0 +1,1 @@
+import{i as e}from"./auth-context-C6Z7tQNk.js";async function t(t,n){let{data:r,error:i}=await e.rpc(t,n);if(i)throw i;return r}export{t};

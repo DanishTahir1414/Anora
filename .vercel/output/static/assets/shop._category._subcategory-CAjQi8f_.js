@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-DsKLSDJq.js";var t=e(),n=()=>(0,t.jsxs)(`div`,{className:`py-32 text-center`,children:[(0,t.jsx)(`p`,{className:`eyebrow`,children:`Not found`}),(0,t.jsx)(`h1`,{className:`font-serif text-4xl mt-4`,children:`This category doesn't exist`})]});export{n as notFoundComponent};
