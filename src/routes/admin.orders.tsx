@@ -14,6 +14,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Clock,
+  CheckCircle,
+  XCircle,
+  RotateCcw,
+  ArrowRightLeft,
+  DollarSign,
+} from "lucide-react";
 import { useOrderMetrics, useOrdersManagement, type OrderManagementRow } from "@/lib/admin-orders";
 
 export const Route = createFileRoute("/admin/orders")({
@@ -213,7 +221,7 @@ function OrdersPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 mb-10">
           {metricsLoading ? (
             Array.from({ length: 7 }).map((_, i) => <DashboardCard key={i} label="—" loading />)
           ) : metrics ? (
@@ -222,39 +230,39 @@ function OrdersPage() {
               <DashboardCard
                 label="Pending"
                 value={metrics.pendingOrders.toLocaleString()}
-                icon={<StatusBadge status="pending" map={STATUS_BADGES} />}
+                icon={<Clock className="h-4 w-4 text-amber-500" />}
               />
               <DashboardCard
                 label="Processing"
                 value={metrics.processingOrders.toLocaleString()}
-                icon={<StatusBadge status="processing" map={STATUS_BADGES} />}
+                icon={<ArrowRightLeft className="h-4 w-4 text-purple-500" />}
               />
               <DashboardCard
                 label="Delivered"
                 value={metrics.deliveredOrders.toLocaleString()}
-                icon={<StatusBadge status="delivered" map={STATUS_BADGES} />}
+                icon={<CheckCircle className="h-4 w-4 text-emerald-500" />}
               />
               <DashboardCard
                 label="Cancelled"
                 value={metrics.cancelledOrders.toLocaleString()}
-                icon={<StatusBadge status="cancelled" map={STATUS_BADGES} />}
+                icon={<XCircle className="h-4 w-4 text-red-500" />}
               />
               <DashboardCard
                 label="Returned"
                 value={metrics.returnedOrders.toLocaleString()}
-                icon={<StatusBadge status="returned" map={STATUS_BADGES} />}
+                icon={<RotateCcw className="h-4 w-4 text-orange-500" />}
               />
               <DashboardCard
                 label="Refunded"
                 value={metrics.refundedOrders.toLocaleString()}
-                icon={<StatusBadge status="refunded" map={STATUS_BADGES} />}
+                icon={<DollarSign className="h-4 w-4 text-stone-500" />}
               />
             </>
           ) : null}
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col gap-4 mb-6">
+        <div className="flex flex-col gap-3 mb-8 p-4 border border-border/40 bg-muted/20 rounded-lg">
           <div className="flex flex-col sm:flex-row gap-3">
             <Input
               placeholder="Search by order ID, customer name, email…"
@@ -263,10 +271,10 @@ function OrdersPage() {
                 setSearchInput(e.target.value);
                 debouncedSearch(e.target.value);
               }}
-              className="max-w-sm h-9 text-sm"
+              className="h-9 text-sm flex-1 max-w-sm"
             />
 
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap shrink-0">
               <select
                 value={statusFilter}
                 onChange={(e) => {
@@ -301,15 +309,15 @@ function OrdersPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             {DATE_PRESETS.map((p) => (
               <button
                 key={p.value}
                 onClick={() => handleDatePreset(p.value)}
-                className={`px-3 py-1.5 text-[11px] tracking-[0.2em] uppercase rounded-md transition-colors ${
+                className={`px-3 py-1.5 text-[10px] tracking-[0.2em] uppercase rounded-md transition-colors ${
                   datePreset === p.value
                     ? "bg-foreground text-background"
-                    : "border border-border/60 text-muted-foreground hover:border-foreground/30"
+                    : "border border-border/60 text-muted-foreground hover:border-foreground/40 hover:text-foreground"
                 }`}
               >
                 {p.label}
@@ -317,16 +325,16 @@ function OrdersPage() {
             ))}
             <button
               onClick={() => setDatePreset("custom")}
-              className={`px-3 py-1.5 text-[11px] tracking-[0.2em] uppercase rounded-md transition-colors ${
+              className={`px-3 py-1.5 text-[10px] tracking-[0.2em] uppercase rounded-md transition-colors ${
                 datePreset === "custom"
                   ? "bg-foreground text-background"
-                  : "border border-border/60 text-muted-foreground hover:border-foreground/30"
+                  : "border border-border/60 text-muted-foreground hover:border-foreground/40 hover:text-foreground"
               }`}
             >
               Custom
             </button>
             {datePreset === "custom" && (
-              <div className="flex items-center gap-2 ml-2">
+              <div className="flex items-center gap-2 ml-1">
                 <Input
                   type="date"
                   value={customFrom}
@@ -347,8 +355,8 @@ function OrdersPage() {
 
         {/* Error */}
         {ordersError && (
-          <div className="border border-red/20 bg-red/5 p-6 text-center mb-6">
-            <p className="text-sm text-red/80">{ordersError}</p>
+          <div className="border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 p-6 text-center mb-6 rounded-lg">
+            <p className="text-sm text-red-700 dark:text-red-400">{ordersError}</p>
             <Button variant="outline" size="sm" onClick={refetchOrders} className="mt-3">
               Retry
             </Button>
@@ -357,17 +365,17 @@ function OrdersPage() {
 
         {/* Loading */}
         {ordersLoading && !ordersError && (
-          <div className="space-y-3">
-            <Skeleton className="h-10 w-full" />
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
+          <div className="space-y-2">
+            <Skeleton className="h-11 w-full rounded-lg" />
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-14 w-full" />
             ))}
           </div>
         )}
 
         {/* Empty */}
         {!ordersLoading && !ordersError && result && result.orders.length === 0 && (
-          <div className="border border-border/60 p-12 text-center">
+          <div className="border border-border/40 bg-muted/20 p-14 text-center rounded-lg">
             <p className="text-sm text-muted-foreground">
               {search || statusFilter || paymentFilter || datePreset
                 ? "No orders match your filters"
