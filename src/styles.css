@@ -20,7 +20,7 @@
   --radius-4xl: 28px;
 
   --font-serif: "Cormorant Garamond", "Playfair Display", Georgia, serif;
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: "Geist", "Manrope", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -219,3 +219,118 @@
 .animate-fade    { animation: anora-fade 0.8s ease-out both; }
 .animate-zoom-in { animation: anora-zoom 1.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .animate-marquee { animation: anora-marquee 40s linear infinite; }
+
+/* ============================================================
+   Admin Panel Typography & UX Refinements
+   ============================================================ */
+/* Headings & Page/Section titles */
+.lg\:pl-56 h1, 
+.lg\:pl-56 .h1,
+.lg\:pl-56 [class*="text-4xl"] {
+  font-family: var(--font-sans);
+  font-weight: 700 !important; /* Bold */
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.lg\:pl-56 h2, 
+.lg\:pl-56 .h2 {
+  font-family: var(--font-sans);
+  font-weight: 600 !important; /* SemiBold */
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+}
+
+.lg\:pl-56 h3, 
+.lg\:pl-56 .h3,
+.lg\:pl-56 legend {
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important; /* SemiBold */
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+
+/* Sidebar overrides */
+aside nav {
+  font-family: var(--font-sans);
+}
+aside nav a {
+  font-weight: 500 !important; /* Medium for items */
+}
+aside nav a.bg-foreground\/8,
+aside nav a[class*="bg-foreground"] {
+  font-weight: 600 !important; /* SemiBold for active items */
+}
+aside nav p {
+  font-weight: 600 !important; /* SemiBold for section headers */
+}
+
+/* Table headers & cells */
+.lg\:pl-56 th,
+.lg\:pl-56 thead th,
+.lg\:pl-56 [class*="TableHead"] {
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important; /* SemiBold */
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  font-size: 11px !important;
+  color: var(--color-muted-foreground) !important;
+}
+
+.lg\:pl-56 td,
+.lg\:pl-56 [class*="TableCell"] {
+  font-family: var(--font-sans) !important;
+  font-weight: 400; /* Regular */
+  line-height: 1.5;
+}
+
+/* Dashboard & Cards typography */
+.lg\:pl-56 [class*="card"] span,
+.lg\:pl-56 .group span {
+  font-weight: 600 !important; /* Card titles/labels Medium/SemiBold */
+}
+
+.lg\:pl-56 [class*="card"] p,
+.lg\:pl-56 .group p {
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important; /* Stats SemiBold */
+  letter-spacing: -0.02em !important;
+}
+
+/* Forms & Labels */
+.lg\:pl-56 label,
+.lg\:pl-56 Label,
+.lg\:pl-56 [class*="Label"] {
+  font-family: var(--font-sans) !important;
+  font-weight: 500 !important; /* Labels Medium */
+  font-size: 13px !important;
+  letter-spacing: -0.01em !important;
+}
+
+.lg\:pl-56 input,
+.lg\:pl-56 select,
+.lg\:pl-56 textarea {
+  font-family: var(--font-sans) !important;
+  font-weight: 400 !important; /* Input value Regular */
+}
+
+/* Buttons */
+.lg\:pl-56 button,
+.lg\:pl-56 Button,
+.lg\:pl-56 [class*="Button"] {
+  font-family: var(--font-sans) !important;
+  font-weight: 500 !important; /* Buttons Medium */
+}
+
+.lg\:pl-56 button[type="submit"],
+.lg\:pl-56 Button[type="submit"],
+.lg\:pl-56 [type="submit"] {
+  font-weight: 600 !important; /* Submit buttons SemiBold */
+}
+
+/* Badges */
+.lg\:pl-56 span[class*="badge"] {
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important; /* Badges SemiBold */
+}
+

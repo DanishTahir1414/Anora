@@ -178,32 +178,39 @@ export async function createProduct(data: {
   is_best_seller?: boolean;
   featured?: boolean;
   status?: string;
-}) {
+}): Promise<string> {
   const isActive =
     (data.status ?? "draft") === "active" || (data.status ?? "draft") === "out_of_stock";
-  const { error } = await supabase.from("products").insert({
-    name: data.name,
-    slug: data.slug,
-    sku: data.sku,
-    price: data.price,
-    stock: data.stock,
-    category_id: data.category_id,
-    description: data.description ?? null,
-    short_description: data.short_description ?? null,
-    compare_price: data.compare_price ?? null,
-    low_stock_threshold: data.low_stock_threshold ?? 5,
-    sizes: data.sizes ?? [],
-    size_stock: data.size_stock ?? {},
-    colors: data.colors ?? [],
-    fabric: data.fabric ?? null,
-    material: data.material ?? null,
-    is_new: data.is_new ?? false,
-    is_best_seller: data.is_best_seller ?? false,
-    featured: data.featured ?? false,
-    status: data.status ?? "draft",
-    is_active: isActive,
-  });
+  const { data: inserted, error } = await supabase
+    .from("products")
+    .insert({
+      name: data.name,
+      slug: data.slug,
+      sku: data.sku,
+      price: data.price,
+      stock: data.stock,
+      category_id: data.category_id,
+      description: data.description ?? null,
+      short_description: data.short_description ?? null,
+      compare_price: data.compare_price ?? null,
+      low_stock_threshold: data.low_stock_threshold ?? 5,
+      sizes: data.sizes ?? [],
+      size_stock: data.size_stock ?? {},
+      colors: data.colors ?? [],
+      fabric: data.fabric ?? null,
+      material: data.material ?? null,
+      is_new: data.is_new ?? false,
+      is_best_seller: data.is_best_seller ?? false,
+      featured: data.featured ?? false,
+      status: data.status ?? "draft",
+      is_active: isActive,
+    })
+    .select("id")
+    .single();
+
   if (error) throw error;
+  if (!inserted) throw new Error("Failed to create product");
+  return inserted.id;
 }
 
 export async function updateProduct(

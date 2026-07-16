@@ -82,6 +82,9 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
   const [loadingData, setLoadingData] = useState(false);
   const [allCategories, setAllCategories] = useState<CategoryOption[]>([]);
   const [images, setImages] = useState<AdminProductImage[]>([]);
+  const [localImages, setLocalImages] = useState<{ id: string; file: File; previewUrl: string }[]>([]);
+  const [uploadProgressText, setUploadProgressText] = useState("");
+  const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [colorName, setColorName] = useState("");
   const [colorHex, setColorHex] = useState("#000000");
@@ -107,8 +110,45 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
     is_new: false,
     is_best_seller: false,
     featured: false,
+    size_stock: {},
   });
   const [errors, setErrors] = useState<FormErrors>({});
+
+  const localImagesRef = useRef(localImages);
+  useEffect(() => {
+    localImagesRef.current = localImages;
+  }, [localImages]);
+
+  // Cleanup local URLs on component unmount
+  useEffect(() => {
+    return () => {
+      localImagesRef.current.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+    };
+  }, []);
+
+  // Cleanup when dialog closes
+  useEffect(() => {
+    if (!open) {
+      localImagesRef.current.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+      setLocalImages([]);
+      setUploadProgressText("");
+    }
+  }, [open]);
+
+  // Resolve parent category when editing an existing product
+  useEffect(() => {
+    if (productId && allCategories.length > 0 && form.subcategory_id && form.category_id === "") {
+      const currentSubId = form.subcategory_id;
+      const subCat = allCategories.find((c) => c.id === currentSubId);
+      if (subCat && subCat.parent_id) {
+        setForm((prev) => ({
+          ...prev,
+          category_id: subCat.parent_id!,
+          subcategory_id: currentSubId,
+        }));
+      }
+    }
+  }, [allCategories, productId, form.subcategory_id, form.category_id]);
 
   const parentCategories = allCategories.filter((c) => !c.parent_id);
   const subCategories = allCategories.filter((c) => c.parent_id === form.category_id);
@@ -231,24 +271,89 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
     }));
   }
 
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !productId) return;
-    setUploading(true);
-    try {
-      const result = await uploadProductImage(productId, file);
-      setImages((prev) => [
+  // ─── Image Upload Handlers ──────────────────────────────────────────────────
+  function handleFilesAdded(selectedFiles: File[]) {
+    const supportedFormats = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    const invalidFiles = selectedFiles.filter(
+      (f) => !supportedFormats.includes(f.type) && 
+             !f.name.toLowerCase().endsWith(".jpg") &&
+             !f.name.toLowerCase().endsWith(".jpeg") &&
+             !f.name.toLowerCase().endsWith(".png") &&
+             !f.name.toLowerCase().endsWith(".webp")
+    );
+    if (invalidFiles.length > 0) {
+      setErrors((prev) => ({
         ...prev,
-        { id: result.id, image_url: result.image_url, alt_text: null, sort_order: prev.length },
-      ]);
-    } catch (err) {
-      setErrors({ images: err instanceof Error ? err.message : "Upload failed" });
-    } finally {
-      setUploading(false);
+        images: "Only JPG, JPEG, PNG, and WEBP formats are supported."
+      }));
+      return;
+    }
+
+    setErrors((prev) => ({ ...prev, images: undefined }));
+
+    if (isEdit) {
+      if (!productId) return;
+      setUploading(true);
+      (async () => {
+        try {
+          for (const file of selectedFiles) {
+            const result = await uploadProductImage(productId, file);
+            setImages((prev) => [
+              ...prev,
+              { id: result.id, image_url: result.image_url, alt_text: null, sort_order: prev.length },
+            ]);
+          }
+        } catch (err) {
+          setErrors((prev) => ({
+            ...prev,
+            images: err instanceof Error ? err.message : "Upload failed",
+          }));
+        } finally {
+          setUploading(false);
+          if (fileRef.current) fileRef.current.value = "";
+        }
+      })();
+    } else {
+      setLocalImages((prev) => {
+        const next = [...prev];
+        for (const file of selectedFiles) {
+          const isDuplicate = next.some(
+            (img) => img.file.name === file.name && img.file.size === file.size
+          );
+          if (isDuplicate) continue;
+
+          next.push({
+            id: crypto.randomUUID(),
+            file,
+            previewUrl: URL.createObjectURL(file),
+          });
+        }
+        return next;
+      });
       if (fileRef.current) fileRef.current.value = "";
     }
   }
 
+  function handleDrag(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFilesAdded(Array.from(e.dataTransfer.files));
+    }
+  }
+
+  // Database Image Handlers (Edit Mode)
   async function handleDeleteImage(imageId: string) {
     try {
       await deleteProductImage(imageId);
@@ -272,6 +377,48 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
     } catch {
       /* ignore */
     }
+  }
+
+  async function handleSetPrimaryImage(index: number) {
+    if (index === 0) return;
+    const newImages = [...images];
+    const [primary] = newImages.splice(index, 1);
+    newImages.unshift(primary);
+    const reordered = newImages.map((img, i) => ({ ...img, sort_order: i }));
+    setImages(reordered);
+    try {
+      await reorderProductImages(
+        reordered.map((img) => ({ id: img.id, sort_order: img.sort_order })),
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Local Image Handlers (Create Mode)
+  function handleDeleteLocalImage(id: string, previewUrl: string) {
+    URL.revokeObjectURL(previewUrl);
+    setLocalImages((prev) => prev.filter((img) => img.id !== id));
+  }
+
+  function handleMoveLocalImage(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= localImages.length) return;
+    setLocalImages((prev) => {
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
+  function handleSetPrimaryLocalImage(index: number) {
+    if (index === 0) return;
+    setLocalImages((prev) => {
+      const next = [...prev];
+      const [primary] = next.splice(index, 1);
+      next.unshift(primary);
+      return next;
+    });
   }
 
   function validate(): boolean {
@@ -300,6 +447,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
     e.preventDefault();
     if (!validate()) return;
     setSaving(true);
+    setUploadProgressText("");
     try {
       const sizeStock = buildSizeStock(form.sizes, form.size_stock);
       const productData = {
@@ -327,7 +475,19 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
       if (isEdit && productId) {
         await updateProduct(productId, productData as any);
       } else {
-        await createProduct(productData as any);
+        const newProductId = await createProduct(productData as any);
+        if (localImages.length > 0) {
+          const uploadedIds: string[] = [];
+          for (let i = 0; i < localImages.length; i++) {
+            const item = localImages[i];
+            setUploadProgressText(`Uploading image ${i + 1} of ${localImages.length}...`);
+            const uploadResult = await uploadProductImage(newProductId, item.file);
+            uploadedIds.push(uploadResult.id);
+          }
+          setUploadProgressText("Finalizing image order...");
+          const reordered = uploadedIds.map((id, index) => ({ id, sort_order: index }));
+          await reorderProductImages(reordered);
+        }
       }
       onSaved();
       onClose();
@@ -335,10 +495,9 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
       setErrors({ submit: err instanceof Error ? err.message : "Failed to save product" });
     } finally {
       setSaving(false);
+      setUploadProgressText("");
     }
   }
-
-  const canUpload = isEdit;
 
   return (
     <Dialog
@@ -364,7 +523,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-8">
             {/* ─── Basic Information ─── */}
-            <fieldset className="space-y-4 border border-border/60 p-4">
+            <fieldset className="space-y-4 border border-border/40 p-5 rounded-md bg-stone-50/20 dark:bg-stone-900/5">
               <legend className="text-xs tracking-[0.2em] uppercase px-2 font-medium">
                 Basic Information
               </legend>
@@ -463,7 +622,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
             </fieldset>
 
             {/* ─── Category Assignment ─── */}
-            <fieldset className="space-y-4 border border-border/60 p-4">
+            <fieldset className="space-y-4 border border-border/40 p-5 rounded-md bg-stone-50/20 dark:bg-stone-900/5">
               <legend className="text-xs tracking-[0.2em] uppercase px-2 font-medium">
                 Category
               </legend>
@@ -514,7 +673,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
             </fieldset>
 
             {/* ─── Sizes ─── */}
-            <fieldset className="space-y-3 border border-border/60 p-4">
+            <fieldset className="space-y-4 border border-border/40 p-5 rounded-md bg-stone-50/20 dark:bg-stone-900/5">
               <legend className="text-xs tracking-[0.2em] uppercase px-2 font-medium">
                 Available Sizes
               </legend>
@@ -537,7 +696,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
             </fieldset>
 
             {/* ─── Colors ─── */}
-            <fieldset className="space-y-3 border border-border/60 p-4">
+            <fieldset className="space-y-4 border border-border/40 p-5 rounded-md bg-stone-50/20 dark:bg-stone-900/5">
               <legend className="text-xs tracking-[0.2em] uppercase px-2 font-medium">
                 Colors
               </legend>
@@ -599,85 +758,151 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
             </fieldset>
 
             {/* ─── Images ─── */}
-            <fieldset className="space-y-3 border border-border/60 p-4">
+            <fieldset className="space-y-4 border border-border/40 p-5 rounded-md bg-stone-50/20 dark:bg-stone-900/5">
               <legend className="text-xs tracking-[0.2em] uppercase px-2 font-medium">
                 Images
               </legend>
 
-              {!canUpload ? (
-                <p className="text-sm text-muted-foreground">
-                  Save the product first to enable image upload.
-                </p>
-              ) : (
-                <>
-                  <div className="flex flex-wrap gap-3">
-                    {images.map((img, i) => (
+              {/* Drag & Drop zone */}
+              <div
+                onDragEnter={handleDrag}
+                onDragOver={handleDrag}
+                onDragLeave={handleDrag}
+                onDrop={handleDrop}
+                onClick={() => fileRef.current?.click()}
+                className={`border border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors duration-200 ${
+                  dragActive 
+                    ? "border-primary bg-primary/5 dark:bg-primary/10" 
+                    : "border-border hover:border-primary/50"
+                }`}
+              >
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  multiple
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      handleFilesAdded(Array.from(e.target.files));
+                    }
+                  }}
+                  className="hidden"
+                />
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <svg
+                    className="h-8 w-8 text-muted-foreground"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                    />
+                  </svg>
+                  <p className="text-sm font-medium">Drag & drop files here, or click to upload</p>
+                  <p className="text-xs text-muted-foreground">Supports JPG, JPEG, PNG, WEBP</p>
+                </div>
+              </div>
+
+              {uploadProgressText && (
+                <div className="text-xs text-amber-600 dark:text-amber-400 font-medium py-1">
+                  {uploadProgressText}
+                </div>
+              )}
+
+              {uploading && (
+                <div className="text-xs text-muted-foreground font-medium py-1">
+                  Uploading to server...
+                </div>
+              )}
+
+              {/* Image Grid */}
+              {((isEdit ? images : localImages).length > 0) && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-4 pt-2">
+                  {(isEdit ? images : localImages).map((img, i) => {
+                    const url = isEdit ? (img as AdminProductImage).image_url : (img as any).previewUrl;
+                    const id = img.id;
+                    const isPrimary = i === 0;
+                    return (
                       <div
-                        key={img.id}
-                        className="relative w-28 aspect-[3/4] bg-neutral border group"
+                        key={id}
+                        className="relative aspect-[3/4] bg-stone-100 dark:bg-stone-900 border border-border/80 group rounded-md overflow-hidden shadow-sm"
                       >
                         <img
-                          src={img.image_url}
-                          alt={img.alt_text ?? ""}
+                          src={url}
+                          alt="Product Preview"
                           className="h-full w-full object-cover"
                         />
-                        <div className="absolute inset-0 bg-ink/0 group-hover:bg-ink/40 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
-                          <button
-                            type="button"
-                            onClick={() => handleMoveImage(i, -1)}
-                            disabled={i === 0}
-                            className="h-6 w-6 bg-background/80 grid place-items-center text-xs disabled:opacity-30"
-                          >
-                            ‹
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMoveImage(i, 1)}
-                            disabled={i === images.length - 1}
-                            className="h-6 w-6 bg-background/80 grid place-items-center text-xs disabled:opacity-30"
-                          >
-                            ›
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteImage(img.id)}
-                            className="h-6 w-6 bg-red/80 text-white grid place-items-center text-xs"
-                          >
-                            ✕
-                          </button>
+                        {/* Primary Badge */}
+                        {isPrimary && (
+                          <div className="absolute top-2 left-2 bg-amber-500 text-stone-950 font-sans font-semibold text-[9px] uppercase px-1.5 py-0.5 rounded shadow-sm z-10 tracking-wider">
+                            Primary
+                          </div>
+                        )}
+                        {/* Hover Actions Menu */}
+                        <div className="absolute inset-0 bg-stone-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
+                          {/* Top row actions (Set Primary, Delete) */}
+                          <div className="flex justify-between items-start">
+                            <button
+                              type="button"
+                              onClick={() => isEdit ? handleSetPrimaryImage(i) : handleSetPrimaryLocalImage(i)}
+                              className={`p-1.5 rounded bg-background/90 text-foreground hover:bg-amber-500 hover:text-stone-950 transition-colors shadow-sm ${
+                                isPrimary ? "opacity-50 cursor-default" : ""
+                              }`}
+                              disabled={isPrimary}
+                              title="Set as Primary"
+                            >
+                              <svg className="h-3.5 w-3.5" fill={isPrimary ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.907c.961 0 1.36 1.246.577 1.838l-3.97 2.883a1 1 0 00-.364 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.971-2.883a1 1 0 00-1.17 0l-3.97 2.883c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.364-1.118l-3.97-2.883c-.784-.592-.386-1.838.577-1.838h4.906a1 1 0 00.951-.69l1.519-4.674z" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => isEdit ? handleDeleteImage(id) : handleDeleteLocalImage(id, url)}
+                              className="p-1.5 rounded bg-red-600/90 text-white hover:bg-red-700 transition-colors shadow-sm"
+                              title="Remove Image"
+                            >
+                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                          {/* Bottom row actions (Move Left, Move Right) */}
+                          <div className="flex justify-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => isEdit ? handleMoveImage(i, -1) : handleMoveLocalImage(i, -1)}
+                              disabled={i === 0}
+                              className="h-7 px-2 bg-background/90 text-foreground hover:bg-foreground hover:text-background rounded disabled:opacity-40 disabled:hover:bg-background/90 disabled:hover:text-foreground text-xs font-semibold shadow-sm transition-colors"
+                              title="Move Left"
+                            >
+                              ‹ Left
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => isEdit ? handleMoveImage(i, 1) : handleMoveLocalImage(i, 1)}
+                              disabled={i === (isEdit ? images : localImages).length - 1}
+                              className="h-7 px-2 bg-background/90 text-foreground hover:bg-foreground hover:text-background rounded disabled:opacity-40 disabled:hover:bg-background/90 disabled:hover:text-foreground text-xs font-semibold shadow-sm transition-colors"
+                              title="Move Right"
+                            >
+                              Right ›
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fileRef.current?.click()}
-                      disabled={uploading}
-                    >
-                      {uploading ? "Uploading..." : "Upload Image"}
-                    </Button>
-                    {uploading && (
-                      <span className="text-xs text-muted-foreground">Uploading...</span>
-                    )}
-                  </div>
-                  {errors.images && <p className="text-xs text-red">{errors.images}</p>}
-                </>
+                    );
+                  })}
+                </div>
               )}
+
+              {errors.images && <p className="text-xs text-red font-medium mt-1">{errors.images}</p>}
             </fieldset>
 
             {/* ─── Inventory ─── */}
-            <fieldset className="space-y-4 border border-border/60 p-4">
+            <fieldset className="space-y-4 border border-border/40 p-5 rounded-md bg-stone-50/20 dark:bg-stone-900/5">
               <legend className="text-xs tracking-[0.2em] uppercase px-2 font-medium">
                 Inventory
               </legend>
@@ -761,7 +986,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
             </fieldset>
 
             {/* ─── Labels ─── */}
-            <fieldset className="space-y-3 border border-border/60 p-4">
+            <fieldset className="space-y-4 border border-border/40 p-5 rounded-md bg-stone-50/20 dark:bg-stone-900/5">
               <legend className="text-xs tracking-[0.2em] uppercase px-2 font-medium">
                 Labels
               </legend>
