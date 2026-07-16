@@ -18,6 +18,7 @@ import {
   Clock,
   Shield,
   ShoppingCart,
+  X,
 } from "lucide-react";
 
 interface SidebarItem {
@@ -71,7 +72,12 @@ const NAV_GROUPS = [
   },
 ];
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+  onClose?: () => void;
+  className?: string;
+}
+
+export function AdminSidebar({ onClose, className }: AdminSidebarProps) {
   const location = useLocation();
   const { signOut } = useAuth();
 
@@ -81,14 +87,25 @@ export function AdminSidebar() {
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-56 border-r border-border/50 bg-background hidden lg:flex lg:flex-col z-40">
-      <div className="px-5 py-5 border-b border-border/40 shrink-0">
-        <Link to="/admin" className="font-serif text-lg tracking-wide">
-          ANORA
-        </Link>
-        <p className="text-[9px] tracking-[0.4em] uppercase text-muted-foreground/60 mt-0.5">
-          Admin Panel
-        </p>
+    <aside className={className ?? "fixed left-0 top-0 h-screen w-56 border-r border-border/50 bg-background hidden lg:flex lg:flex-col z-40"}>
+      <div className="px-5 py-5 border-b border-border/40 shrink-0 flex items-center justify-between">
+        <div>
+          <Link to="/admin" className="font-serif text-lg tracking-wide" onClick={onClose}>
+            ANORA
+          </Link>
+          <p className="text-[9px] tracking-[0.4em] uppercase text-muted-foreground/60 mt-0.5">
+            Admin Panel
+          </p>
+        </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="lg:hidden p-1 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Close menu"
+          >
+            <X className="h-4.5 w-4.5" />
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 overflow-y-auto py-4 px-3 min-h-0 space-y-5">
@@ -102,6 +119,7 @@ export function AdminSidebar() {
                 <Link
                   key={item.to}
                   to={item.to}
+                  onClick={onClose}
                   className={`flex items-center gap-2.5 px-2.5 py-2 text-sm rounded-md transition-all duration-150 ${
                     isActive(item.to)
                       ? "bg-foreground/8 text-foreground font-medium [--tw-bg-opacity:0.08]"
@@ -131,6 +149,7 @@ export function AdminSidebar() {
           <Link
             key={item.to + item.label}
             to={item.to}
+            onClick={onClose}
             className="flex items-center gap-2.5 px-2.5 py-2 text-sm rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-all duration-150"
           >
             <span className="shrink-0 text-muted-foreground/70">{item.icon}</span>
@@ -138,7 +157,10 @@ export function AdminSidebar() {
           </Link>
         ))}
         <button
-          onClick={signOut}
+          onClick={() => {
+            signOut();
+            onClose?.();
+          }}
           className="flex w-full items-center gap-2.5 px-2.5 py-2 text-sm rounded-md text-muted-foreground hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all duration-150"
         >
           <LogOut className="h-4 w-4 shrink-0 text-muted-foreground/70" />

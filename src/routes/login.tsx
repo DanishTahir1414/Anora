@@ -7,8 +7,11 @@ import { Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/login")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    redirectTo: typeof search.redirectTo === "string" ? search.redirectTo : "/account",
+  validateSearch: (search: Record<string, unknown>): {
+    redirectTo?: string;
+    confirmed?: string;
+  } => ({
+    redirectTo: typeof search.redirectTo === "string" ? search.redirectTo : undefined,
     confirmed: typeof search.confirmed === "string" ? search.confirmed : undefined,
   }),
   head: () => ({ meta: [{ title: "Sign In — ANORA" }] }),
@@ -17,7 +20,9 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const { user, loading, signIn } = useAuth();
-  const { redirectTo, confirmed } = Route.useSearch();
+  const search = Route.useSearch();
+  const redirectTo = search.redirectTo ?? "/account";
+  const confirmed = search.confirmed;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

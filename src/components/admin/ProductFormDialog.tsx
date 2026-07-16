@@ -166,6 +166,8 @@ export function ProductFormDialog({ open, onClose, onSaved, product }: Props) {
       if (isEdit && product) {
         await updateProduct(product.id, {
           ...common,
+          slug: slugify(form.name.trim()),
+          category_id: form.category_id,
           description: form.description.trim() || undefined,
         });
       } else {

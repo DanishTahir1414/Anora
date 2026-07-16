@@ -157,18 +157,17 @@ function ProductPage() {
 
       <div className="px-5 lg:px-10 grid lg:grid-cols-2 gap-10 lg:gap-16 max-w-7xl mx-auto">
         {/* ─── Image Gallery ─── */}
-        <div className="grid grid-cols-[64px_1fr] gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-[64px_1fr] gap-4">
           {/* Thumbnails */}
           <div className="hidden md:flex flex-col gap-3">
             {active.images.map((img, i) => (
               <button
                 key={i}
                 onClick={() => setImgIdx(i)}
-                className={`overflow-hidden aspect-[3/4] border transition-all duration-300 ${
-                  i === imgIdx
+                className={`overflow-hidden aspect-[3/4] border transition-all duration-300 ${i === imgIdx
                     ? "border-foreground"
                     : "border-transparent opacity-60 hover:opacity-100"
-                }`}
+                  }`}
               >
                 <img src={img} alt="" className="h-full w-full object-cover" />
               </button>
@@ -189,9 +188,8 @@ function ProductPage() {
             <img
               src={active.images[imgIdx]}
               alt={product.name}
-              className={`h-full w-full object-cover transition-opacity duration-500 ${
-                zoom ? "opacity-0" : "opacity-100"
-              }`}
+              className={`h-full w-full object-cover transition-opacity duration-500 ${zoom ? "opacity-0" : "opacity-100"
+                }`}
             />
             {zoom && (
               <img
@@ -232,9 +230,8 @@ function ProductPage() {
               <button
                 key={i}
                 onClick={() => setImgIdx(i)}
-                className={`w-14 aspect-[3/4] flex-none border transition-all duration-300 ${
-                  i === imgIdx ? "border-foreground" : "border-transparent opacity-60"
-                }`}
+                className={`w-14 aspect-[3/4] flex-none border transition-all duration-300 ${i === imgIdx ? "border-foreground" : "border-transparent opacity-60"
+                  }`}
               >
                 <img src={img} alt="" className="h-full w-full object-cover" />
               </button>
@@ -284,11 +281,10 @@ function ProductPage() {
                   <button
                     key={c}
                     onClick={() => switchColor(c)}
-                    className={`relative h-10 w-10 rounded-full border-2 transition-all duration-300 ${
-                      activeColor === c
+                    className={`relative h-10 w-10 rounded-full border-2 transition-all duration-300 ${activeColor === c
                         ? "border-gold scale-110"
                         : "border-border/50 hover:border-foreground/50"
-                    }`}
+                      }`}
                     title={c}
                   >
                     <span
@@ -345,13 +341,12 @@ function ProductPage() {
                     onClick={() => {
                       if (!disabled) setSize(s);
                     }}
-                    className={`min-w-12 h-11 px-3 text-sm border transition-all duration-300 ${
-                      size === s && !disabled
+                    className={`min-w-12 h-11 px-3 text-sm border transition-all duration-300 ${size === s && !disabled
                         ? "border-foreground bg-foreground text-background"
                         : disabled
                           ? "border-border/40 text-border/50 line-through cursor-not-allowed"
                           : "border-border hover:border-foreground"
-                    }`}
+                      }`}
                   >
                     {s}
                   </button>
@@ -394,7 +389,7 @@ function ProductPage() {
                 if (navigator.share)
                   navigator
                     .share({ title: product.name, url: window.location.href })
-                    .catch(() => {});
+                    .catch(() => { });
                 else {
                   navigator.clipboard.writeText(window.location.href);
                   toast("Link copied to clipboard");
@@ -428,11 +423,10 @@ function ProductPage() {
                 });
               }}
               disabled={isOOS}
-              className={`py-4 text-[11px] tracking-[0.32em] uppercase transition-all duration-300 ${
-                isOOS
+              className={`py-4 text-[11px] tracking-[0.32em] uppercase transition-all duration-300 ${isOOS
                   ? "bg-border/40 text-muted-foreground cursor-not-allowed"
                   : "bg-foreground text-background hover:bg-gold hover:text-ink"
-              }`}
+                }`}
             >
               {isOOS ? "Out of Stock" : "Add to Bag"}
             </button>
@@ -478,7 +472,7 @@ function ProductPage() {
       {/* Related */}
       <section className="px-5 lg:px-10 mt-24 max-w-7xl mx-auto">
         <h2 className="font-serif text-3xl md:text-4xl mb-10">You may also like</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-14">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-5 sm:gap-y-14">
           {related.map((p) => (
             <ProductCard key={p.id} product={p} />
           ))}

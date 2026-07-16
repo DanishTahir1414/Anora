@@ -745,7 +745,7 @@ function OrderDetailView({
           {items.map((item: Record<string, unknown>) => (
             <div key={item.id as string} className="flex justify-between text-sm">
               <div className="flex items-center gap-3">
-                {item.image_url && (
+                {!!item.image_url && (
                   <img
                     src={item.image_url as string}
                     alt={item.name as string}
@@ -842,8 +842,8 @@ function OrderDetailView({
                   </span>
                 </p>
                 <p className="text-muted-foreground">Amount: ${Number(r.amount ?? 0).toFixed(2)}</p>
-                {r.reason && <p className="text-muted-foreground">Reason: {String(r.reason)}</p>}
-                {r.processed_at && (
+                {!!r.reason && <p className="text-muted-foreground">Reason: {String(r.reason)}</p>}
+                {!!r.processed_at && (
                   <p className="text-muted-foreground">
                     Processed: {new Date(String(r.processed_at)).toLocaleString()}
                   </p>

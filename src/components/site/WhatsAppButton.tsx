@@ -10,7 +10,7 @@ export function WhatsAppButton() {
   }, []);
   if (hidden) return null;
   return (
-    <div className="fixed bottom-5 left-5 z-40 animate-fade-up">
+    <div className="fixed bottom-20 sm:bottom-5 left-5 z-40 animate-fade-up">
       <div className="relative">
         <a
           href="https://wa.me/13473256525?text=Hello%20ANORA"

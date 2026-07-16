@@ -141,7 +141,7 @@ export function CustomerProfileDrawer({ userId, open, onClose }: Props) {
             {details.recent_orders.length > 0 && (
               <div>
                 <h4 className="font-semibold mb-2">Recent Orders</h4>
-                <div className="rounded-md border">
+                <div className="rounded-md border overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>

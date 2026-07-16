@@ -323,7 +323,7 @@ function AdminPage() {
       {error && !loading && <SectionError error={error} onRetry={refetch} />}
 
       {loading && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {allCards.map((c) => (
             <DashboardCard key={c.key} label={c.label} loading />
           ))}
@@ -335,7 +335,7 @@ function AdminPage() {
           {/* Revenue */}
           <section>
             <SectionHeader label="Revenue" description="All-time and period revenue" />
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <CardGrid cards={REVENUE_CARDS} summary={summary} loading={false} />
             </div>
           </section>
@@ -343,7 +343,7 @@ function AdminPage() {
           {/* Orders */}
           <section>
             <SectionHeader label="Orders" description="Order volume by status" />
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <CardGrid cards={ORDER_CARDS} summary={summary} loading={false} />
             </div>
           </section>
@@ -351,7 +351,7 @@ function AdminPage() {
           {/* Customers */}
           <section>
             <SectionHeader label="Customers" description="Acquisition and retention" />
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <CardGrid cards={CUSTOMER_CARDS} summary={summary} loading={false} />
             </div>
           </section>
@@ -359,7 +359,7 @@ function AdminPage() {
           {/* Products */}
           <section>
             <SectionHeader label="Products & Catalogue" description="Inventory and catalogue status" />
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <CardGrid cards={PRODUCT_CARDS} summary={summary} loading={false} />
             </div>
           </section>
@@ -367,7 +367,7 @@ function AdminPage() {
           {/* Coupons */}
           <section>
             <SectionHeader label="Coupons" />
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <DashboardCard
                 label="Total Coupons"
                 value={couponData?.total_coupons.toLocaleString()}
@@ -398,7 +398,7 @@ function AdminPage() {
           {/* Gift Cards */}
           <section>
             <SectionHeader label="Gift Cards" />
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <DashboardCard
                 label="Total"
                 value={giftCardData?.total_gift_cards.toLocaleString()}

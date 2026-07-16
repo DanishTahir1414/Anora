@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { useEffect } from "react";
 import { subcategories } from "@/lib/products";
 import { useActiveCategories, type CategoryNode } from "@/lib/categories";
+import { useAuth } from "@/lib/auth-context";
 
 interface Props {
   open: boolean;
@@ -11,6 +12,7 @@ interface Props {
 
 export function MenuDrawer({ open, onClose }: Props) {
   const { data: dbCategories = [] } = useActiveCategories();
+  const { user, signOut } = useAuth();
 
   const categories = dbCategories.length > 0 ? dbCategories : [];
 
@@ -29,14 +31,12 @@ export function MenuDrawer({ open, onClose }: Props) {
     <>
       <div
         onClick={onClose}
-        className={`fixed inset-0 z-50 bg-ink/40 backdrop-blur-sm transition-opacity duration-500 ${
-          open ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
+        className={`fixed inset-0 z-50 bg-ink/40 backdrop-blur-sm transition-opacity duration-500 ${open ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-full max-w-md bg-background shadow-luxe transform transition-transform duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-          open ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 w-full max-w-md bg-background shadow-luxe transform transition-transform duration-[600ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${open ? "translate-x-0" : "-translate-x-full"
+          }`}
       >
         <div className="flex items-center justify-between px-7 h-16 lg:h-20 border-b border-border/70">
           <Link
@@ -99,6 +99,37 @@ export function MenuDrawer({ open, onClose }: Props) {
                 {l.label}
               </Link>
             ))}
+
+            <div className="pt-5 border-t border-border/30 space-y-5">
+              {user ? (
+                <>
+                  <Link
+                    to="/account"
+                    onClick={onClose}
+                    className="block text-sm font-medium tracking-wide text-foreground/80 hover:text-gold transition-colors duration-300"
+                  >
+                    My Account ({user.email})
+                  </Link>
+                  <button
+                    onClick={() => {
+                      signOut();
+                      onClose();
+                    }}
+                    className="block text-sm text-left font-medium tracking-wide text-red-500 hover:text-red-600 transition-colors duration-300"
+                  >
+                    Sign Out
+                  </button>
+                </>
+              ) : (
+                <Link
+                  to="/account"
+                  onClick={onClose}
+                  className="block text-sm font-medium tracking-wide text-foreground hover:text-gold transition-colors duration-300"
+                >
+                  Sign In / Register
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       </aside>
@@ -120,7 +151,7 @@ function Section({
   return (
     <div>
       <Link
-        to={base}
+        to={base as any}
         onClick={onNav}
         className="font-serif text-3xl block mb-5 hover:text-gold transition-colors duration-300"
       >
@@ -130,7 +161,7 @@ function Section({
         {items.map((s) => (
           <li key={s.slug}>
             <Link
-              to={`${base}/${s.slug}`}
+              to={`${base}/${s.slug}` as any}
               onClick={onNav}
               className="text-[13px] text-muted-foreground hover:text-foreground transition-all duration-300 tracking-wide inline-block hover:translate-x-1"
             >

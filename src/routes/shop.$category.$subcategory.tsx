@@ -52,7 +52,7 @@ function ShopSubcategory() {
             New pieces in this collection are arriving soon.
           </p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-14 max-w-7xl mx-auto">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-5 sm:gap-y-14 max-w-7xl mx-auto">
             {dbProducts.map((p) => (
               <ProductCard key={p.id} product={toProductProps(p)} />
             ))}

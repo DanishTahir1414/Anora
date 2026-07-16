@@ -1,5 +1,5 @@
-import { Link } from "@tanstack/react-router";
-import { Heart, Search, ShoppingBag, User, Menu, X } from "lucide-react";
+import { Link, useLocation } from "@tanstack/react-router";
+import { Heart, Search, ShoppingBag, User, Menu, X, Home } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useCart, useWishlist } from "@/lib/store";
 import { useAuth } from "@/lib/auth-context";
@@ -16,6 +16,7 @@ export function Header() {
   const cart = useCart();
   const wish = useWishlist();
   const { user } = useAuth();
+  const location = useLocation();
 
   useEffect(() => {
     setMounted(true);
@@ -28,6 +29,20 @@ export function Header() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  const currentPath = location.pathname;
+  const isHome = currentPath === "/";
+  const isCart = currentPath === "/cart";
+  const isAccount = ["/account", "/login", "/register", "/forgot-password"].some((p) =>
+    currentPath.startsWith(p)
+  );
+
+  const activeTab = 
+    menuOpen ? "menu" : 
+    searchOpen ? "search" : 
+    isCart ? "bag" : 
+    isAccount ? "account" : 
+    isHome ? "home" : "";
+
   return (
     <>
       <div className="bg-ink text-background/90 text-[11px] tracking-[0.32em] uppercase py-2.5 text-center border-b border-gold/10">
@@ -38,7 +53,8 @@ export function Header() {
           scrolled ? "border-b border-border/60 shadow-luxe bg-background/90 backdrop-blur-md" : ""
         }`}
       >
-        <div className="mx-auto grid grid-cols-3 items-center px-5 lg:px-10 h-16 lg:h-20">
+        {/* Desktop/Tablet Header Layout */}
+        <div className="hidden sm:grid mx-auto grid-cols-3 items-center px-5 lg:px-10 h-16 lg:h-20">
           <div className="flex items-center gap-4">
             <button
               aria-label="Open menu"
@@ -86,7 +102,7 @@ export function Header() {
                 </span>
               )}
             </Link>
-            <div className="relative hidden sm:block">
+            <div className="relative flex items-center">
               {user ? (
                 <>
                   <button
@@ -112,7 +128,83 @@ export function Header() {
             </div>
           </div>
         </div>
+
+        {/* Mobile Minimal Header Layout */}
+        <div className="sm:hidden flex items-center justify-center h-12 px-4 border-b border-border/40">
+          <Link
+            to="/"
+            className="font-serif text-xl tracking-[0.35em] text-foreground hover:text-gold transition-colors duration-300"
+          >
+            ANORA
+          </Link>
+        </div>
       </header>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-background border-t border-border/60 shadow-luxe flex items-center justify-around h-16 px-2 bg-background/95 backdrop-blur-md"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        {/* Menu Tab */}
+        <button
+          onClick={() => setMenuOpen(true)}
+          className={`flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors duration-300 ${
+            activeTab === "menu" ? "text-gold" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Menu className="h-5 w-5" />
+          <span className="text-[9px] tracking-wider uppercase mt-1">Menu</span>
+        </button>
+
+        {/* Search Tab */}
+        <button
+          onClick={() => setSearchOpen(true)}
+          className={`flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors duration-300 ${
+            activeTab === "search" ? "text-gold" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Search className="h-5 w-5" />
+          <span className="text-[9px] tracking-wider uppercase mt-1">Search</span>
+        </button>
+
+        {/* Home Tab */}
+        <Link
+          to="/"
+          className={`flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors duration-300 ${
+            activeTab === "home" ? "text-gold" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Home className="h-5 w-5" />
+          <span className="text-[9px] tracking-wider uppercase mt-1">Home</span>
+        </Link>
+
+        {/* Bag Tab */}
+        <Link
+          to="/cart"
+          className={`flex flex-col items-center justify-center flex-1 h-full py-2 relative transition-colors duration-300 ${
+            activeTab === "bag" ? "text-gold" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <ShoppingBag className="h-5 w-5" />
+          {mounted && cart.count > 0 && (
+            <span className="absolute top-1 right-[22%] text-[9px] bg-gold text-ink rounded-full h-4 min-w-4 px-1 flex items-center justify-center font-medium">
+              {cart.count}
+            </span>
+          )}
+          <span className="text-[9px] tracking-wider uppercase mt-1">Bag</span>
+        </Link>
+
+        {/* Account Tab */}
+        <Link
+          to="/account"
+          className={`flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors duration-300 ${
+            activeTab === "account" ? "text-gold" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <User className="h-5 w-5" />
+          <span className="text-[9px] tracking-wider uppercase mt-1">Account</span>
+        </Link>
+      </nav>
+
       <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
     </>

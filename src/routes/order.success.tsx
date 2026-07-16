@@ -7,7 +7,12 @@ import { formatAddress, getInvoicePdfUrl } from "@/lib/payments";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/order/success")({
-  validateSearch: (search: Record<string, string | undefined>) => ({
+  validateSearch: (search: Record<string, string | undefined>): {
+    session_id?: string;
+    orderNumber?: string;
+    invoiceNumber?: string;
+    orderId?: string;
+  } => ({
     session_id: search.session_id,
     orderNumber: search.orderNumber,
     invoiceNumber: search.invoiceNumber,
@@ -105,7 +110,7 @@ function OrderSuccess() {
            order_timeline (id, event_type, description, created_at)`,
         )
         .eq("id", orderId)
-        .eq("user_id", user.id)
+        .eq("user_id", user?.id ?? "")
         .maybeSingle();
 
       return data;
@@ -162,7 +167,7 @@ function OrderSuccess() {
              invoices (id, invoice_number, status, total_amount),
              order_timeline (id, event_type, description, created_at)`,
           )
-          .eq("user_id", user.id)
+          .eq("user_id", user?.id ?? "")
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -260,7 +265,7 @@ function OrderSuccess() {
             {items.map((item: Record<string, unknown>) => (
               <div key={item.id as string} className="flex justify-between text-sm">
                 <div className="flex items-center gap-3">
-                  {item.image_url && (
+                  {!!item.image_url && (
                     <img
                       src={item.image_url as string}
                       alt={item.name as string}

@@ -134,7 +134,6 @@ export const PayPalPayment = memo(function PayPalPayment({
           })),
           shippingAddress: pending.shippingAddress,
           billingAddress: pending.billingAddress,
-          total: 1,
           paymentMethod: "paypal",
         },
       });

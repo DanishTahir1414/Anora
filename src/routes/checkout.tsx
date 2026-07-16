@@ -13,7 +13,12 @@ import { type PaymentMethodId } from "@/payments/types";
 import type { CheckoutItem, CheckoutAddress, PaymentResult } from "@/payments/types";
 
 export const Route = createFileRoute("/checkout")({
-  validateSearch: (search: Record<string, string | undefined>) => ({
+  validateSearch: (search: Record<string, string | undefined>): {
+    success?: string;
+    canceled?: string;
+    payment_intent?: string;
+    redirect_status?: string;
+  } => ({
     success: search.success,
     canceled: search.canceled,
     payment_intent: search.payment_intent,
@@ -62,12 +67,12 @@ export function CheckoutForm() {
 
   const [confirmHandler, setConfirmHandler] = useState<
     | ((
-        cs: string,
-        returnUrl: string,
-      ) => Promise<{
-        error?: { message?: string };
-        paymentIntent?: { id: string; status: string };
-      }>)
+      cs: string,
+      returnUrl: string,
+    ) => Promise<{
+      error?: { message?: string };
+      paymentIntent?: { id: string; status: string };
+    }>)
     | null
   >(null);
 
@@ -142,7 +147,7 @@ export function CheckoutForm() {
     init();
   }, [cart.items, user?.email, clientSecret]);
 
-  const handleConfirmReady = useCallback((fn: Parameters<typeof setConfirmHandler>[0]) => {
+  const handleConfirmReady = useCallback((fn: Exclude<typeof confirmHandler, null>) => {
     setConfirmHandler(() => fn);
   }, []);
 
@@ -215,10 +220,10 @@ export function CheckoutForm() {
     const billingAddr = billingSame
       ? addr
       : {
-          firstName: addr.firstName, lastName: addr.lastName, line1: getFormValue(formRef.current, "billingAddress"),
-          line2: "", city: getFormValue(formRef.current, "billingCity"), state: "",
-          postalCode: getFormValue(formRef.current, "billingPostalCode"), country: getFormValue(formRef.current, "billingCountry"), phone: addr.phone,
-        };
+        firstName: addr.firstName, lastName: addr.lastName, line1: getFormValue(formRef.current, "billingAddress"),
+        line2: "", city: getFormValue(formRef.current, "billingCity"), state: "",
+        postalCode: getFormValue(formRef.current, "billingPostalCode"), country: getFormValue(formRef.current, "billingCountry"), phone: addr.phone,
+      };
     return {
       shippingAddress: addr,
       billingAddress: billingAddr,
