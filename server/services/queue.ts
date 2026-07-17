@@ -136,6 +136,12 @@ export class QueueService {
       return false;
     }
 
+    console.log("[DIAGNOSTIC] Step 3: Inside Queue Worker - Job claimed", {
+      jobId: claimed.id,
+      jobType: claimed.job_type,
+      customerEmail: (claimed.payload as any)?.customerEmail,
+    });
+
     logger.info("Processing job", { jobId, jobType: job.job_type, orderId: job.order_id });
 
     logger.info("Claimed payload diagnostics", {

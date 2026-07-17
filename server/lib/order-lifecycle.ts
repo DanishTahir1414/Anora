@@ -495,6 +495,16 @@ export async function createOrderFromPaymentIntent(
   });
 
   // Enqueue background jobs (non-blocking)
+  console.log("[DIAGNOSTIC] Step 1: Checkout completed", {
+    orderId,
+    customerEmail: emailPayload.customerEmail,
+    orderNumber,
+  });
+  console.log("[DIAGNOSTIC] Step 2: Before enqueueing full payload", {
+    customerEmail: emailPayload.customerEmail,
+    invoiceId: emailPayload.invoiceId,
+    orderId: emailPayload.orderId,
+  });
   queue.enqueue(orderId, emailPayload).catch((err) => {
     logger.error("Job enqueue failed", { orderId, error: String(err) });
   });
@@ -634,6 +644,16 @@ export async function createOrderFromPayment(
     paymentStatus: "completed",
   });
 
+  console.log("[DIAGNOSTIC] Step 1: Checkout completed", {
+    orderId,
+    customerEmail: emailPayload.customerEmail,
+    orderNumber,
+  });
+  console.log("[DIAGNOSTIC] Step 2: Before enqueueing full payload", {
+    customerEmail: emailPayload.customerEmail,
+    invoiceId: emailPayload.invoiceId,
+    orderId: emailPayload.orderId,
+  });
   queue.enqueue(orderId, emailPayload).catch((err) => {
     logger.error("Job enqueue failed", { orderId, error: String(err) });
   });
@@ -785,6 +805,16 @@ export async function createOrderFromPayPal(
     paymentStatus: "completed",
   });
 
+  console.log("[DIAGNOSTIC] Step 1: Checkout completed", {
+    orderId,
+    customerEmail: emailPayload.customerEmail,
+    orderNumber,
+  });
+  console.log("[DIAGNOSTIC] Step 2: Before enqueueing full payload", {
+    customerEmail: emailPayload.customerEmail,
+    invoiceId: emailPayload.invoiceId,
+    orderId: emailPayload.orderId,
+  });
   queue.enqueue(orderId, emailPayload).catch((err) => {
     logger.error("Job enqueue failed", { orderId, error: String(err) });
   });

@@ -27,6 +27,13 @@ export class EmailService {
   private ready = false;
 
   constructor() {
+    console.log("[DIAGNOSTIC] Step 8: Verifying environment variables", {
+      RESEND_API_KEY_exists: !!env.resendApiKey,
+      EMAIL_FROM: env.fromEmail,
+      PUBLIC_APP_URL: env.publicAppUrl,
+      NODE_ENV: process.env.NODE_ENV || "development",
+    });
+
     if (env.resendApiKey) {
       this.resend = new Resend(env.resendApiKey);
       this.ready = true;
@@ -105,8 +112,33 @@ export class EmailService {
       }));
     }
 
+    console.log("[DIAGNOSTIC] Step 4: Immediately before Resend", {
+      recipient: payload.to,
+      from: payload.from,
+      subject: payload.subject,
+      attachmentCount: payload.attachments?.length ?? 0,
+    });
+
     try {
-      const { error } = await this.resend.emails.send(payload);
+      let res;
+      try {
+        res = await this.resend.emails.send(payload);
+      } catch (e: any) {
+        console.error("RESEND SEND FAILED", {
+          message: e.message,
+          stack: e.stack,
+          response: e
+        });
+        throw e;
+      }
+
+      const { data, error } = res as any;
+      console.log("[DIAGNOSTIC] Step 6: Immediately after resend.emails.send()", {
+        emailId: data?.id ?? null,
+        response: res,
+        success: !error,
+      });
+
       if (error) throw new EmailError(error.message);
       logger.info("Email sent", { to: options.to, subject: options.subject });
     } catch (err) {
