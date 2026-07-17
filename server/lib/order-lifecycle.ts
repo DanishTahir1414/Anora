@@ -494,17 +494,6 @@ export async function createOrderFromPaymentIntent(
     paymentStatus: "completed",
   });
 
-  // Enqueue background jobs (non-blocking)
-  console.log("[DIAGNOSTIC] Step 1: Checkout completed", {
-    orderId,
-    customerEmail: emailPayload.customerEmail,
-    orderNumber,
-  });
-  console.log("[DIAGNOSTIC] Step 2: Before enqueueing full payload", {
-    customerEmail: emailPayload.customerEmail,
-    invoiceId: emailPayload.invoiceId,
-    orderId: emailPayload.orderId,
-  });
   try {
     await queue.enqueue(orderId, emailPayload);
   } catch (err) {
@@ -646,16 +635,6 @@ export async function createOrderFromPayment(
     paymentStatus: "completed",
   });
 
-  console.log("[DIAGNOSTIC] Step 1: Checkout completed", {
-    orderId,
-    customerEmail: emailPayload.customerEmail,
-    orderNumber,
-  });
-  console.log("[DIAGNOSTIC] Step 2: Before enqueueing full payload", {
-    customerEmail: emailPayload.customerEmail,
-    invoiceId: emailPayload.invoiceId,
-    orderId: emailPayload.orderId,
-  });
   try {
     await queue.enqueue(orderId, emailPayload);
   } catch (err) {
@@ -809,16 +788,6 @@ export async function createOrderFromPayPal(
     paymentStatus: "completed",
   });
 
-  console.log("[DIAGNOSTIC] Step 1: Checkout completed", {
-    orderId,
-    customerEmail: emailPayload.customerEmail,
-    orderNumber,
-  });
-  console.log("[DIAGNOSTIC] Step 2: Before enqueueing full payload", {
-    customerEmail: emailPayload.customerEmail,
-    invoiceId: emailPayload.invoiceId,
-    orderId: emailPayload.orderId,
-  });
   try {
     await queue.enqueue(orderId, emailPayload);
   } catch (err) {

@@ -77,20 +77,6 @@ export class QueueService {
       max_retries: config.queue.maxRetries,
     }));
 
-    const payloadSize = JSON.stringify(payload).length;
-    logger.info("Enqueue payload details", {
-      orderId,
-      payloadKeys: Object.keys(payload),
-      payloadSize,
-      hasCustomerEmail:
-        typeof payload.customerEmail === "string" && payload.customerEmail.length > 0,
-      hasThankYouHtml: typeof payload.thankYouHtml === "string" && payload.thankYouHtml.length > 0,
-      hasInvoiceEmailHtml:
-        typeof payload.invoiceEmailHtml === "string" && payload.invoiceEmailHtml.length > 0,
-      hasAdminSubject: typeof payload.adminSubject === "string" && payload.adminSubject.length > 0,
-      hasAdminHtml: typeof payload.adminHtml === "string" && payload.adminHtml.length > 0,
-    });
-
     const { error } = await (this.supabase.from("background_jobs") as any).insert(jobs);
     if (error) throw new QueueError(`Failed to enqueue jobs: ${error.message}`, error);
 
@@ -98,7 +84,6 @@ export class QueueService {
 
     // Process them immediately to ensure execution inside the serverless runtime
     try {
-      console.log("[DIAGNOSTIC] Queue trigger: Processing enqueued jobs immediately");
       await this.processPending();
     } catch (err) {
       logger.error("Failed to process enqueued jobs immediately", { orderId, error: String(err) });
@@ -167,33 +152,7 @@ export class QueueService {
       return false;
     }
 
-    console.log("[DIAGNOSTIC] Step 3: Inside Queue Worker - Job claimed", {
-      jobId: claimed.id,
-      jobType: claimed.job_type,
-      customerEmail: (claimed.payload as any)?.customerEmail,
-    });
-
     logger.info("Processing job", { jobId, jobType: job.job_type, orderId: job.order_id });
-
-    logger.info("Claimed payload diagnostics", {
-      jobId,
-      jobType: job.job_type,
-      claimedPayloadType: typeof claimed.payload,
-      claimedPayloadIsNull: claimed.payload === null,
-      claimedPayloadKeys:
-        typeof claimed.payload === "object" && claimed.payload !== null
-          ? Object.keys(claimed.payload as Record<string, unknown>)
-          : [],
-      hasCustomerEmail:
-        typeof (claimed.payload as Record<string, unknown>).customerEmail === "string",
-      hasThankYouHtml:
-        typeof (claimed.payload as Record<string, unknown>).thankYouHtml === "string",
-      hasInvoiceEmailHtml:
-        typeof (claimed.payload as Record<string, unknown>).invoiceEmailHtml === "string",
-      hasAdminSubject:
-        typeof (claimed.payload as Record<string, unknown>).adminSubject === "string",
-      hasAdminHtml: typeof (claimed.payload as Record<string, unknown>).adminHtml === "string",
-    });
 
     try {
       const handler = this.ensureHandler(job.job_type);
