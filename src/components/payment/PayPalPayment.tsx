@@ -20,12 +20,9 @@ interface PendingOrderData {
   items: CheckoutItem[];
 }
 
-// ── Module-level PayPal client ID cache ──────────────────────────────────
-// The server round-trip to fetch the PayPal client ID is done once and
-// cached for the lifetime of the page. Subsequent renders skip the network
-// request entirely and use the cached value synchronously.
-let paypalClientIdCache: string | null | undefined = undefined;
-let paypalClientIdPromise: Promise<string | null> | null = null;
+const clientEnvVal = import.meta.env.VITE_PAYPAL_CLIENT_ID;
+let paypalClientIdCache: string | null | undefined = clientEnvVal || undefined;
+let paypalClientIdPromise: Promise<string | null> | null = clientEnvVal ? Promise.resolve(clientEnvVal) : null;
 
 function fetchPayPalClientId(): Promise<string | null> {
   if (paypalClientIdPromise === null) {
@@ -36,10 +33,6 @@ function fetchPayPalClientId(): Promise<string | null> {
   }
   return paypalClientIdPromise;
 }
-
-// Kick off PayPal client-ID fetch immediately when this module is imported
-// so the result is (likely) already cached by the time the component mounts.
-fetchPayPalClientId();
 
 // ── Component ─────────────────────────────────────────────────────────────
 // Memoised — PayPalScriptProvider only remounts when clientId changes
