@@ -58,8 +58,9 @@ export function ProductCard({ product }: { product: Product }) {
           <button
             aria-label="Add to wishlist"
             onClick={() => {
+              const wasWishlisted = wish.has(product.id);
               wish.toggle(product.id);
-              toast(wish.has(product.id) ? "Removed from wishlist" : "Saved to wishlist");
+              toast(wasWishlisted ? "Removed from Wishlist" : "Added to Wishlist");
             }}
             className="absolute top-3 right-3 h-9 w-9 grid place-items-center bg-background/90 backdrop-blur transition-all duration-300 hover:text-gold hover:scale-105"
           >

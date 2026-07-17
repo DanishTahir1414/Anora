@@ -114,9 +114,10 @@ function hydrate() {
   ensureSessionId();
   rebuildSnapshots();
 
-  const missingIds = cartItems
-    .map((i) => i.productId)
-    .filter((id) => !productRegistry.has(id) && !catalog.find((p) => p.id === id));
+  const missingIds = [
+    ...cartItems.map((i) => i.productId),
+    ...wishIds,
+  ].filter((id) => !productRegistry.has(id) && !catalog.find((p) => p.id === id));
   if (missingIds.length > 0) {
     loadProductsByIds(missingIds).then(() => {
       rebuildSnapshots();
@@ -194,7 +195,7 @@ export function registerProduct(product: Product) {
   productRegistry.set(product.id, product);
 }
 
-function getProduct(productId: string) {
+export function getProduct(productId: string) {
   return productRegistry.get(productId) ?? catalog.find((entry) => entry.id === productId);
 }
 
@@ -628,6 +629,17 @@ export async function syncWishlistOnLogin(userId: string) {
   persist();
   rebuildSnapshots();
   notify();
+
+  const missingIds = wishIds.filter(
+    (id) => !productRegistry.has(id) && !catalog.find((p) => p.id === id)
+  );
+  if (missingIds.length > 0) {
+    void loadProductsByIds(missingIds).then(() => {
+      rebuildSnapshots();
+      notify();
+    });
+  }
+
   return wishIds;
 }
 

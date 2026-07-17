@@ -26,6 +26,7 @@ import {
   updateCartQuantity,
   validateCartStock,
   subscribe,
+  getProduct,
 } from "./customer-services";
 
 export interface CartItem {
@@ -60,6 +61,7 @@ interface WishCtx {
   addToWishlist: (id: string) => Promise<void>;
   removeFromWishlist: (id: string) => Promise<void>;
   isInWishlist: (id: string) => boolean;
+  getProduct: (id: string) => any;
 }
 
 const CartContext = createContext<CartCtx | null>(null);
@@ -121,6 +123,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addToWishlist: (id) => addToWishlist(id),
       removeFromWishlist: (id) => removeFromWishlist(id),
       isInWishlist,
+      getProduct: (id) => getProduct(id),
     }),
     [wishSnapshot],
   );

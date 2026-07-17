@@ -376,8 +376,9 @@ function ProductPage() {
             </div>
             <button
               onClick={() => {
+                const wasWishlisted = wish.has(product.id);
                 wish.toggle(product.id);
-                toast(wish.has(product.id) ? "Removed from wishlist" : "Saved to wishlist");
+                toast(wasWishlisted ? "Removed from Wishlist" : "Added to Wishlist");
               }}
               className="h-11 w-11 grid place-items-center border border-border hover:border-foreground transition-all duration-300 hover:scale-105"
               aria-label="wishlist"

@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { X } from "lucide-react";
-import { products } from "@/lib/products";
 import { useCart, useWishlist } from "@/lib/store";
 import { toast } from "sonner";
+import type { Product } from "@/lib/products";
 
 export const Route = createFileRoute("/wishlist")({
   head: () => ({ meta: [{ title: "Wishlist — ANORA" }] }),
@@ -12,7 +12,9 @@ export const Route = createFileRoute("/wishlist")({
 function WishlistPage() {
   const wish = useWishlist();
   const cart = useCart();
-  const items = products.filter((p) => wish.ids.includes(p.id));
+  const items = wish.ids
+    .map((id) => wish.getProduct(id))
+    .filter((p): p is Product => !!p);
 
   return (
     <div className="px-5 lg:px-10 py-16 max-w-7xl mx-auto">
@@ -38,7 +40,7 @@ function WishlistPage() {
               <Link to="/product/$slug" params={{ slug: p.slug }}>
                 <div className="aspect-[3/4] bg-neutral overflow-hidden">
                   <img
-                    src={p.images[0]}
+                    src={p.images && p.images[0] ? p.images[0] : ""}
                     alt={p.name}
                     loading="lazy"
                     className="h-full w-full object-cover transition-transform duration-1000 group-hover:scale-105"
@@ -69,7 +71,7 @@ function WishlistPage() {
               </div>
               <button
                 onClick={() => {
-                  cart.add(p.id, p.sizes[0], 1);
+                  cart.add(p.id, p.sizes && p.sizes[0] ? p.sizes[0] : "S", 1);
                   toast.success("Added to bag", { description: p.name });
                 }}
                 className="mt-4 w-full border border-foreground py-3 text-[11px] tracking-[0.32em] uppercase hover:bg-foreground hover:text-background transition-colors"
