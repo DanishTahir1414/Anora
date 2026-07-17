@@ -22,6 +22,7 @@ export interface ValidatedLineItem {
   quantity: number;
   maxAvailable: number;
   subtotal: number;
+  imageUrl?: string;
 }
 
 export interface CartValidationResult {
@@ -110,6 +111,21 @@ export async function validateCartItems(input: CartItemInput[]): Promise<CartVal
 
   if (productError) {
     return { ok: false, error: "Unable to validate cart", items: [], subtotal: 0, total: 0 };
+  }
+
+  const { data: images, error: imagesError } = await supabaseAdmin
+    .from("product_images")
+    .select("product_id, image_url, sort_order")
+    .in("product_id", productIds)
+    .order("sort_order", { ascending: true });
+
+  const imageMap = new Map<string, string>();
+  if (!imagesError && images) {
+    for (const img of images) {
+      if (!imageMap.has(img.product_id)) {
+        imageMap.set(img.product_id, img.image_url);
+      }
+    }
   }
 
   if (!products || products.length !== productIds.length) {
@@ -218,6 +234,7 @@ export async function validateCartItems(input: CartItemInput[]): Promise<CartVal
         quantity: item.quantity,
         maxAvailable: variant!.stock,
         subtotal: lineSubtotal,
+        imageUrl: imageMap.get(item.productId),
       });
       continue;
     }
@@ -247,6 +264,7 @@ export async function validateCartItems(input: CartItemInput[]): Promise<CartVal
       quantity: item.quantity,
       maxAvailable,
       subtotal: lineSubtotal,
+      imageUrl: imageMap.get(item.productId),
     });
   }
 

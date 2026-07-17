@@ -109,6 +109,7 @@ export async function createPaymentIntent(
         quantity: v.quantity,
         unitPrice: v.unitPrice,
         productName: v.productName,
+        imageUrl: v.imageUrl,
       })),
     ),
   };
@@ -160,7 +161,7 @@ export async function createPaymentIntent(
   // Create payment session for checkout tracking
   if (input.checkoutRequestId) {
     try {
-      await container.supabase.from("payment_sessions").upsert(
+      await (container.supabase.from("payment_sessions") as any).upsert(
         {
           checkout_request_id: input.checkoutRequestId,
           user_id: input.userId,
@@ -285,6 +286,7 @@ export async function createStripeCheckoutSession(
     quantity: v.quantity,
     unitPrice: v.unitPrice,
     productName: v.productName,
+    imageUrl: v.imageUrl,
   }));
   sessionParams.set("metadata[validated_items]", JSON.stringify(itemsMeta));
 

@@ -319,33 +319,34 @@ export async function uploadProductImage(
   file: File,
   onProgress?: (pct: number) => void,
 ): Promise<{ image_url: string; id: string }> {
-  const ext = file.name.split(".").pop() ?? "jpg";
-  const filePath = `products/${productId}/${crypto.randomUUID()}.${ext}`;
+  const formData = new FormData();
+  formData.append("productId", productId);
+  formData.append("file", file);
 
-  const { error: uploadError } = await supabase.storage
-    .from("product-images")
-    .upload(filePath, file, {
-      cacheControl: "3600",
-      upsert: false,
-    });
-  if (uploadError) throw uploadError;
+  const { data: { session } } = await supabase.auth.getSession();
+  const accessToken = session?.access_token;
 
-  const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(filePath);
+  const res = await fetch("/api/admin/products/upload", {
+    method: "POST",
+    headers: {
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: formData,
+  });
 
-  const imageUrl = urlData?.publicUrl ?? "";
-  if (!imageUrl) throw new Error("Failed to get public URL");
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => "Upload failed");
+    let message = errorText;
+    try {
+      const parsed = JSON.parse(errorText);
+      message = parsed.statusMessage || parsed.message || errorText;
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
+  }
 
-  const { data, error: insertError } = await supabase
-    .from("product_images")
-    .insert({
-      product_id: productId,
-      image_url: imageUrl,
-      sort_order: 0,
-    })
-    .select("id, image_url")
-    .single();
-
-  if (insertError) throw insertError;
+  const data = await res.json();
   return { image_url: data.image_url, id: data.id };
 }
 
