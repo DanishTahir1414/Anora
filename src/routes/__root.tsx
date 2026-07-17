@@ -155,7 +155,7 @@ function RootComponent() {
                 <WhatsAppButton />
               </>
             )}
-            <main className={isAdmin ? "" : "flex-1 pb-20 sm:pb-0"}>
+            <main className={isAdmin ? "" : "flex-1"}>
               <Outlet />
             </main>
             {!isAdmin && <Footer />}

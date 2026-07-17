@@ -315,3 +315,14 @@ export async function requestRefund(
   if (description) params.p_description = description;
   return rpc<RpcResult>("request_refund", params);
 }
+
+export async function getOrderByTracking(
+  orderNumber: string,
+  email: string,
+): Promise<any> {
+  return rpc<any>("get_order_by_tracking", {
+    p_order_number: orderNumber,
+    p_email: email,
+  });
+}
+

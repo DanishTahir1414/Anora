@@ -1,3 +1,5 @@
+import { env } from "../config/env";
+
 // ─── Color Constants ─────────────────────────────────────────────────
 export const GOLD = "#C9A96E";
 export const DARK = "#18181B";
@@ -45,11 +47,7 @@ export function getCustomerDisplayName(data?: CustomerNameInput | null): string 
   }
 
   // 4. account display name
-  if (data.displayName?.trim()) return data.displayName.trim();
-
-  // 5. "Valued Customer"
-  // 6. email ONLY if absolutely nothing else exists
-  if (data.email?.trim()) return data.email.trim();
+  if (data.displayName?.trim() && !data.displayName.includes("@")) return data.displayName.trim();
 
   return "Valued Customer";
 }
@@ -72,6 +70,10 @@ export interface ThankYouData {
   subtotal: number;
   shippingAddress: string;
   estimatedDelivery: string;
+  shipping?: number;
+  tax?: number;
+  total?: number;
+  paymentMethod?: string;
 }
 
 export interface InvoiceEmailData {
@@ -253,23 +255,13 @@ export function footer(): string {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
         <tr>
           <td style="padding:32px 0 0;border-top:1px solid ${BORDER};">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td align="center" style="padding-bottom:24px;">
-                  <a href="https://instagram.com/anora_ny" style="display:inline-block;margin:0 12px;color:${MUTED};font-size:11px;letter-spacing:1px;text-transform:uppercase;">Instagram</a>
-                  <span style="color:${BORDER};margin:0 4px;">·</span>
-                  <a href="https://facebook.com/anora" style="display:inline-block;margin:0 12px;color:${MUTED};font-size:11px;letter-spacing:1px;text-transform:uppercase;">Facebook</a>
-                  <span style="color:${BORDER};margin:0 4px;">·</span>
-                  <a href="https://pinterest.com/anora" style="display:inline-block;margin:0 12px;color:${MUTED};font-size:11px;letter-spacing:1px;text-transform:uppercase;">Pinterest</a>
-                </td>
-              </tr>
-            </table>
-            <p style="font-size:11px;color:${MUTED};text-align:center;margin:0 0 6px;line-height:1.6;letter-spacing:0.5px;">
-              ANORA Atelier — Elegance Crafted For Every Moment
+            <p style="font-size:11px;color:${MUTED};text-align:center;margin:0 0 8px;line-height:1.6;letter-spacing:0.5px;">
+              Thank you for shopping with ANORA.
             </p>
-            <p style="font-size:11px;color:${MUTED};text-align:center;margin:0;line-height:1.6;">
+            <p style="font-size:11px;color:${MUTED};text-align:center;margin:0 0 8px;line-height:1.6;">
+              Customer Support &nbsp;·&nbsp; 
+              <a href="https://anora-elegance.com" style="color:${DARK};text-decoration:none;font-weight:500;">www.anora-elegance.com</a> &nbsp;·&nbsp;
               <a href="mailto:support@anora-elegance.com" style="color:${DARK};text-decoration:none;font-weight:500;">support@anora-elegance.com</a>
-              &nbsp;&nbsp;·&nbsp;&nbsp; +1 (347) 325-6525
             </p>
             <p style="font-size:10px;color:${MUTED};text-align:center;margin:16px 0 0;line-height:1.5;">
               © ${new Date().getFullYear()} ANORA. All rights reserved.
@@ -368,30 +360,64 @@ export function buildThankYouHtml(data: ThankYouData): string {
       <td class="content" style="padding:0 48px;background-color:${WHITE};">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           <tr>
-            <td style="padding:16px 0 32px;text-align:center;">
-              <h2 style="font-family:'Didot','Playfair Display','Times New Roman',serif;font-size:24px;color:${DARK};margin:0 0 16px;font-weight:400;letter-spacing:1px;">Your Order is Confirmed</h2>
-              <p style="font-size:14px;color:${TEXT};margin:0 0 16px;line-height:1.6;text-align:left;">Dear ${escapeHtml(resolvedName)},</p>
-              <p style="font-size:14px;color:${TEXT};margin:0;line-height:1.6;text-align:left;">We are pleased to confirm your purchase. Your order is being meticulously prepared at our atelier and will be delivered to you shortly.</p>
+            <td style="padding:16px 0 32px;text-align:left;">
+              <h2 style="font-family:'Didot','Playfair Display','Times New Roman',serif;font-size:24px;color:${DARK};margin:0 0 24px;font-weight:400;letter-spacing:1px;text-align:center;">Order Confirmed</h2>
+              <p style="font-size:14px;color:${TEXT};margin:0 0 16px;line-height:1.6;">Dear ${escapeHtml(resolvedName)},</p>
+              <p style="font-size:14px;color:${TEXT};margin:0 0 16px;line-height:1.6;">Thank you for choosing ANORA.</p>
+              <p style="font-size:14px;color:${TEXT};margin:0 0 16px;line-height:1.6;">We are delighted to confirm that your order has been received successfully. Every piece is carefully prepared in our atelier to ensure it meets the quality and craftsmanship you expect from us.</p>
+              <p style="font-size:14px;color:${TEXT};margin:0 0 24px;line-height:1.6;">Your order is now being processed, and you'll be able to track its progress from your account once it moves through our fulfillment stages.</p>
+              <p style="font-size:14px;color:${TEXT};margin:0 0 8px;line-height:1.6;">Warm regards,</p>
+              <p style="font-size:14px;color:${TEXT};margin:0;font-weight:500;line-height:1.6;">The ANORA Team</p>
             </td>
           </tr>
         </table>
       </td>
     </tr>
     <tr>
-      <td class="content" style="padding:0 48px;background-color:${WHITE};">
+      <td class="content" style="padding:0 48px;background-color:${WHITE};text-align:center;">
+        <a href="${escapeHtml(env.publicAppUrl)}/track?orderNumber=${escapeHtml(encodeURIComponent(data.orderNumber))}" style="display:inline-block;background-color:${DARK};color:${WHITE};padding:14px 36px;font-size:11px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;font-weight:500;border-radius:0;">View Your Order</a>
+      </td>
+    </tr>
+    <tr>
+      <td class="content" style="padding:24px 48px 0;background-color:${WHITE};">
+        <div style="border-top:1px solid ${BORDER};padding-top:24px;text-align:left;">
+          <p style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:${MUTED};margin:0 0 12px;font-weight:600;">Next Steps</p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;color:${TEXT};line-height:1.6;">
+            <tr>
+              <td style="padding:4px 0;vertical-align:top;width:20px;color:${GOLD};">•</td>
+              <td style="padding:4px 0;"><strong>Atelier Preparation:</strong> Our team is hand-packaging and verifying your selected items.</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 0;vertical-align:top;width:20px;color:${GOLD};">•</td>
+              <td style="padding:4px 0;"><strong>Dispatch:</strong> As soon as your order ships, we will send you a tracking number via email.</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 0;vertical-align:top;width:20px;color:${GOLD};">•</td>
+              <td style="padding:4px 0;"><strong>Invoice Attached:</strong> A detailed PDF copy of your invoice is attached to this email for your records.</td>
+            </tr>
+          </table>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td class="content" style="padding:24px 48px 0;background-color:${WHITE};">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${LIGHT_BG};border:1px solid ${BORDER};padding:24px;margin-bottom:16px;">
           <tr>
-            <td style="text-align:center;padding:0 12px;border-right:1px solid ${BORDER};width:33%;">
+            <td style="text-align:center;padding:0 8px;border-right:1px solid ${BORDER};width:25%;">
               <p style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${MUTED};margin:0 0 6px;">Order Ref</p>
-              <p style="font-size:14px;color:${DARK};margin:0;font-weight:500;">${escapeHtml(data.orderNumber)}</p>
+              <p style="font-size:13px;color:${DARK};margin:0;font-weight:500;">${escapeHtml(data.orderNumber)}</p>
             </td>
-            <td style="text-align:center;padding:0 12px;border-right:1px solid ${BORDER};width:33%;">
+            <td style="text-align:center;padding:0 8px;border-right:1px solid ${BORDER};width:25%;">
               <p style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${MUTED};margin:0 0 6px;">Date Ordered</p>
-              <p style="font-size:13px;color:${DARK};margin:0;">${new Date(data.orderDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+              <p style="font-size:12px;color:${DARK};margin:0;">${new Date(data.orderDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
             </td>
-            <td style="text-align:center;padding:0 12px;width:33%;">
+            <td style="text-align:center;padding:0 8px;border-right:1px solid ${BORDER};width:25%;">
               <p style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${MUTED};margin:0 0 6px;">Est. Delivery</p>
-              <p style="font-size:13px;color:${DARK};margin:0;">${data.estimatedDelivery}</p>
+              <p style="font-size:12px;color:${DARK};margin:0;">${data.estimatedDelivery}</p>
+            </td>
+            <td style="text-align:center;padding:0 8px;width:25%;">
+              <p style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${MUTED};margin:0 0 6px;">Payment Method</p>
+              <p style="font-size:12px;color:${DARK};margin:0;text-transform:capitalize;">${escapeHtml(data.paymentMethod || "Card")}</p>
             </td>
           </tr>
         </table>
@@ -406,10 +432,21 @@ export function buildThankYouHtml(data: ThankYouData): string {
       <td class="content" style="padding:24px 48px 0;background-color:${WHITE};">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           ${totalRow("Subtotal", `$${data.subtotal.toFixed(2)}`)}
+          ${data.shipping && data.shipping > 0 ? totalRow("Shipping", `$${data.shipping.toFixed(2)}`) : totalRow("Shipping", "Complimentary")}
+          ${data.tax && data.tax > 0 ? totalRow("Tax", `$${data.tax.toFixed(2)}`) : ""}
           <tr>
-            <td style="padding:12px 0;text-align:right;border-top:1px solid ${BORDER};"><span style="font-size:14px;color:${DARK};font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Total Paid</span></td>
-            <td style="padding:12px 0;text-align:right;border-top:1px solid ${BORDER};width:120px;"><span style="font-size:16px;color:${DARK};font-weight:600;">$${data.subtotal.toFixed(2)}</span></td>
+            <td style="padding:12px 0;text-align:right;border-top:1px solid ${BORDER};"><span style="font-size:14px;color:${DARK};font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Grand Total</span></td>
+            <td style="padding:12px 0;text-align:right;border-top:1px solid ${BORDER};width:120px;"><span style="font-size:16px;color:${DARK};font-weight:600;">$${(data.total ?? data.subtotal).toFixed(2)}</span></td>
           </tr>
+          ${data.paymentMethod ? `
+          <tr>
+            <td colspan="2" style="padding:16px 0 0;text-align:right;">
+              <p style="font-size:11px;color:${MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;">
+                Paid via ${escapeHtml(data.paymentMethod)}
+              </p>
+            </td>
+          </tr>
+          ` : ""}
         </table>
       </td>
     </tr>

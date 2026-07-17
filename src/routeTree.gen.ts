@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WishlistRouteImport } from './routes/wishlist'
+import { Route as TrackRouteImport } from './routes/track'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ShopRouteImport } from './routes/shop'
@@ -53,6 +54,11 @@ import { Route as AdminFinanceInvoicesRouteImport } from './routes/admin.finance
 const WishlistRoute = WishlistRouteImport.update({
   id: '/wishlist',
   path: '/wishlist',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrackRoute = TrackRouteImport.update({
+  id: '/track',
+  path: '/track',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TermsRoute = TermsRouteImport.update({
@@ -269,6 +275,7 @@ export interface FileRoutesByFullPath {
   '/shop': typeof ShopRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/track': typeof TrackRoute
   '/wishlist': typeof WishlistRoute
   '/admin/abandoned-carts': typeof AdminAbandonedCartsRoute
   '/admin/activity': typeof AdminActivityRoute
@@ -310,6 +317,7 @@ export interface FileRoutesByTo {
   '/returns': typeof ReturnsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/track': typeof TrackRoute
   '/wishlist': typeof WishlistRoute
   '/admin/abandoned-carts': typeof AdminAbandonedCartsRoute
   '/admin/activity': typeof AdminActivityRoute
@@ -352,6 +360,7 @@ export interface FileRoutesById {
   '/shop': typeof ShopRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/track': typeof TrackRoute
   '/wishlist': typeof WishlistRoute
   '/admin/abandoned-carts': typeof AdminAbandonedCartsRoute
   '/admin/activity': typeof AdminActivityRoute
@@ -396,6 +405,7 @@ export interface FileRouteTypes {
     | '/shop'
     | '/sitemap.xml'
     | '/terms'
+    | '/track'
     | '/wishlist'
     | '/admin/abandoned-carts'
     | '/admin/activity'
@@ -437,6 +447,7 @@ export interface FileRouteTypes {
     | '/returns'
     | '/sitemap.xml'
     | '/terms'
+    | '/track'
     | '/wishlist'
     | '/admin/abandoned-carts'
     | '/admin/activity'
@@ -478,6 +489,7 @@ export interface FileRouteTypes {
     | '/shop'
     | '/sitemap.xml'
     | '/terms'
+    | '/track'
     | '/wishlist'
     | '/admin/abandoned-carts'
     | '/admin/activity'
@@ -521,6 +533,7 @@ export interface RootRouteChildren {
   ShopRoute: typeof ShopRouteWithChildren
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
+  TrackRoute: typeof TrackRoute
   WishlistRoute: typeof WishlistRoute
   OrderSuccessRoute: typeof OrderSuccessRoute
   ProductSlugRoute: typeof ProductSlugRoute
@@ -533,6 +546,13 @@ declare module '@tanstack/react-router' {
       path: '/wishlist'
       fullPath: '/wishlist'
       preLoaderRoute: typeof WishlistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/track': {
+      id: '/track'
+      path: '/track'
+      fullPath: '/track'
+      preLoaderRoute: typeof TrackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/terms': {
@@ -923,6 +943,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShopRoute: ShopRouteWithChildren,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
+  TrackRoute: TrackRoute,
   WishlistRoute: WishlistRoute,
   OrderSuccessRoute: OrderSuccessRoute,
   ProductSlugRoute: ProductSlugRoute,

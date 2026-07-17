@@ -121,6 +121,10 @@ function buildEmailPayload(input: EmailPayloadInput): Record<string, unknown> {
       subtotal: input.subtotal,
       shippingAddress: shippingAddressText,
       estimatedDelivery: estimatedDeliveryFrom(input.orderDate),
+      shipping: input.shipping,
+      tax: input.tax,
+      total: input.total,
+      paymentMethod: input.paymentMethod,
     }),
     invoiceEmailHtml: buildInvoiceEmailHtml({
       customer: customerNameInput,
@@ -257,7 +261,7 @@ async function verifyPaymentIntent(paymentIntentId: string): Promise<{
       return { ok: false, error: "No items in PaymentIntent metadata" };
     }
 
-    const charge = pi.latest_charge as Record<string, unknown> | undefined;
+    const charge = (pi.latest_charge as any) as Record<string, unknown> | undefined;
     const paymentMethodDetails = charge?.payment_method_details as
       | Record<string, unknown>
       | undefined;
@@ -299,7 +303,7 @@ async function verifyStripePayment(stripeSessionId: string): Promise<{
       expand: ["payment_intent"],
     });
 
-    const paymentIntent = session.payment_intent as Record<string, unknown> | undefined;
+    const paymentIntent = (session.payment_intent as any) as Record<string, unknown> | undefined;
 
     if (!paymentIntent) {
       return { ok: false, error: "No payment intent found for session" };
@@ -350,16 +354,16 @@ export async function createOrderFromPaymentIntent(
   }
 
   // Check for existing order (idempotency)
-  const { data: existingOrder } = await supabase
-    .from("orders")
+  const { data: existingOrder } = await (supabase
+    .from("orders") as any)
     .select("id, order_number, status")
     .eq("stripe_payment_intent_id", paymentIntentId)
     .maybeSingle();
 
   if (existingOrder) {
     logger.info("Existing order found", { orderId: existingOrder.id });
-    const { data: invoiceRecord } = await supabase
-      .from("invoices")
+    const { data: invoiceRecord } = await (supabase
+      .from("invoices") as any)
       .select("id, invoice_number")
       .eq("order_id", existingOrder.id)
       .maybeSingle();
@@ -376,8 +380,8 @@ export async function createOrderFromPaymentIntent(
   const checkoutRequestId = verification.checkoutRequestId;
 
   if (checkoutRequestId) {
-    await supabase
-      .from("payment_sessions")
+    await (supabase
+      .from("payment_sessions") as any)
       .update({ status: "processing" })
       .eq("checkout_request_id", checkoutRequestId);
   }
@@ -404,7 +408,7 @@ export async function createOrderFromPaymentIntent(
     : shippingAddressJson;
 
   // Call the database RPC to create the order, decrement stock, create invoice
-  const { data: rpcResult, error: rpcError } = await supabase.rpc("create_order_from_payment", {
+  const { data: rpcResult, error: rpcError } = await (supabase.rpc as any)("create_order_from_payment", {
     p_user_id: verification.userId,
     p_order_number: orderNumber,
     p_subtotal: total,
@@ -445,10 +449,10 @@ export async function createOrderFromPaymentIntent(
   const shippingAddr = verification.shippingAddress ?? {};
   const billingAddr = verification.billingAddress ?? verification.shippingAddress ?? {};
 
-  let customerProfile = null;
+  let customerProfile: { firstName?: string | null; lastName?: string | null; displayName?: string | null } | null = null;
   try {
-    const { data: profile } = await supabase
-      .from("profiles")
+    const { data: profile } = await (supabase
+      .from("profiles") as any)
       .select("first_name, last_name, email, metadata")
       .eq("id", verification.userId)
       .maybeSingle();
@@ -457,7 +461,6 @@ export async function createOrderFromPaymentIntent(
         firstName: profile.first_name,
         lastName: profile.last_name,
         displayName: (profile.metadata as Record<string, any>)?.displayName || "",
-        email: profile.email
       };
     }
   } catch (err) {
@@ -516,8 +519,8 @@ export async function createOrderFromPayment(
     return { success: false, error: verification.error };
   }
 
-  const { data: existingOrder } = await supabase
-    .from("orders")
+  const { data: existingOrder } = await (supabase
+    .from("orders") as any)
     .select("id, order_number, status")
     .eq("stripe_session_id", stripeSessionId)
     .maybeSingle();
@@ -550,7 +553,7 @@ export async function createOrderFromPayment(
     ? JSON.stringify(input.billingAddress)
     : shippingAddressJson;
 
-  const { data: rpcResult, error: rpcError } = await supabase.rpc("create_order_from_payment", {
+  const { data: rpcResult, error: rpcError } = await (supabase.rpc as any)("create_order_from_payment", {
     p_user_id: input.userId,
     p_order_number: orderNumber,
     p_subtotal: input.subtotal,
@@ -586,10 +589,10 @@ export async function createOrderFromPayment(
   const shippingAddr = input.shippingAddress;
   const billingAddr = input.billingAddress || input.shippingAddress;
 
-  let customerProfile = null;
+  let customerProfile: { firstName?: string | null; lastName?: string | null; displayName?: string | null } | null = null;
   try {
-    const { data: profile } = await supabase
-      .from("profiles")
+    const { data: profile } = await (supabase
+      .from("profiles") as any)
       .select("first_name, last_name, email, metadata")
       .eq("id", input.userId)
       .maybeSingle();
@@ -598,7 +601,6 @@ export async function createOrderFromPayment(
         firstName: profile.first_name,
         lastName: profile.last_name,
         displayName: (profile.metadata as Record<string, any>)?.displayName || "",
-        email: profile.email
       };
     }
   } catch (err) {
@@ -652,16 +654,16 @@ export async function createOrderFromPayPal(
 
   logger.info("Creating order from PayPal", { paypalOrderId: input.paypalOrderId });
 
-  const { data: existingOrder } = await supabase
-    .from("orders")
+  const { data: existingOrder } = await (supabase
+    .from("orders") as any)
     .select("id, order_number, status")
     .eq("paypal_order_id", input.paypalOrderId)
     .maybeSingle();
 
   if (existingOrder) {
     logger.info("Existing order found for PayPal", { orderId: existingOrder.id });
-    const { data: invoiceRecord } = await supabase
-      .from("invoices")
+    const { data: invoiceRecord } = await (supabase
+      .from("invoices") as any)
       .select("id, invoice_number")
       .eq("order_id", existingOrder.id)
       .maybeSingle();
@@ -692,7 +694,7 @@ export async function createOrderFromPayPal(
   const shippingAddressJson = JSON.stringify(input.shippingAddress);
   const billingAddressJson = JSON.stringify(input.billingAddress);
 
-  const { data: rpcResult, error: rpcError } = await supabase.rpc("create_order_from_payment", {
+  const { data: rpcResult, error: rpcError } = await (supabase.rpc as any)("create_order_from_payment", {
     p_user_id: input.userId,
     p_order_number: orderNumber,
     p_subtotal: total,
@@ -730,7 +732,7 @@ export async function createOrderFromPayPal(
   logger.info("Order created via PayPal", { orderId, orderNumber, invoiceId });
 
   try {
-    await supabase.from("orders").update({ paypal_order_id: input.paypalOrderId }).eq("id", orderId);
+    await (supabase.from("orders") as any).update({ paypal_order_id: input.paypalOrderId }).eq("id", orderId);
   } catch {
     // paypal_order_id reference is non-critical
   }
@@ -738,10 +740,10 @@ export async function createOrderFromPayPal(
   const shippingAddr = input.shippingAddress;
   const billingAddr = input.billingAddress;
 
-  let customerProfile = null;
+  let customerProfile: { firstName?: string | null; lastName?: string | null; displayName?: string | null } | null = null;
   try {
-    const { data: profile } = await supabase
-      .from("profiles")
+    const { data: profile } = await (supabase
+      .from("profiles") as any)
       .select("first_name, last_name, email, metadata")
       .eq("id", input.userId)
       .maybeSingle();
@@ -750,7 +752,6 @@ export async function createOrderFromPayPal(
         firstName: profile.first_name,
         lastName: profile.last_name,
         displayName: (profile.metadata as Record<string, any>)?.displayName || "",
-        email: profile.email
       };
     }
   } catch (err) {

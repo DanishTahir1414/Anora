@@ -729,7 +729,14 @@ function OrderDetailView({
               Payment: {String(order.payment_status ?? "")}
               {order.payment_method ? ` via ${order.payment_method}` : ""}
             </p>
-            <div className="flex gap-3">
+            <div className="flex items-center gap-4">
+              <Link
+                to="/track"
+                search={{ orderNumber: String(order.order_number) }}
+                className="text-[11px] tracking-[0.28em] uppercase text-gold hover:text-gold/70 transition-colors"
+              >
+                Track Order
+              </Link>
               {cancellable && (
                 <CancelOrderDialog orderId={String(order.id)} onDone={() => setRefreshKey((k) => k + 1)} />
               )}

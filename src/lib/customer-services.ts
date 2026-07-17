@@ -459,7 +459,7 @@ export async function syncCartWithServer() {
           user_id: currentUserId!,
           product_id: item.productId,
           variant_id: item.variantId ?? null,
-          size: item.size,
+          size: item.size || "",
           quantity: item.quantity,
         })),
       )

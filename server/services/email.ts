@@ -23,7 +23,7 @@ type EmailLog = {
 };
 
 export class EmailService {
-  private readonly resend: Resend;
+  private readonly resend!: Resend;
   private ready = false;
 
   constructor() {
@@ -49,7 +49,7 @@ export class EmailService {
 
   private async logSend(log: EmailLog): Promise<void> {
     try {
-      const { error } = await supabaseAdmin.from("email_logs").insert({
+      const { error } = await (supabaseAdmin.from("email_logs") as any).insert({
         order_id: log.order_id,
         email_type: log.email_type,
         recipient: log.recipient,
@@ -70,8 +70,8 @@ export class EmailService {
   private async checkDuplicate(orderId: string | undefined, emailType: string): Promise<boolean> {
     if (!orderId) return false;
 
-    const { count, error } = await supabaseAdmin
-      .from("email_logs")
+    const { count, error } = await (supabaseAdmin
+      .from("email_logs") as any)
       .select("id", { count: "exact", head: true })
       .eq("order_id", orderId)
       .eq("email_type", emailType)
@@ -156,12 +156,14 @@ export class EmailService {
     to: string,
     orderNumber: string,
     html: string,
+    pdfAttachment?: { filename: string; content: Buffer | Uint8Array },
     orderId?: string,
   ): Promise<void> {
     return this.sendWithLogging({
       to,
-      subject: `Order Confirmed — ${orderNumber}`,
+      subject: `Order Confirmed — Welcome to ANORA`,
       html,
+      attachments: pdfAttachment ? [pdfAttachment] : undefined,
       emailType: "thank_you",
       orderId,
     });
