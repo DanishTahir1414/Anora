@@ -74,6 +74,7 @@ export interface ThankYouData {
   tax?: number;
   total?: number;
   paymentMethod?: string;
+  trackingId?: string;
 }
 
 export interface InvoiceEmailData {
@@ -375,7 +376,12 @@ export function buildThankYouHtml(data: ThankYouData): string {
     </tr>
     <tr>
       <td class="content" style="padding:0 48px;background-color:${WHITE};text-align:center;">
-        <a href="${escapeHtml(env.publicAppUrl)}/track?orderNumber=${escapeHtml(encodeURIComponent(data.orderNumber))}" style="display:inline-block;background-color:${DARK};color:${WHITE};padding:14px 36px;font-size:11px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;font-weight:500;border-radius:0;">View Your Order</a>
+        <div style="border:1px solid ${BORDER};background-color:${LIGHT_BG};padding:24px;margin-bottom:24px;text-align:center;">
+          <p style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${MUTED};margin:0 0 8px;font-weight:500;">Secure Tracking ID</p>
+          <h3 style="font-family:'Courier New',Courier,monospace;font-size:22px;letter-spacing:4px;color:${DARK};margin:0 0 16px;font-weight:700;">${escapeHtml(data.trackingId || '')}</h3>
+          <button type="button" onclick="navigator.clipboard.writeText('${escapeHtml(data.trackingId || '')}').then(() => { this.innerText = '✓ Copied'; const self = this; setTimeout(() => { self.innerText = 'Copy Tracking ID'; }, 2000); }).catch(() => {})" style="display:inline-block;background-color:${WHITE};border:1px solid ${DARK};color:${DARK};padding:8px 18px;font-size:10px;letter-spacing:1px;text-transform:uppercase;text-decoration:none;font-weight:500;cursor:pointer;outline:none;font-family:inherit;line-height:normal;">Copy Tracking ID</button>
+        </div>
+        <a href="${escapeHtml(env.publicAppUrl)}/track?tracking=${escapeHtml(encodeURIComponent(data.trackingId || ''))}" style="display:inline-block;background-color:${DARK};color:${WHITE};padding:14px 36px;font-size:11px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;font-weight:500;border-radius:0;">View Your Order</a>
       </td>
     </tr>
     <tr>

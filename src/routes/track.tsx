@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { getOrderByTracking } from "@/lib/admin-orders";
+import { getOrderByTracking, getOrderByTrackingId } from "@/lib/admin-orders";
 import { formatAddress } from "@/lib/payments";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/lib/auth-context";
@@ -384,8 +384,10 @@ const deliveredAnimation = {
 export const Route = createFileRoute("/track")({
   validateSearch: (search: Record<string, string | undefined>): {
     orderNumber?: string;
+    tracking?: string;
   } => ({
     orderNumber: search.orderNumber,
+    tracking: search.tracking,
   }),
   head: () => ({
     meta: [
@@ -432,72 +434,109 @@ const TIMELINE_STEPS = [
   },
 ];
 
+const CopyTrackingButton = ({ trackingId }: { trackingId: string }) => {
+  const [copied, setCopied] = useState(false);
+  
+  const handleCopy = () => {
+    navigator.clipboard.writeText(trackingId).then(() => {
+      setCopied(true);
+      toast.success("Tracking ID copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="inline-flex items-center gap-1.5 px-3 py-1 border border-border hover:border-foreground transition-colors text-[10px] uppercase tracking-widest font-medium"
+      title="Copy Tracking ID"
+    >
+      <span>{copied ? "✓ Copied" : "Copy"}</span>
+    </button>
+  );
+};
+
 function TrackPage() {
-  const { orderNumber: searchOrderNumber } = Route.useSearch();
+  const { orderNumber: searchOrderNumber, tracking: searchTracking } = Route.useSearch();
   const { user } = useAuth();
   
   const [orderNumberInput, setOrderNumberInput] = useState(searchOrderNumber ?? "");
   const [emailInput, setEmailInput] = useState("");
+  const [trackingInput, setTrackingInput] = useState(searchTracking ?? "");
+  
   const [submittedEmail, setSubmittedEmail] = useState("");
   const [submittedOrderNumber, setSubmittedOrderNumber] = useState(searchOrderNumber ?? "");
+  const [submittedTrackingId, setSubmittedTrackingId] = useState(searchTracking ?? "");
   
   const [isSearching, setIsSearching] = useState(false);
 
   // TanStack Query to fetch order data
   const { data: order, isLoading, error, refetch } = useQuery({
-    queryKey: ["order-tracking", submittedOrderNumber, submittedEmail, !!user],
+    queryKey: ["order-tracking", submittedOrderNumber, submittedEmail, submittedTrackingId, !!user],
     queryFn: async () => {
-      if (!submittedOrderNumber) return null;
-
-      // 1. Try logged-in fetch if authenticated
-      if (user) {
-        const { data, error: fetchErr } = await supabase
-          .from("orders")
-          .select(`
-            id, order_number, status, subtotal, total, payment_status, payment_method,
-            shipping_address, billing_address, created_at, updated_at, user_id,
-            order_items ( id, name, price, quantity, image_url, attributes ),
-            order_status_history ( id, previous_status, new_status, note, created_at )
-          `)
-          .eq("order_number", submittedOrderNumber)
-          .maybeSingle();
-
-        if (fetchErr) throw fetchErr;
-        if (data) return data;
-      }
-
-      // 2. Fallback to RPC tracking (security definer bypasses RLS securely)
-      if (submittedEmail) {
-        const data = await getOrderByTracking(submittedOrderNumber, submittedEmail);
+      // 1. Try secure tracking by Tracking ID (guest/email-free)
+      if (submittedTrackingId) {
+        const data = await getOrderByTrackingId(submittedTrackingId);
         if (!data) {
-          throw new Error("No order found with the provided details. Please verify your order number and email.");
+          throw new Error("No order found with the provided Tracking ID.");
         }
         return data;
       }
 
-      // If user is logged out and hasn't inputted email yet, prompt for it
-      throw new Error("Please enter your billing email address to trace this order.");
+      // 2. Try order number if submitted
+      if (submittedOrderNumber) {
+        // 2a. Try logged-in fetch if authenticated
+        if (user) {
+          const { data, error: fetchErr } = await supabase
+            .from("orders")
+            .select(`
+              id, order_number, status, subtotal, total, payment_status, payment_method,
+              shipping_address, billing_address, created_at, updated_at, user_id,
+              order_items ( id, name, price, quantity, image_url, attributes ),
+              order_status_history ( id, previous_status, new_status, note, created_at )
+            `)
+            .eq("order_number", submittedOrderNumber)
+            .maybeSingle();
+
+          if (fetchErr) throw fetchErr;
+          if (data) return data;
+        }
+
+        // 2b. Fallback to RPC tracking (email verification lookup)
+        if (submittedEmail) {
+          const data = await getOrderByTracking(submittedOrderNumber, submittedEmail);
+          if (!data) {
+            throw new Error("No order found with the provided details. Please verify your order number and email.");
+          }
+          return data;
+        }
+
+        throw new Error("Please enter your billing email address to trace this order.");
+      }
+
+      return null;
     },
-    enabled: !!submittedOrderNumber && (!!user || !!submittedEmail),
+    enabled: !!submittedTrackingId || (!!submittedOrderNumber && (!!user || !!submittedEmail)),
     retry: false,
   });
 
   // Realtime updates subscription
   useEffect(() => {
-    if (!order?.id) return;
+    if (!order || !(order as any).id) return;
+    const orderId = (order as any).id;
 
     const channel = supabase
-      .channel(`order-updates-tracking-${order.id}`)
+      .channel(`order-updates-tracking-${orderId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "orders", filter: `id=eq.${order.id}` },
+        { event: "*", schema: "public", table: "orders", filter: `id=eq.${orderId}` },
         () => {
           refetch();
         }
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "order_status_history", filter: `order_id=eq.${order.id}` },
+        { event: "*", schema: "public", table: "order_status_history", filter: `order_id=eq.${orderId}` },
         () => {
           refetch();
         }
@@ -507,7 +546,7 @@ function TrackPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [order?.id, refetch]);
+  }, [order, refetch]);
 
   // Sync state if search parameter changes
   useEffect(() => {
@@ -515,29 +554,29 @@ function TrackPage() {
       setOrderNumberInput(searchOrderNumber);
       setSubmittedOrderNumber(searchOrderNumber);
     }
-  }, [searchOrderNumber]);
+    if (searchTracking) {
+      setTrackingInput(searchTracking);
+      setSubmittedTrackingId(searchTracking);
+    }
+  }, [searchOrderNumber, searchTracking]);
 
-  const handleLookup = (e: React.FormEvent) => {
+  const handleTrackingLookup = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!orderNumberInput.trim()) {
-      toast.error("Please enter a valid order number");
+    if (!trackingInput.trim()) {
+      toast.error("Please enter a valid Tracking ID");
       return;
     }
-    if (!user && !emailInput.trim()) {
-      toast.error("Please enter your billing email address");
-      return;
-    }
-    
     setIsSearching(true);
-    setSubmittedOrderNumber(orderNumberInput.trim());
-    setSubmittedEmail(emailInput.trim());
+    setSubmittedTrackingId(trackingInput.trim().toUpperCase());
   };
 
   const handleResetSearch = () => {
     setOrderNumberInput("");
     setEmailInput("");
+    setTrackingInput("");
     setSubmittedEmail("");
     setSubmittedOrderNumber("");
+    setSubmittedTrackingId("");
     setIsSearching(false);
   };
 
@@ -631,47 +670,25 @@ function TrackPage() {
       </div>
 
       {/* SEARCH FORM VIEW */}
-      {(!submittedOrderNumber || (error && !isLoading)) && (
+      {((!submittedOrderNumber && !submittedTrackingId) || (error && !isLoading)) && (
         <div className="max-w-md w-full mx-auto bg-background border border-border/60 p-8 shadow-sm">
-          <form onSubmit={handleLookup} className="space-y-6">
+          <form onSubmit={handleTrackingLookup} className="space-y-6">
             <div>
               <label className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground block mb-2 font-medium">
-                Order Number
+                Tracking ID
               </label>
               <div className="relative">
                 <input
                   type="text"
                   required
-                  placeholder="e.g. ANORA-10294"
-                  value={orderNumberInput}
-                  onChange={(e) => setOrderNumberInput(e.target.value)}
-                  className="w-full bg-background border border-border px-4 py-3 pl-10 text-sm outline-none focus:border-foreground transition-colors"
+                  placeholder="Enter your Tracking ID"
+                  value={trackingInput}
+                  onChange={(e) => setTrackingInput(e.target.value)}
+                  className="w-full bg-background border border-border px-4 py-3 pl-10 text-sm uppercase outline-none focus:border-foreground transition-colors"
                 />
                 <ClipboardList className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground/60" />
               </div>
             </div>
-
-            {!user && (
-              <div>
-                <label className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground block mb-2 font-medium">
-                  Billing Email
-                </label>
-                <div className="relative">
-                  <input
-                    type="email"
-                    required
-                    placeholder="e.g. name@domain.com"
-                    value={emailInput}
-                    onChange={(e) => setEmailInput(e.target.value)}
-                    className="w-full bg-background border border-border px-4 py-3 pl-10 text-sm outline-none focus:border-foreground transition-colors"
-                  />
-                  <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground/60" />
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
-                  Guests must supply the billing email address associated with the order to verify tracking access.
-                </p>
-              </div>
-            )}
 
             {error && (
               <div className="flex items-start gap-2 bg-red-500/5 border border-red-500/10 p-3 text-[11px] text-red-500 tracking-wider">
@@ -686,14 +703,14 @@ function TrackPage() {
               className="w-full bg-foreground text-background py-3 text-[11px] tracking-[0.32em] uppercase hover:bg-gold hover:text-ink transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               <Search className="h-3.5 w-3.5" />
-              {isLoading ? "Searching..." : "Trace Order"}
+              {isLoading ? "Searching..." : "Track Order"}
             </button>
           </form>
         </div>
       )}
 
       {/* LOADING STATE */}
-      {isLoading && submittedOrderNumber && !error && (
+      {isLoading && (submittedOrderNumber || submittedTrackingId) && !error && (
         <div className="text-center py-20">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gold mb-4" />
           <p className="text-sm text-muted-foreground tracking-widest uppercase">Fetching Order Status...</p>
@@ -721,6 +738,17 @@ function TrackPage() {
               </Link>
             )}
           </div>
+
+          {/* TRACKING ID HEADER CARD */}
+          {order.tracking_id && (
+            <div className="border border-border/60 p-6 bg-background shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade">
+              <div className="flex flex-col sm:items-start items-center space-y-1">
+                <span className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground">Tracking ID</span>
+                <span className="font-mono text-lg font-bold tracking-[0.25em] text-foreground uppercase">{order.tracking_id}</span>
+              </div>
+              <CopyTrackingButton trackingId={order.tracking_id} />
+            </div>
+          )}
 
           {/* TERMINAL STATE BANNER */}
           {isTerminalState && (
@@ -767,36 +795,111 @@ function TrackPage() {
                 </span>
               </div>
 
-              <div>
-                <p className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground mb-1">
-                  Payment Status
-                </p>
-                <p className="font-medium capitalize text-foreground">{order.payment_status}</p>
-              </div>
+              {order.payment_status ? (
+                <div>
+                  <p className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground mb-1">
+                    Payment Status
+                  </p>
+                  <p className="font-medium capitalize text-foreground">{order.payment_status}</p>
+                </div>
+              ) : order.shipping_method ? (
+                <div>
+                  <p className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground mb-1">
+                    Shipping Method
+                  </p>
+                  <p className="font-medium capitalize text-foreground">{order.shipping_method}</p>
+                </div>
+              ) : null}
             </div>
 
-            <div className="h-px bg-border/40 my-6" />
+            {order.shipping_address && (
+              <>
+                <div className="h-px bg-border/40 my-6" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                  <div>
+                    <p className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground mb-2">
+                      Shipping Address
+                    </p>
+                    <p className="text-muted-foreground whitespace-pre-line leading-relaxed">
+                      {formatAddress(order.shipping_address)}
+                    </p>
+                  </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-              <div>
-                <p className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground mb-2">
-                  Shipping Address
-                </p>
-                <p className="text-muted-foreground whitespace-pre-line leading-relaxed">
-                  {formatAddress(order.shipping_address)}
-                </p>
-              </div>
+                  <div>
+                    <p className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground mb-2">
+                      Billing Address
+                    </p>
+                    <p className="text-muted-foreground whitespace-pre-line leading-relaxed">
+                      {formatAddress(order.billing_address || order.shipping_address)}
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
 
-              <div>
-                <p className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground mb-2">
-                  Billing Address
-                </p>
-                <p className="text-muted-foreground whitespace-pre-line leading-relaxed">
-                  {formatAddress(order.billing_address || order.shipping_address)}
-                </p>
-              </div>
-            </div>
+            {order.estimated_delivery && !order.shipping_address && (
+              <>
+                <div className="h-px bg-border/40 my-6" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                  <div>
+                    <p className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground mb-2">
+                      Estimated Delivery
+                    </p>
+                    <p className="text-foreground font-medium">
+                      {new Date(order.estimated_delivery).toLocaleDateString("en-US", {
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </p>
+                  </div>
+                  {order.courier && (
+                    <div>
+                      <p className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground mb-2">
+                        Courier Partner
+                      </p>
+                      <p className="text-foreground font-medium capitalize">
+                        {order.courier}
+                        {order.courier_tracking_number ? ` (Tracking: ${order.courier_tracking_number})` : ""}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
+
+          {/* ORDERED PRODUCTS CARD */}
+          {order.order_items && order.order_items.length > 0 && (
+            <div className="border border-border/60 p-6 md:p-8 bg-background shadow-sm space-y-4">
+              <h3 className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground">Ordered Items</h3>
+              <div className="divide-y divide-border/40">
+                {order.order_items.map((item: any, idx: number) => (
+                  <div key={item.id || idx} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
+                    {item.image_url && (
+                      <img
+                        src={item.image_url}
+                        alt={item.name}
+                        className="w-12 h-16 object-cover border border-border/40 shrink-0"
+                      />
+                    )}
+                    <div>
+                      <h4 className="font-serif text-base text-foreground font-medium">{item.name}</h4>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Qty {item.quantity}
+                        {item.attributes && typeof item.attributes === "object" && (
+                          <>
+                            {(item.attributes.size || item.attributes.Size) && ` · Size ${String(item.attributes.size || item.attributes.Size)}`}
+                            {(item.attributes.color || item.attributes.Color) && ` · Color ${String(item.attributes.color || item.attributes.Color)}`}
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* LOTTIE STATE VISUAL */}
           {!isTerminalState && (

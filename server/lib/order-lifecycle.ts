@@ -82,6 +82,7 @@ type EmailPayloadInput = {
   total: number;
   paymentMethod: string;
   paymentStatus: string;
+  trackingId?: string;
 };
 
 function estimatedDeliveryFrom(orderDateIso: string): string {
@@ -125,6 +126,7 @@ function buildEmailPayload(input: EmailPayloadInput): Record<string, unknown> {
       tax: input.tax,
       total: input.total,
       paymentMethod: input.paymentMethod,
+      trackingId: input.trackingId,
     }),
     invoiceEmailHtml: buildInvoiceEmailHtml({
       customer: customerNameInput,
@@ -467,6 +469,20 @@ export async function createOrderFromPaymentIntent(
     logger.warn("Failed to fetch customer profile for order email", { error: String(err) });
   }
 
+  let trackingId = "";
+  try {
+    const { data: orderData } = await (supabase
+      .from("orders") as any)
+      .select("tracking_id")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (orderData?.tracking_id) {
+      trackingId = orderData.tracking_id;
+    }
+  } catch (err) {
+    logger.warn("Failed to fetch tracking_id for confirmation email", { error: String(err) });
+  }
+
   const orderDate = new Date().toISOString();
   const emailPayload = buildEmailPayload({
     orderId,
@@ -492,6 +508,7 @@ export async function createOrderFromPaymentIntent(
     total,
     paymentMethod: verification.paymentMethod ?? "card",
     paymentStatus: "completed",
+    trackingId,
   });
 
   try {
@@ -608,6 +625,20 @@ export async function createOrderFromPayment(
     logger.warn("Failed to fetch customer profile for order email", { error: String(err) });
   }
 
+  let trackingId = "";
+  try {
+    const { data: orderData } = await (supabase
+      .from("orders") as any)
+      .select("tracking_id")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (orderData?.tracking_id) {
+      trackingId = orderData.tracking_id;
+    }
+  } catch (err) {
+    logger.warn("Failed to fetch tracking_id for confirmation email", { error: String(err) });
+  }
+
   const orderDate = new Date().toISOString();
   const emailPayload = buildEmailPayload({
     orderId,
@@ -633,6 +664,7 @@ export async function createOrderFromPayment(
     total,
     paymentMethod: verification.paymentMethod ?? input.stripePaymentMethod ?? "card",
     paymentStatus: "completed",
+    trackingId,
   });
 
   try {
@@ -761,6 +793,20 @@ export async function createOrderFromPayPal(
     logger.warn("Failed to fetch customer profile for order email", { error: String(err) });
   }
 
+  let trackingId = "";
+  try {
+    const { data: orderData } = await (supabase
+      .from("orders") as any)
+      .select("tracking_id")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (orderData?.tracking_id) {
+      trackingId = orderData.tracking_id;
+    }
+  } catch (err) {
+    logger.warn("Failed to fetch tracking_id for confirmation email", { error: String(err) });
+  }
+
   const orderDate = new Date().toISOString();
   const emailPayload = buildEmailPayload({
     orderId,
@@ -786,6 +832,7 @@ export async function createOrderFromPayPal(
     total,
     paymentMethod: input.paymentMethod,
     paymentStatus: "completed",
+    trackingId,
   });
 
   try {

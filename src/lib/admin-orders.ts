@@ -326,3 +326,11 @@ export async function getOrderByTracking(
   });
 }
 
+export async function getOrderByTrackingId(
+  trackingId: string,
+): Promise<any> {
+  return rpc<any>("get_order_by_tracking_id", {
+    p_tracking_id: trackingId,
+  });
+}
+
