@@ -91,40 +91,71 @@ export class QueueService {
       hasAdminHtml: typeof payload.adminHtml === "string" && payload.adminHtml.length > 0,
     });
 
-    const { error } = await this.supabase.from("background_jobs").insert(jobs);
+    const { error } = await (this.supabase.from("background_jobs") as any).insert(jobs);
     if (error) throw new QueueError(`Failed to enqueue jobs: ${error.message}`, error);
 
     logger.info("Jobs enqueued", { orderId, count: jobs.length });
+
+    // Process them immediately to ensure execution inside the serverless runtime
+    try {
+      console.log("[DIAGNOSTIC] Queue trigger: Processing enqueued jobs immediately");
+      await this.processPending();
+    } catch (err) {
+      logger.error("Failed to process enqueued jobs immediately", { orderId, error: String(err) });
+    }
   }
 
   async processPending(limit: number = config.queue.batchSize): Promise<number> {
-    // Get lowest-sequence pending job per order (serial processing per order)
-    const { data: jobs, error } = await this.supabase.rpc("get_pending_jobs", {
-      p_limit: limit,
-    });
-
-    if (error) {
-      logger.error("Failed to fetch pending jobs", { error: error.message });
-      return 0;
+    // Process failed/retryable jobs first
+    try {
+      await this.retryFailed(limit);
+    } catch (err) {
+      logger.error("Queue retry failed during processPending", { error: String(err) });
     }
 
-    if (!jobs || jobs.length === 0) return 0;
+    let totalProcessed = 0;
+    let loopCount = 0;
+    const maxLoops = 20;
 
-    let processed = 0;
-    for (const job of jobs) {
-      const ok = await this.execute(job);
-      if (ok) processed++;
+    // Loop to process sequential steps for the enqueued orders
+    while (loopCount < maxLoops) {
+      const { data: jobs, error } = await (this.supabase as any).rpc("get_pending_jobs", {
+        p_limit: limit,
+      });
+
+      if (error) {
+        logger.error("Failed to fetch pending jobs", { error: error.message });
+        break;
+      }
+
+      if (!jobs || jobs.length === 0) {
+        break;
+      }
+
+      let processedInLoop = 0;
+      for (const job of jobs) {
+        const ok = await this.execute(job);
+        if (ok) processedInLoop++;
+      }
+
+      totalProcessed += processedInLoop;
+      loopCount++;
+
+      // If no jobs were successfully processed in this loop, break to avoid infinite loop
+      if (processedInLoop === 0) {
+        break;
+      }
     }
 
-    return processed;
+    return totalProcessed;
   }
 
   private async execute(job: JobRecord): Promise<boolean> {
     const jobId = job.id;
 
     // Atomic claim — update to processing only if still pending
-    const { data: claimed, error: claimError } = await this.supabase
-      .from("background_jobs")
+    const { data: claimed, error: claimError } = await (this.supabase
+      .from("background_jobs") as any)
       .update({ status: "processing" })
       .eq("id", jobId)
       .eq("status", "pending")
@@ -169,8 +200,8 @@ export class QueueService {
       await handler(claimed);
 
       // Mark completed
-      await this.supabase
-        .from("background_jobs")
+      await (this.supabase
+        .from("background_jobs") as any)
         .update({
           status: "completed",
           completed_at: new Date().toISOString(),
@@ -204,8 +235,8 @@ export class QueueService {
 
         const nextRetryAt = new Date(Date.now() + delaySec * 1000).toISOString();
 
-        await this.supabase
-          .from("background_jobs")
+        await (this.supabase
+          .from("background_jobs") as any)
           .update({
             status: "failed",
             retry_count: newRetryCount,
@@ -221,14 +252,14 @@ export class QueueService {
 
   private async moveToDlq(jobId: string, errorMessage: string): Promise<void> {
     try {
-      await this.supabase.rpc("move_to_dead_letter", {
+      await (this.supabase as any).rpc("move_to_dead_letter", {
         p_job_id: jobId,
         p_error: errorMessage,
       });
     } catch {
       // Fallback: direct update
-      await this.supabase
-        .from("background_jobs")
+      await (this.supabase
+        .from("background_jobs") as any)
         .update({
           status: "dlq",
           error_message: errorMessage,
@@ -240,7 +271,7 @@ export class QueueService {
   }
 
   async retryFailed(limit: number = config.queue.batchSize): Promise<number> {
-    const { data: jobs, error } = await this.supabase.rpc("get_retryable_jobs", {
+    const { data: jobs, error } = await (this.supabase as any).rpc("get_retryable_jobs", {
       p_limit: limit,
     });
 

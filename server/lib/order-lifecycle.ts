@@ -505,9 +505,11 @@ export async function createOrderFromPaymentIntent(
     invoiceId: emailPayload.invoiceId,
     orderId: emailPayload.orderId,
   });
-  queue.enqueue(orderId, emailPayload).catch((err) => {
+  try {
+    await queue.enqueue(orderId, emailPayload);
+  } catch (err) {
     logger.error("Job enqueue failed", { orderId, error: String(err) });
-  });
+  }
 
   return {
     success: true,
@@ -654,9 +656,11 @@ export async function createOrderFromPayment(
     invoiceId: emailPayload.invoiceId,
     orderId: emailPayload.orderId,
   });
-  queue.enqueue(orderId, emailPayload).catch((err) => {
+  try {
+    await queue.enqueue(orderId, emailPayload);
+  } catch (err) {
     logger.error("Job enqueue failed", { orderId, error: String(err) });
-  });
+  }
 
   return {
     success: true,
@@ -815,9 +819,11 @@ export async function createOrderFromPayPal(
     invoiceId: emailPayload.invoiceId,
     orderId: emailPayload.orderId,
   });
-  queue.enqueue(orderId, emailPayload).catch((err) => {
+  try {
+    await queue.enqueue(orderId, emailPayload);
+  } catch (err) {
     logger.error("Job enqueue failed", { orderId, error: String(err) });
-  });
+  }
 
   return {
     success: true,
