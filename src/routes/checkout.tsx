@@ -13,6 +13,7 @@ import { type PaymentMethodId } from "@/payments/types";
 import type { CheckoutItem, CheckoutAddress, PaymentResult } from "@/payments/types";
 import { getProductPriceInfo } from "@/lib/products";
 import { ProductPrice } from "@/components/site/ProductPrice";
+import { CheckoutSkeleton } from "@/payments/CheckoutSkeleton";
 
 export const Route = createFileRoute("/checkout")({
   validateSearch: (search: Record<string, string | undefined>): {
@@ -59,6 +60,7 @@ export function CheckoutForm() {
   const navigate = useNavigate();
   const { success, canceled, payment_intent, redirect_status } = Route.useSearch();
   const [billingSame, setBillingSame] = useState(true);
+
   const [submitting, setSubmitting] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethodId>("stripe");
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -233,6 +235,18 @@ export function CheckoutForm() {
   }, [billingSame]);
 
   const total = cart.subtotal;
+
+  if (cart.isRestoring) {
+    return (
+      <div className="px-5 lg:px-10 py-16 max-w-6xl mx-auto">
+        <div className="text-center mb-10">
+          <span className="eyebrow">Secure Checkout</span>
+          <h1 className="font-serif text-5xl mt-3">Checkout</h1>
+        </div>
+        <CheckoutSkeleton />
+      </div>
+    );
+  }
 
   if (success === "1" && orderCreating) {
     return (

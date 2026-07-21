@@ -6,6 +6,11 @@ import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
 
 export const Route = createFileRoute("/register")({
+  validateSearch: (search: Record<string, unknown>): {
+    redirectTo?: string;
+  } => ({
+    redirectTo: typeof search.redirectTo === "string" ? search.redirectTo : undefined,
+  }),
   head: () => ({ meta: [{ title: "Create Account — ANORA" }] }),
   component: RegisterPage,
 });
@@ -13,6 +18,8 @@ export const Route = createFileRoute("/register")({
 function RegisterPage() {
   const { user, loading, signUp } = useAuth();
   const navigate = useNavigate();
+  const search = Route.useSearch();
+  const redirectTo = search.redirectTo ?? "/account";
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -25,8 +32,10 @@ function RegisterPage() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) navigate({ to: "/account" });
-  }, [user, loading]);
+    if (!loading && user) {
+      window.location.href = redirectTo;
+    }
+  }, [user, loading, redirectTo]);
 
   if (loading) return null;
   if (user) return null;
@@ -82,7 +91,7 @@ function RegisterPage() {
       setDone(true);
     } else {
       toast.success("Account created");
-      navigate({ to: "/account" });
+      window.location.href = redirectTo;
     }
   };
 

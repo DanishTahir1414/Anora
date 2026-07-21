@@ -155,7 +155,7 @@ function LoginPage() {
               <Link to="/forgot-password" className="hover-underline text-muted-foreground">
                 Forgot password?
               </Link>
-              <Link to="/register" className="hover-underline">
+              <Link to="/register" search={{ redirectTo }} className="hover-underline">
                 Create account
               </Link>
             </div>

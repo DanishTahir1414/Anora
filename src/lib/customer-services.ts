@@ -590,6 +590,9 @@ export async function syncCartWithServer() {
 }
 
 export async function mergeGuestCartToUser(userId: string) {
+  if (!userId || typeof userId !== "string" || userId.length !== 36) {
+    return cartItems;
+  }
   hydrate();
   currentUserId = userId;
 
@@ -724,6 +727,9 @@ export function isInWishlist(productId: string, variantId?: string | null) {
 }
 
 export async function syncWishlistOnLogin(userId: string) {
+  if (!userId || typeof userId !== "string" || userId.length !== 36) {
+    return wishIds;
+  }
   hydrate();
   currentUserId = userId;
   const { data, error } = await supabase

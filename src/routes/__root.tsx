@@ -8,19 +8,48 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, useContext, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { StoreProvider } from "@/lib/store";
+import { StoreProvider, CartContext } from "@/lib/store";
 import { AuthProvider } from "@/lib/auth-context";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { WhatsAppButton } from "@/components/site/WhatsAppButton";
 import { Toaster } from "@/components/ui/sonner";
 
-function NotFoundComponent() {
+function SafeShellWrapper({ children }: { children: ReactNode }) {
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+  const isAdmin = pathname.startsWith("/admin");
+
+  if (isAdmin) {
+    return <>{children}</>;
+  }
+
+  const [queryClient] = useState(() => new QueryClient());
+
   return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <StoreProvider>
+          <div className="flex min-h-screen flex-col bg-background text-foreground">
+            <Header />
+            <main className="flex-1">{children}</main>
+            <Footer />
+            <Toaster />
+          </div>
+        </StoreProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+}
+
+function NotFoundComponent() {
+  const cartContext = useContext(CartContext);
+  const hasShell = cartContext !== null;
+
+  const content = (
     <div className="flex min-h-[70vh] items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <p className="eyebrow">404</p>
@@ -39,6 +68,12 @@ function NotFoundComponent() {
       </div>
     </div>
   );
+
+  if (hasShell) {
+    return content;
+  }
+
+  return <SafeShellWrapper>{content}</SafeShellWrapper>;
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
@@ -48,7 +83,10 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
-  return (
+  const cartContext = useContext(CartContext);
+  const hasShell = cartContext !== null;
+
+  const content = (
     <div className="flex min-h-[70vh] items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="font-serif text-3xl">Something went quietly wrong</h1>
@@ -73,6 +111,12 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
       </div>
     </div>
   );
+
+  if (hasShell) {
+    return content;
+  }
+
+  return <SafeShellWrapper>{content}</SafeShellWrapper>;
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({

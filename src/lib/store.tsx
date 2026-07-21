@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
@@ -49,6 +50,7 @@ interface CartCtx {
   detailed: CartSnapshot["detailed"];
   syncCartWithServer: () => Promise<CartItem[]>;
   validateCartStock: () => CartItem[];
+  isRestoring: boolean;
 }
 
 interface WishCtx {
@@ -64,20 +66,45 @@ interface WishCtx {
   getProduct: (wishKey: string) => any;
 }
 
-const CartContext = createContext<CartCtx | null>(null);
-const WishContext = createContext<WishCtx | null>(null);
+export const CartContext = createContext<CartCtx | null>(null);
+export const WishContext = createContext<WishCtx | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const cartSnapshot = useSyncExternalStore(subscribe, getCartSnapshot, getCartSnapshot);
   const wishSnapshot = useSyncExternalStore(subscribe, getWishlistSnapshot, getWishlistSnapshot);
+  const [isRestoring, setIsRestoring] = useState(!!user);
 
   useEffect(() => {
     initCrossTabSync();
     setCustomerUser(user?.id ?? null);
-    if (!user) return;
-    void mergeGuestCartToUser(user.id);
-    void syncWishlistOnLogin(user.id);
+    if (!user) {
+      setIsRestoring(false);
+      return;
+    }
+
+    setIsRestoring(true);
+    let active = true;
+
+    async function runRestore() {
+      if (!user) return;
+      try {
+        await mergeGuestCartToUser(user.id);
+        await syncWishlistOnLogin(user.id);
+      } catch (err) {
+        console.error("Cart restoration failed:", err);
+      } finally {
+        if (active) {
+          setIsRestoring(false);
+        }
+      }
+    }
+
+    void runRestore();
+
+    return () => {
+      active = false;
+    };
   }, [user]);
 
   const cartValue: CartCtx = useMemo(
@@ -105,8 +132,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       detailed: cartSnapshot.detailed,
       syncCartWithServer,
       validateCartStock,
+      isRestoring,
     }),
-    [cartSnapshot],
+    [cartSnapshot, isRestoring],
   );
 
   const wishValue: WishCtx = useMemo(
