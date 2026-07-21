@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { ProtectedRoute, useAuth } from "@/lib/auth-context";
-import { useCart } from "@/lib/store";
+import { useCart } from "@/lib/cart-context";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -381,7 +381,7 @@ export function CheckoutForm() {
             <p className="eyebrow mb-5">Order Summary</p>
             <div className="space-y-4 max-h-72 overflow-y-auto pr-1">
               {cart.detailed.map(({ item, product }) => {
-                const variant = item.variantId ? product.colorVariants?.find((v) => v.id === item.variantId) : undefined;
+                const variant = item.variantId ? product.colorVariants?.find((v: any) => v.id === item.variantId) : undefined;
                 const itemImage = variant?.images?.[0] ?? product.images[0];
                 const itemColor = variant?.color ?? product.color;
                 const priceInfo = getProductPriceInfo(product, variant?.color);

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Minus, Plus, X } from "lucide-react";
 import { useState } from "react";
-import { useCart } from "@/lib/store";
+import { useCart } from "@/lib/cart-context";
 import { toast } from "sonner";
 import { getProductPriceInfo } from "@/lib/products";
 import { ProductPrice } from "@/components/site/ProductPrice";
@@ -45,7 +45,7 @@ function CartPage() {
       <div className="grid lg:grid-cols-[1fr_360px] gap-12">
         <div className="divide-y divide-border border-t border-b border-border">
           {cart.detailed.map(({ item, product, active }) => {
-            const variant = item.variantId ? product.colorVariants?.find((v) => v.id === item.variantId) : undefined;
+            const variant = item.variantId ? product.colorVariants?.find((v: any) => v.id === item.variantId) : undefined;
             const itemImage = variant?.images?.[0] ?? product.images[0];
             const itemColor = variant?.color ?? product.color;
             const priceInfo = getProductPriceInfo(product, variant?.color);

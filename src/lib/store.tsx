@@ -7,6 +7,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { CartItem, CartCtx, CartContext } from "./cart-context";
 import { useAuth } from "./auth-context";
 import {
   addToCart,
@@ -30,29 +31,6 @@ import {
   getProduct,
 } from "./customer-services";
 
-export interface CartItem {
-  id: string;
-  productId: string;
-  variantId?: string | null;
-  size: string;
-  quantity: number;
-  source: "local" | "server";
-}
-
-interface CartCtx {
-  items: CartItem[];
-  add: (productId: string, size: string, quantity?: number, variantId?: string) => void;
-  remove: (productId: string, size: string, variantId?: string) => void;
-  setQty: (productId: string, size: string, quantity: number, variantId?: string) => void;
-  clear: () => void;
-  count: number;
-  subtotal: number;
-  detailed: CartSnapshot["detailed"];
-  syncCartWithServer: () => Promise<CartItem[]>;
-  validateCartStock: () => CartItem[];
-  isRestoring: boolean;
-}
-
 interface WishCtx {
   ids: string[];
   toggle: (id: string, variantId?: string | null) => void;
@@ -66,7 +44,6 @@ interface WishCtx {
   getProduct: (wishKey: string) => any;
 }
 
-export const CartContext = createContext<CartCtx | null>(null);
 export const WishContext = createContext<WishCtx | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
@@ -183,11 +160,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useCart() {
-  const ctx = useContext(CartContext);
-  if (!ctx) throw new Error("useCart must be used within StoreProvider");
-  return ctx;
-}
+
 
 export function useWishlist() {
   const ctx = useContext(WishContext);
@@ -196,3 +169,4 @@ export function useWishlist() {
 }
 
 export { searchProducts };
+export { useCart } from "./cart-context";
