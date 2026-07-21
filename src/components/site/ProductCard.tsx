@@ -26,7 +26,7 @@ export function ProductCard({ product }: { product: Product }) {
   return (
     <>
       <div className="group">
-        <div className="relative overflow-hidden bg-neutral aspect-[2/3] sm:aspect-[3/4]">
+        <div className="relative overflow-hidden bg-neutral aspect-[3/4]">
           <Link to="/product/$slug" params={{ slug: product.slug }}>
             <img
               src={product.images[0]}
@@ -79,7 +79,7 @@ export function ProductCard({ product }: { product: Product }) {
           </button>
 
           {!isOOS && (
-            <div className="hidden lg:flex absolute inset-x-3 bottom-3 gap-2 transition-all duration-500 lg:opacity-0 lg:translate-y-2 lg:group-hover:opacity-100 lg:group-hover:translate-y-0 z-20">
+            <div className="absolute inset-x-3 bottom-3 flex gap-2 transition-all duration-500 opacity-100 translate-y-0 lg:opacity-0 lg:translate-y-2 lg:group-hover:opacity-100 lg:group-hover:translate-y-0 z-20">
               <button
                 onClick={() => {
                   const chosen = size ?? product.sizes[0];
@@ -115,7 +115,7 @@ export function ProductCard({ product }: { product: Product }) {
           )}
         </div>
 
-        <div className="pt-2.5 sm:pt-4 flex items-start justify-between gap-3">
+        <div className="pt-4 flex items-start justify-between gap-3">
           <div>
             <Link
               to="/product/$slug"
@@ -133,7 +133,7 @@ export function ProductCard({ product }: { product: Product }) {
           </div>
         </div>
 
-        <div className="mt-2 sm:mt-3 flex flex-wrap gap-1.5">
+        <div className="mt-3 flex flex-wrap gap-1.5">
           {availability.sizes.map((s) => {
             const qty = sizeStock[s];
             const disabled = hasSizeStock && qty !== undefined && qty === 0;
@@ -144,7 +144,7 @@ export function ProductCard({ product }: { product: Product }) {
                   if (disabled) return;
                   setSize(s);
                 }}
-                className={`text-[9px] sm:text-[11px] tracking-wider min-w-[24px] sm:min-w-8 h-[22px] sm:h-7 px-1 sm:px-2 border transition-all duration-300 ${
+                className={`text-[11px] tracking-wider min-w-8 h-7 px-2 border transition-all duration-300 ${
                   size === s && !disabled
                     ? "border-foreground text-foreground"
                     : disabled
@@ -157,29 +157,6 @@ export function ProductCard({ product }: { product: Product }) {
             );
           })}
         </div>
-
-        {!isOOS && (
-          <button
-            onClick={() => {
-              const chosen = size ?? product.sizes[0];
-              const validation = validateStockBeforeCheckout(product, {
-                productId: product.id,
-                size: chosen,
-                quantity: 1,
-                color: availability.color,
-              });
-              if (!validation.ok) {
-                toast.error(validation.reason ?? "This size is out of stock");
-                return;
-              }
-              cart.add(product.id, chosen, 1);
-              toast.success("Added to bag", { description: `${product.name} · ${chosen}` });
-            }}
-            className="mt-3 w-full bg-foreground text-background py-2.5 text-[10px] tracking-[0.24em] uppercase hover:bg-gold hover:text-ink transition-all duration-300 lg:hidden"
-          >
-            Add to Cart
-          </button>
-        )}
       </div>
 
       {/* ─── Quick View Modal ─── */}
