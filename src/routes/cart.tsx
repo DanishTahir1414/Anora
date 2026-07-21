@@ -3,6 +3,8 @@ import { Minus, Plus, X } from "lucide-react";
 import { useState } from "react";
 import { useCart } from "@/lib/store";
 import { toast } from "sonner";
+import { getProductPriceInfo } from "@/lib/products";
+import { ProductPrice } from "@/components/site/ProductPrice";
 
 export const Route = createFileRoute("/cart")({
   head: () => ({ meta: [{ title: "Your Bag — ANORA" }] }),
@@ -42,65 +44,81 @@ function CartPage() {
 
       <div className="grid lg:grid-cols-[1fr_360px] gap-12">
         <div className="divide-y divide-border border-t border-b border-border">
-          {cart.detailed.map(({ item, product, active }) => (
-            <div
-              key={`${item.productId}-${item.size}`}
-              className={`py-6 flex gap-5 ${active ? "" : "opacity-60"}`}
-            >
-              <Link to="/product/$slug" params={{ slug: product.slug }} className="shrink-0">
-                <img
-                  src={product.images[0]}
-                  alt={product.name}
-                  className="w-24 h-32 object-cover bg-neutral"
-                />
-              </Link>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <Link
-                      to="/product/$slug"
-                      params={{ slug: product.slug }}
-                      className="font-serif text-xl hover:text-gold"
-                    >
-                      {product.name}
-                    </Link>
-                    <p className="text-[11px] tracking-[0.28em] uppercase text-muted-foreground mt-1">
-                      Size {item.size} · {product.color}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => cart.remove(item.productId, item.size)}
-                    aria-label="remove"
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="mt-5 flex items-center justify-between">
-                  <div className="flex items-center border border-border">
+          {cart.detailed.map(({ item, product, active }) => {
+            const variant = item.variantId ? product.colorVariants?.find((v) => v.id === item.variantId) : undefined;
+            const itemImage = variant?.images?.[0] ?? product.images[0];
+            const itemColor = variant?.color ?? product.color;
+            const priceInfo = getProductPriceInfo(product, variant?.color);
+            const unitPrice = priceInfo.salePrice;
+            const unitComparePrice = priceInfo.isOnSale ? priceInfo.originalPrice : (variant?.comparePriceOverride !== undefined ? variant.comparePriceOverride : product.compare_price);
+
+            return (
+              <div
+                key={`${item.productId}-${item.variantId || ""}-${item.size}`}
+                className={`py-6 flex gap-5 ${active ? "" : "opacity-60"}`}
+              >
+                <Link to="/product/$slug" params={{ slug: product.slug }} className="shrink-0">
+                  <img
+                    src={itemImage}
+                    alt={product.name}
+                    className="w-24 h-32 object-cover bg-neutral"
+                  />
+                </Link>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <Link
+                        to="/product/$slug"
+                        params={{ slug: product.slug }}
+                        className="font-serif text-xl hover:text-gold"
+                      >
+                        {product.name}
+                      </Link>
+                      <p className="text-[11px] tracking-[0.28em] uppercase text-muted-foreground mt-1">
+                        Size {item.size} · {itemColor}
+                      </p>
+                    </div>
                     <button
-                      onClick={() => cart.setQty(item.productId, item.size, item.quantity - 1)}
-                      disabled={!active}
-                      className="h-9 w-9 grid place-items-center hover:bg-neutral"
-                      aria-label="decrease"
+                      onClick={() => cart.remove(item.productId, item.size, item.variantId || undefined)}
+                      aria-label="remove"
+                      className="text-muted-foreground hover:text-foreground"
                     >
-                      <Minus className="h-3 w-3" />
-                    </button>
-                    <span className="w-10 text-center text-sm">{item.quantity}</span>
-                    <button
-                      onClick={() => cart.setQty(item.productId, item.size, item.quantity + 1)}
-                      disabled={!active}
-                      className="h-9 w-9 grid place-items-center hover:bg-neutral"
-                      aria-label="increase"
-                    >
-                      <Plus className="h-3 w-3" />
+                      <X className="h-4 w-4" />
                     </button>
                   </div>
-                  <p className="font-serif text-lg">${product.price * item.quantity}</p>
+                  <div className="mt-5 flex items-center justify-between">
+                    <div className="flex items-center border border-border">
+                      <button
+                        onClick={() => cart.setQty(item.productId, item.size, item.quantity - 1, item.variantId || undefined)}
+                        disabled={!active}
+                        className="h-9 w-9 grid place-items-center hover:bg-neutral"
+                        aria-label="decrease"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <span className="w-10 text-center text-sm">{item.quantity}</span>
+                      <button
+                        onClick={() => cart.setQty(item.productId, item.size, item.quantity + 1, item.variantId || undefined)}
+                        disabled={!active}
+                        className="h-9 w-9 grid place-items-center hover:bg-neutral"
+                        aria-label="increase"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <ProductPrice
+                      product={{
+                        ...product,
+                        price: unitPrice * item.quantity,
+                        compare_price: unitComparePrice ? unitComparePrice * item.quantity : null,
+                      }}
+                      size="md"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <aside className="lg:sticky lg:top-24 lg:self-start">

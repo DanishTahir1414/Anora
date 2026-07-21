@@ -11,6 +11,8 @@ import { StripePaymentForm } from "@/payments/hooks/useStripeCheckout";
 import { PayPalPayment } from "@/components/payment/PayPalPayment";
 import { type PaymentMethodId } from "@/payments/types";
 import type { CheckoutItem, CheckoutAddress, PaymentResult } from "@/payments/types";
+import { getProductPriceInfo } from "@/lib/products";
+import { ProductPrice } from "@/components/site/ProductPrice";
 
 export const Route = createFileRoute("/checkout")({
   validateSearch: (search: Record<string, string | undefined>): {
@@ -364,16 +366,32 @@ export function CheckoutForm() {
           <div className="bg-neutral p-7">
             <p className="eyebrow mb-5">Order Summary</p>
             <div className="space-y-4 max-h-72 overflow-y-auto pr-1">
-              {cart.detailed.map(({ item, product }) => (
-                <div key={`${item.productId}-${item.size}`} className="flex gap-3">
-                  <img src={product.images[0]} alt={product.name} className="w-14 h-16 object-cover" />
-                  <div className="flex-1 text-sm">
-                    <p className="font-serif text-base">{product.name}</p>
-                    <p className="text-xs text-muted-foreground">Size {item.size} · Qty {item.quantity}</p>
+              {cart.detailed.map(({ item, product }) => {
+                const variant = item.variantId ? product.colorVariants?.find((v) => v.id === item.variantId) : undefined;
+                const itemImage = variant?.images?.[0] ?? product.images[0];
+                const itemColor = variant?.color ?? product.color;
+                const priceInfo = getProductPriceInfo(product, variant?.color);
+                const unitPrice = priceInfo.salePrice;
+                const unitComparePrice = priceInfo.isOnSale ? priceInfo.originalPrice : (variant?.comparePriceOverride !== undefined ? variant.comparePriceOverride : product.compare_price);
+
+                return (
+                  <div key={`${item.productId}-${item.variantId || ""}-${item.size}`} className="flex gap-3">
+                    <img src={itemImage} alt={product.name} className="w-14 h-16 object-cover" />
+                    <div className="flex-1 text-sm">
+                      <p className="font-serif text-base">{product.name}</p>
+                      <p className="text-xs text-muted-foreground">Size {item.size} · {itemColor} · Qty {item.quantity}</p>
+                    </div>
+                    <ProductPrice
+                      product={{
+                        ...product,
+                        price: unitPrice * item.quantity,
+                        compare_price: unitComparePrice ? unitComparePrice * item.quantity : null,
+                      }}
+                      size="sm"
+                    />
                   </div>
-                  <span className="text-sm">${product.price * item.quantity}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="h-px bg-border my-5" />
             <Row label="Subtotal" value={`$${cart.subtotal}`} />

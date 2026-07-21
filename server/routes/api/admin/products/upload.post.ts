@@ -18,6 +18,7 @@ export default defineEventHandler(async (event) => {
   }
 
   let productId = "";
+  let variantId = "";
   let fileData: Buffer | null = null;
   let filename = "";
   let mimeType = "";
@@ -25,6 +26,8 @@ export default defineEventHandler(async (event) => {
   for (const part of form) {
     if (part.name === "productId") {
       productId = Buffer.from(part.data).toString("utf-8");
+    } else if (part.name === "variantId") {
+      variantId = Buffer.from(part.data).toString("utf-8");
     } else if (part.name === "file") {
       fileData = Buffer.from(part.data);
       filename = part.filename ?? "image.jpg";
@@ -34,6 +37,18 @@ export default defineEventHandler(async (event) => {
 
   if (!productId || !fileData) {
     throw createError({ statusCode: 400, statusMessage: "Missing required fields" });
+  }
+
+  if (variantId) {
+    const { data: variantCheck, error: checkError } = await supabaseAdmin
+      .from("product_variants")
+      .select("product_id")
+      .eq("id", variantId)
+      .single();
+
+    if (checkError || !variantCheck || variantCheck.product_id !== productId) {
+      throw createError({ statusCode: 400, statusMessage: "Invalid variant ID for product" });
+    }
   }
 
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
@@ -89,6 +104,7 @@ export default defineEventHandler(async (event) => {
     .from("product_images")
     .insert({
       product_id: productId,
+      variant_id: variantId || null,
       image_url: imageUrl,
       sort_order: 0,
     })

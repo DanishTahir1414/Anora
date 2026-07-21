@@ -1,12 +1,14 @@
 import { Link } from "@tanstack/react-router";
 import { Heart, Eye, X, Minus, Plus } from "lucide-react";
 import { useState } from "react";
-import type { Product } from "@/lib/products";
+import { getProductPriceInfo, type Product } from "@/lib/products";
+import { ProductPrice } from "./ProductPrice";
 import { useCart, useWishlist } from "@/lib/store";
 import { getProductAvailability, validateStockBeforeCheckout } from "@/lib/inventory";
 import { toast } from "sonner";
 
 export function ProductCard({ product }: { product: Product }) {
+  const priceInfo = getProductPriceInfo(product);
   const wish = useWishlist();
   const cart = useCart();
   const [size, setSize] = useState<string | null>(null);
@@ -41,10 +43,19 @@ export function ProductCard({ product }: { product: Product }) {
             />
           </Link>
 
-          {product.badge && !isOOS && (
-            <span className="absolute top-3 left-3 text-[10px] tracking-[0.3em] uppercase bg-background/90 px-3 py-1.5 backdrop-blur">
-              {product.badge}
-            </span>
+          {!isOOS && (product.badge || (priceInfo.isOnSale && priceInfo.discountPercent > 0)) && (
+            <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5 z-10">
+              {product.badge && (
+                <span className="text-[10px] tracking-[0.3em] uppercase bg-background/90 px-3 py-1.5 backdrop-blur text-gold font-semibold rounded-[1px]">
+                  {product.badge}
+                </span>
+              )}
+              {priceInfo.isOnSale && priceInfo.discountPercent > 0 && (
+                <span className="text-[9px] tracking-[0.18em] uppercase border border-gold/30 text-gold bg-background/95 px-2.5 py-1.5 backdrop-blur font-semibold rounded-full shadow-sm leading-none">
+                  {priceInfo.badgeText}
+                </span>
+              )}
+            </div>
           )}
 
           {isOOS && (
@@ -68,7 +79,7 @@ export function ProductCard({ product }: { product: Product }) {
           </button>
 
           {!isOOS && (
-            <div className="absolute inset-x-3 bottom-3 flex gap-2 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500">
+            <div className="absolute inset-x-3 bottom-3 flex gap-2 transition-all duration-500 opacity-100 translate-y-0 lg:opacity-0 lg:translate-y-2 lg:group-hover:opacity-100 lg:group-hover:translate-y-0 z-20">
               <button
                 onClick={() => {
                   const chosen = size ?? product.sizes[0];
@@ -117,7 +128,9 @@ export function ProductCard({ product }: { product: Product }) {
               {product.subcategory}
             </p>
           </div>
-          <span className="font-serif text-base shrink-0">${product.price}</span>
+          <div className="flex flex-col items-end shrink-0">
+            <ProductPrice product={product} size="md" />
+          </div>
         </div>
 
         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -135,7 +148,7 @@ export function ProductCard({ product }: { product: Product }) {
                   size === s && !disabled
                     ? "border-foreground text-foreground"
                     : disabled
-                      ? "border-border/40 text-border/50 line-through cursor-not-allowed"
+                      ? "border-border/40 text-border/50 line-through diagonal-strike cursor-not-allowed"
                       : "border-border text-muted-foreground hover:border-foreground hover:text-foreground"
                 }`}
               >
@@ -176,11 +189,11 @@ export function ProductCard({ product }: { product: Product }) {
               </button>
 
               {product.badge && <span className="eyebrow text-gold mb-2">{product.badge}</span>}
-              <h2 className="font-serif text-3xl md:text-4xl">{product.name}</h2>
-              <p className="text-[11px] tracking-[0.28em] uppercase text-muted-foreground mt-2">
-                {product.subcategory} · SKU {product.sku}
+              <h1 className="font-serif text-3xl font-light text-foreground">{product.name}</h1>
+              <p className="text-xs text-muted-foreground tracking-widest uppercase mt-1">
+                {product.subcategory}
               </p>
-              <p className="font-serif text-2xl mt-5">${product.price}</p>
+              <ProductPrice product={product} size="lg" className="mt-5" />
 
               <p className="text-sm text-muted-foreground mt-5 leading-relaxed">
                 {product.description}
@@ -204,7 +217,7 @@ export function ProductCard({ product }: { product: Product }) {
                           quickSize === s && !disabled
                             ? "border-foreground bg-foreground text-background"
                             : disabled
-                              ? "border-border/40 text-border/50 line-through cursor-not-allowed"
+                              ? "border-border/40 text-border/50 line-through diagonal-strike cursor-not-allowed"
                               : "border-border hover:border-foreground"
                         }`}
                       >
@@ -256,7 +269,7 @@ export function ProductCard({ product }: { product: Product }) {
                 }}
                 className="mt-6 w-full bg-foreground text-background py-4 text-[11px] tracking-[0.32em] uppercase hover:bg-gold hover:text-ink transition-all duration-300"
               >
-                Add to Bag — ${(product.price * quickQty).toLocaleString()}.00
+                Add to Bag — ${(priceInfo.salePrice * quickQty).toLocaleString()}.00
               </button>
 
               <Link

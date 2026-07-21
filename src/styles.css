@@ -334,3 +334,20 @@ aside nav p {
   font-weight: 600 !important; /* Badges SemiBold */
 }
 
+/* Premium Diagonal Strike for Out-of-Stock Sizes */
+.diagonal-strike {
+  position: relative;
+  overflow: hidden;
+}
+.diagonal-strike::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to top right, transparent calc(50% - 1.5px), currentColor 50%, transparent calc(50% + 1.5px));
+  pointer-events: none;
+  opacity: 0.65;
+}
+

@@ -50,6 +50,7 @@ import { Route as ShopCategoryIndexRouteImport } from './routes/shop.$category.i
 import { Route as ShopCategorySubcategoryRouteImport } from './routes/shop.$category.$subcategory'
 import { Route as AdminSecurityAuditLogsRouteImport } from './routes/admin.security.audit-logs'
 import { Route as AdminFinanceInvoicesRouteImport } from './routes/admin.finance.invoices'
+import { Route as ApiAdminProductsUploadRouteImport } from './routes/api.admin.products.upload'
 
 const WishlistRoute = WishlistRouteImport.update({
   id: '/wishlist',
@@ -256,6 +257,11 @@ const AdminFinanceInvoicesRoute = AdminFinanceInvoicesRouteImport.update({
   path: '/invoices',
   getParentRoute: () => AdminFinanceRoute,
 } as any)
+const ApiAdminProductsUploadRoute = ApiAdminProductsUploadRouteImport.update({
+  id: '/api/admin/products/upload',
+  path: '/api/admin/products/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -299,6 +305,7 @@ export interface FileRoutesByFullPath {
   '/admin/security/audit-logs': typeof AdminSecurityAuditLogsRoute
   '/shop/$category/$subcategory': typeof ShopCategorySubcategoryRoute
   '/shop/$category/': typeof ShopCategoryIndexRoute
+  '/api/admin/products/upload': typeof ApiAdminProductsUploadRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -340,6 +347,7 @@ export interface FileRoutesByTo {
   '/admin/security/audit-logs': typeof AdminSecurityAuditLogsRoute
   '/shop/$category/$subcategory': typeof ShopCategorySubcategoryRoute
   '/shop/$category': typeof ShopCategoryIndexRoute
+  '/api/admin/products/upload': typeof ApiAdminProductsUploadRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -384,6 +392,7 @@ export interface FileRoutesById {
   '/admin/security/audit-logs': typeof AdminSecurityAuditLogsRoute
   '/shop/$category/$subcategory': typeof ShopCategorySubcategoryRoute
   '/shop/$category/': typeof ShopCategoryIndexRoute
+  '/api/admin/products/upload': typeof ApiAdminProductsUploadRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -429,6 +438,7 @@ export interface FileRouteTypes {
     | '/admin/security/audit-logs'
     | '/shop/$category/$subcategory'
     | '/shop/$category/'
+    | '/api/admin/products/upload'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -470,6 +480,7 @@ export interface FileRouteTypes {
     | '/admin/security/audit-logs'
     | '/shop/$category/$subcategory'
     | '/shop/$category'
+    | '/api/admin/products/upload'
   id:
     | '__root__'
     | '/'
@@ -513,6 +524,7 @@ export interface FileRouteTypes {
     | '/admin/security/audit-logs'
     | '/shop/$category/$subcategory'
     | '/shop/$category/'
+    | '/api/admin/products/upload'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -537,6 +549,7 @@ export interface RootRouteChildren {
   WishlistRoute: typeof WishlistRoute
   OrderSuccessRoute: typeof OrderSuccessRoute
   ProductSlugRoute: typeof ProductSlugRoute
+  ApiAdminProductsUploadRoute: typeof ApiAdminProductsUploadRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -828,6 +841,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminFinanceInvoicesRouteImport
       parentRoute: typeof AdminFinanceRoute
     }
+    '/api/admin/products/upload': {
+      id: '/api/admin/products/upload'
+      path: '/api/admin/products/upload'
+      fullPath: '/api/admin/products/upload'
+      preLoaderRoute: typeof ApiAdminProductsUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -947,6 +967,7 @@ const rootRouteChildren: RootRouteChildren = {
   WishlistRoute: WishlistRoute,
   OrderSuccessRoute: OrderSuccessRoute,
   ProductSlugRoute: ProductSlugRoute,
+  ApiAdminProductsUploadRoute: ApiAdminProductsUploadRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

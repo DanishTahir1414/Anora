@@ -41,8 +41,8 @@ export interface CartItem {
 interface CartCtx {
   items: CartItem[];
   add: (productId: string, size: string, quantity?: number, variantId?: string) => void;
-  remove: (productId: string, size: string) => void;
-  setQty: (productId: string, size: string, quantity: number) => void;
+  remove: (productId: string, size: string, variantId?: string) => void;
+  setQty: (productId: string, size: string, quantity: number, variantId?: string) => void;
   clear: () => void;
   count: number;
   subtotal: number;
@@ -53,15 +53,15 @@ interface CartCtx {
 
 interface WishCtx {
   ids: string[];
-  toggle: (id: string) => void;
-  has: (id: string) => boolean;
-  remove: (id: string) => void;
+  toggle: (id: string, variantId?: string | null) => void;
+  has: (id: string, variantId?: string | null) => boolean;
+  remove: (id: string, variantId?: string | null) => void;
   count: number;
   syncWishlistOnLogin: (userId: string) => Promise<string[]>;
-  addToWishlist: (id: string) => Promise<void>;
-  removeFromWishlist: (id: string) => Promise<void>;
-  isInWishlist: (id: string) => boolean;
-  getProduct: (id: string) => any;
+  addToWishlist: (id: string, variantId?: string | null) => Promise<void>;
+  removeFromWishlist: (id: string, variantId?: string | null) => Promise<void>;
+  isInWishlist: (id: string, variantId?: string | null) => boolean;
+  getProduct: (wishKey: string) => any;
 }
 
 const CartContext = createContext<CartCtx | null>(null);
@@ -83,17 +83,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const cartValue: CartCtx = useMemo(
     () => ({
       items: cartSnapshot.items,
-      add: (productId, size, quantity = 1, variantId) =>
+      add: (productId: string, size: string, quantity = 1, variantId?: string) =>
         void addToCart(productId, variantId, size, quantity),
-      remove: (productId, size) => {
+      remove: (productId: string, size: string, variantId?: string) => {
         const item = cartSnapshot.items.find(
-          (entry) => entry.productId === productId && entry.size === size,
+          (entry) => entry.productId === productId && entry.size === size && entry.variantId === (variantId ?? null),
         );
         if (item) void removeFromCart(item.id);
       },
-      setQty: (productId, size, quantity) => {
+      setQty: (productId: string, size: string, quantity: number, variantId?: string) => {
         const item = cartSnapshot.items.find(
-          (entry) => entry.productId === productId && entry.size === size,
+          (entry) => entry.productId === productId && entry.size === size && entry.variantId === (variantId ?? null),
         );
         if (item) void updateCartQuantity(item.id, quantity);
       },
@@ -112,18 +112,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const wishValue: WishCtx = useMemo(
     () => ({
       ids: wishSnapshot.ids,
-      toggle: (id) => {
-        if (isInWishlist(id)) void removeFromWishlist(id);
-        else void addToWishlist(id);
+      toggle: (id, variantId) => {
+        if (isInWishlist(id, variantId)) void removeFromWishlist(id, variantId);
+        else void addToWishlist(id, variantId);
       },
-      has: isInWishlist,
-      remove: (id) => void removeFromWishlist(id),
+      has: (id, variantId) => isInWishlist(id, variantId),
+      remove: (id, variantId) => void removeFromWishlist(id, variantId),
       count: wishSnapshot.ids.length,
       syncWishlistOnLogin,
-      addToWishlist: (id) => addToWishlist(id),
-      removeFromWishlist: (id) => removeFromWishlist(id),
-      isInWishlist,
-      getProduct: (id) => getProduct(id),
+      addToWishlist: (id, variantId) => addToWishlist(id, variantId),
+      removeFromWishlist: (id, variantId) => removeFromWishlist(id, variantId),
+      isInWishlist: (id, variantId) => isInWishlist(id, variantId),
+      getProduct: (wishKey) => {
+        const [productId, variantId] = wishKey.split("|");
+        const baseProduct = getProduct(productId);
+        if (!baseProduct) return null;
+        if (!variantId) return baseProduct;
+        
+        const variant = baseProduct.colorVariants?.find((v) => v.id === variantId);
+        if (!variant) return baseProduct;
+        
+        return {
+          ...baseProduct,
+          color: variant.color,
+          images: variant.images && variant.images.length > 0 ? variant.images : baseProduct.images,
+          price: variant.priceOverride !== undefined ? variant.priceOverride : baseProduct.price,
+          compare_price: variant.comparePriceOverride !== undefined ? variant.comparePriceOverride : baseProduct.compare_price,
+          sku: variant.sku ?? baseProduct.sku,
+          stock: variant.stock,
+          sizeStock: variant.sizeStock ?? baseProduct.sizeStock,
+          selectedVariantId: variantId,
+        };
+      },
     }),
     [wishSnapshot],
   );

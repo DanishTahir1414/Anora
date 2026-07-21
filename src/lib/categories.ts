@@ -47,6 +47,8 @@ export interface PublicProduct {
   stock?: number;
   size_stock?: Record<string, number>;
   color?: string;
+  sale_active?: boolean;
+  discount_percent?: number;
 }
 
 export async function getActiveCategories(): Promise<CategoryNode[]> {
@@ -61,50 +63,7 @@ export async function getCategoryBySlug(slug: string): Promise<CategoryInfo | nu
   return data as CategoryInfo | null;
 }
 
-async function augmentProducts(products: PublicProduct[]): Promise<void> {
-  if (products.length === 0) return;
-  const ids = products.map((p) => p.id);
 
-  const { data: stockRows } = await supabase
-    .from("products")
-    .select("id, stock, size_stock, sizes, sku, color")
-    .in("id", ids);
-
-  const { data: imageRows } = await supabase
-    .from("product_images")
-    .select("product_id, image_url, sort_order")
-    .in("product_id", ids)
-    .order("sort_order");
-
-  if (stockRows) {
-    const stockMap = new Map(stockRows.map((r) => [r.id, r]));
-    for (const p of products) {
-      const s = stockMap.get(p.id);
-      if (s) {
-        p.stock = s.stock;
-        p.size_stock = s.size_stock as Record<string, number>;
-        p.sizes = s.sizes as string[];
-        p.sku = s.sku;
-        p.color = s.color;
-      }
-    }
-  }
-
-  if (imageRows) {
-    const imageMap = new Map<string, string[]>();
-    for (const row of imageRows) {
-      const list = imageMap.get(row.product_id);
-      if (list) {
-        list.push(row.image_url);
-      } else {
-        imageMap.set(row.product_id, [row.image_url]);
-      }
-    }
-    for (const p of products) {
-      p.images = imageMap.get(p.id) ?? [];
-    }
-  }
-}
 
 export async function getProductsByCategorySlug(
   slug: string,
@@ -117,23 +76,23 @@ export async function getProductsByCategorySlug(
     p_page_size: pageSize,
   });
   if (error) throw error;
-  const products = (data ?? []) as PublicProduct[];
-  await augmentProducts(products);
-  return products;
+  return (data ?? []) as PublicProduct[];
 }
 
 export async function getProductsByCategoryAndSubcategory(
   categorySlug: string,
   subcategorySlug: string,
+  page = 1,
+  pageSize = 50,
 ): Promise<PublicProduct[]> {
   const { data, error } = await supabase.rpc("get_products_by_category_and_subcategory", {
     p_category_slug: categorySlug,
     p_subcategory_slug: subcategorySlug,
+    p_page: page,
+    p_page_size: pageSize,
   });
   if (error) throw error;
-  const products = (data ?? []) as PublicProduct[];
-  await augmentProducts(products);
-  return products;
+  return (data ?? []) as PublicProduct[];
 }
 
 // ─── TanStack Query hooks ──────────────────────────────────────────────
@@ -167,6 +126,7 @@ export function toProductProps(p: PublicProduct): Product {
     slug: p.slug,
     name: p.name,
     price: Number(p.price),
+    compare_price: p.compare_price,
     category: p.category_slug as Category,
     subcategory: p.category_name,
     description: p.description ?? "",
@@ -177,6 +137,8 @@ export function toProductProps(p: PublicProduct): Product {
     sizeStock: p.size_stock ?? {},
     images: p.images ?? [],
     badge: p.badge ?? undefined,
+    sale_active: p.sale_active,
+    discount_percent: p.discount_percent,
   };
   registerProduct(product);
   return product;

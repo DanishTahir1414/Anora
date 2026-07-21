@@ -1,23 +1,33 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useState, useRef, useCallback } from "react";
+import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { ChevronDown, Heart, Minus, Plus, Share2, Truck, X } from "lucide-react";
-import { products } from "@/lib/products";
+import { getProductPriceInfo, products } from "@/lib/products";
 import { getProductBySlug } from "@/lib/products-db";
 import { mapDbProductToStatic } from "@/lib/product-mapper";
 import { useCart, useWishlist } from "@/lib/store";
 import { registerProduct } from "@/lib/customer-services";
 import { getProductAvailability, validateStockBeforeCheckout } from "@/lib/inventory";
 import { ProductCard } from "@/components/site/ProductCard";
+import { ProductPrice } from "@/components/site/ProductPrice";
 import { toast } from "sonner";
 import type { Product } from "@/lib/products";
 
+interface ProductSearch {
+  color?: string;
+}
+
 export const Route = createFileRoute("/product/$slug")({
+  validateSearch: (search: Record<string, unknown>): ProductSearch => {
+    return {
+      color: typeof search.color === "string" ? search.color : undefined,
+    };
+  },
   loader: async ({ params }) => {
     const dbResult = await getProductBySlug(params.slug);
     if (!dbResult || !dbResult.product) throw notFound();
     const parentSlug = dbResult.parent_category?.slug ?? "clothing";
     const subName = dbResult.category?.name ?? "";
-    const product = mapDbProductToStatic(dbResult.product, dbResult.images, parentSlug, subName);
+    const product = mapDbProductToStatic(dbResult.product, dbResult.images, parentSlug, subName, dbResult.variants);
     return { product, related: getRelatedProducts(product) };
   },
   head: ({ loaderData }) => {
@@ -63,6 +73,7 @@ function getActiveState(product: (typeof products)[number], color: string) {
       color: availability.color,
       lowStock: availability.lowStock,
       isAvailable: availability.isAvailable,
+      id: undefined,
     };
   }
   return {
@@ -74,40 +85,73 @@ function getActiveState(product: (typeof products)[number], color: string) {
     color: variant.color,
     lowStock: variant.lowStock,
     isAvailable: variant.isAvailable,
+    id: variant.id,
   };
 }
 
 function ProductPage() {
   const { product, related } = Route.useLoaderData();
+  const searchParams = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
   const cart = useCart();
   const wish = useWishlist();
 
-  // Register the product so cart operations can find it by ID
   registerProduct(product);
 
-  const colors = product.colorVariants?.map((v) => v.color) ?? [product.color];
-  const [activeColor, setActiveColor] = useState(product.color);
+  const colors = product.colorVariants?.map((v) => ({
+    name: v.color,
+    hex: v.color_hex || (v.color === "Ivory" ? "#f5f0e8" : v.color === "Blush" ? "#f5d6d6" : "#ccc"),
+    stock: v.stock,
+  })) ?? [
+    {
+      name: product.color,
+      hex: "#f5f0e8",
+      stock: product.stock,
+    }
+  ];
+
+  const defaultColor = product.colorVariants?.[0]?.color ?? product.color;
+  const activeColor = searchParams.color || defaultColor;
   const active = getActiveState(product, activeColor);
+  const priceInfo = getProductPriceInfo(product, activeColor);
 
   const [size, setSize] = useState(active.sizes[0]);
+
+  useEffect(() => {
+    // Find the first size that is in stock for the current variant
+    const inStockSize = active.sizes.find((s) => (active.sizeStock?.[s] ?? 0) > 0);
+    // If current selected size is out of stock or not in variant's sizes, update it
+    if (active.sizes.length > 0) {
+      if (!active.sizes.includes(size) || (active.sizeStock && active.sizeStock[size] === 0)) {
+        setSize(inStockSize || active.sizes[0]);
+      }
+    }
+  }, [activeColor, active.sizes, active.sizeStock, size]);
+
+  useEffect(() => {
+    setImgIdx(0);
+  }, [activeColor]);
+
   const [qty, setQty] = useState(1);
   const [imgIdx, setImgIdx] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
 
   const hasSizeStock = active.sizeStock && Object.keys(active.sizeStock).length > 0;
-  const allOOS = hasSizeStock && active.sizes.every((s) => (active.sizeStock![s] ?? 1) === 0);
-  const isOOS = !active.isAvailable || active.stock === 0 || allOOS;
+  const allOOS = hasSizeStock && active.sizes.every((s) => (active.sizeStock![s] ?? 0) === 0);
+  const selectedSizeStock = active.sizeStock?.[size] ?? 0;
+  const isSizeOOS = hasSizeStock && selectedSizeStock === 0;
+  const isOOS = !active.isAvailable || active.stock === 0 || allOOS || isSizeOOS;
 
   // ─── Color switch ───
   const switchColor = useCallback(
     (c: string) => {
+      void navigate({ search: (old) => ({ ...old, color: c }) });
       const next = getActiveState(product, c);
-      setActiveColor(c);
       setSize(next.sizes[0]);
       setImgIdx(0);
     },
-    [product],
+    [product, navigate],
   );
 
   // ─── Image zoom ───
@@ -191,6 +235,11 @@ function ProductPage() {
               className={`h-full w-full object-cover transition-opacity duration-500 ${zoom ? "opacity-0" : "opacity-100"
                 }`}
             />
+            {!isOOS && priceInfo.isOnSale && priceInfo.discountPercent > 0 && (
+              <span className="absolute top-3 left-3 text-[9px] tracking-[0.18em] uppercase border border-gold/30 text-gold bg-background/95 px-2.5 py-1.5 backdrop-blur font-semibold rounded-full shadow-sm leading-none z-10">
+                {priceInfo.badgeText}
+              </span>
+            )}
             {zoom && (
               <img
                 src={active.images[imgIdx]}
@@ -254,7 +303,7 @@ function ProductPage() {
             </span>
           </div>
 
-          <p className="font-serif text-3xl mt-5">${product.price}.00</p>
+          <ProductPrice product={product} size="lg" className="mt-5" />
 
           <div className="mt-7 h-px w-full bg-border/60" />
 
@@ -273,41 +322,54 @@ function ProductPage() {
           {/* Color Selection */}
           {colors.length > 1 && (
             <div className="mt-6">
-              <span className="eyebrow text-[11px] tracking-[0.28em] uppercase text-muted-foreground">
-                Color: <span className="text-foreground">{activeColor}</span>
+              <span className="eyebrow text-[11px] tracking-[0.28em] uppercase text-muted-foreground block mb-3">
+                Color: <span className="text-foreground font-semibold">{activeColor}</span>
               </span>
-              <div className="flex gap-3 mt-3">
-                {colors.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => switchColor(c)}
-                    className={`relative h-10 w-10 rounded-full border-2 transition-all duration-300 ${activeColor === c
-                        ? "border-gold scale-110"
-                        : "border-border/50 hover:border-foreground/50"
-                      }`}
-                    title={c}
-                  >
-                    <span
-                      className="absolute inset-1 rounded-full"
-                      style={{
-                        backgroundColor:
-                          c === "Ivory"
-                            ? "#f5f0e8"
-                            : c === "Blush"
-                              ? "#f5d6d6"
-                              : c === "Gold"
-                                ? "#d4af37"
-                                : c === "Camel"
-                                  ? "#c19a6b"
-                                  : c === "Ivory & Gold"
-                                    ? "#e8d5b7"
-                                    : c === "Midnight Blue"
-                                      ? "#191970"
-                                      : "#ccc",
+              <div className="flex flex-wrap gap-3.5">
+                {colors.map((color) => {
+                  const isSelected = activeColor.toLowerCase() === color.name.toLowerCase();
+                  const isOOS = color.stock === 0;
+                  const isTexture = color.hex.startsWith("http") || color.hex.startsWith("/");
+
+                  return (
+                    <button
+                      key={color.name}
+                      disabled={isOOS}
+                      onClick={() => switchColor(color.name)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          switchColor(color.name);
+                        }
                       }}
-                    />
-                  </button>
-                ))}
+                      className={`relative h-10 w-10 rounded-full border transition-all duration-500 flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 ${
+                        isSelected
+                          ? "border-gold scale-110 shadow-md ring-1 ring-gold/40"
+                          : isOOS
+                            ? "border-border/20 opacity-30 cursor-not-allowed"
+                            : "border-border hover:border-foreground hover:scale-105"
+                      }`}
+                      title={isOOS ? `${color.name} (Out of Stock)` : color.name}
+                      aria-label={`Select color ${color.name}${isOOS ? " (Out of Stock)" : ""}`}
+                      aria-current={isSelected ? "true" : "false"}
+                    >
+                      <span
+                        className="absolute inset-1 rounded-full overflow-hidden transition-transform duration-300 shadow-inner"
+                        style={
+                          isTexture
+                            ? { backgroundImage: `url(${color.hex})`, backgroundSize: "cover", backgroundPosition: "center" }
+                            : { backgroundColor: color.hex }
+                        }
+                      >
+                        {isOOS && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-background/20 backdrop-blur-[0.5px]">
+                            <div className="w-[140%] h-[1.5px] bg-foreground/50 rotate-45" />
+                          </div>
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -316,7 +378,7 @@ function ProductPage() {
           {colors.length <= 1 && (
             <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
               <span className="eyebrow text-foreground/60">Color:</span>
-              <span>{product.color}</span>
+              <span>{activeColor}</span>
             </div>
           )}
 
@@ -344,7 +406,7 @@ function ProductPage() {
                     className={`min-w-12 h-11 px-3 text-sm border transition-all duration-300 ${size === s && !disabled
                         ? "border-foreground bg-foreground text-background"
                         : disabled
-                          ? "border-border/40 text-border/50 line-through cursor-not-allowed"
+                          ? "border-border/40 text-border/50 line-through diagonal-strike cursor-not-allowed"
                           : "border-border hover:border-foreground"
                       }`}
                   >
@@ -376,14 +438,14 @@ function ProductPage() {
             </div>
             <button
               onClick={() => {
-                const wasWishlisted = wish.has(product.id);
-                wish.toggle(product.id);
+                const wasWishlisted = wish.has(product.id, active.id);
+                wish.toggle(product.id, active.id);
                 toast(wasWishlisted ? "Removed from Wishlist" : "Added to Wishlist");
               }}
               className="h-11 w-11 grid place-items-center border border-border hover:border-foreground transition-all duration-300 hover:scale-105"
               aria-label="wishlist"
             >
-              <Heart className={`h-4 w-4 ${wish.has(product.id) ? "fill-gold text-gold" : ""}`} />
+              <Heart className={`h-4 w-4 ${wish.has(product.id, active.id) ? "fill-gold text-gold" : ""}`} />
             </button>
             <button
               onClick={() => {
@@ -410,6 +472,7 @@ function ProductPage() {
                 if (isOOS) return;
                 const validation = validateStockBeforeCheckout(product, {
                   productId: product.id,
+                  variantId: active.id,
                   size,
                   quantity: qty,
                   color: activeColor,
@@ -418,7 +481,7 @@ function ProductPage() {
                   toast.error(validation.reason ?? "Selected option is unavailable");
                   return;
                 }
-                cart.add(product.id, size, qty);
+                cart.add(product.id, size, qty, active.id);
                 toast.success("Added to bag", {
                   description: `${product.name} · ${size} · Qty ${qty}`,
                 });
@@ -434,7 +497,7 @@ function ProductPage() {
             {!isOOS && (
               <Link
                 to="/checkout"
-                onClick={() => cart.add(product.id, size, qty)}
+                onClick={() => cart.add(product.id, size, qty, active.id)}
                 className="text-center border border-foreground py-4 text-[11px] tracking-[0.32em] uppercase hover:bg-foreground hover:text-background transition-all duration-300"
               >
                 Buy Now

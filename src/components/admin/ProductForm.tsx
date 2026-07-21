@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -63,6 +64,8 @@ interface FormData {
   is_best_seller: boolean;
   featured: boolean;
   size_stock: Record<string, number>;
+  sale_active: boolean;
+  discount_percent: string;
 }
 
 interface FormErrors {
@@ -74,6 +77,39 @@ interface Props {
   onClose: () => void;
   onSaved: () => void;
   productId?: string | null;
+}
+
+export interface VariantFormImage {
+  id: string;
+  image_url?: string;
+  previewUrl?: string;
+  file?: File;
+  alt_text?: string | null;
+  sort_order?: number;
+}
+
+function isLocalVariantImage(img: unknown): img is { id: string; file: File; previewUrl: string } {
+  return (
+    typeof img === "object" &&
+    img !== null &&
+    "file" in img &&
+    "previewUrl" in img &&
+    typeof (img as any).previewUrl === "string"
+  );
+}
+
+function getVariantImageUrl(img: unknown): string {
+  if (!img) return "";
+  if (typeof img === "string") return img;
+  if (typeof img === "object" && img !== null) {
+    if ("previewUrl" in img && typeof (img as any).previewUrl === "string") {
+      return (img as any).previewUrl;
+    }
+    if ("image_url" in img && typeof (img as any).image_url === "string") {
+      return (img as any).image_url;
+    }
+  }
+  return "";
 }
 
 export function ProductForm({ open, onClose, onSaved, productId }: Props) {
@@ -111,7 +147,186 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
     is_best_seller: false,
     featured: false,
     size_stock: {},
+    sale_active: false,
+    discount_percent: "10",
   });
+  const [variants, setVariants] = useState<{
+    id?: string;
+    name: string;
+    color_hex: string;
+    sku: string;
+    price: string;
+    compare_price: string;
+    stock: string;
+    sizes: string[];
+    size_stock: Record<string, number>;
+    images: VariantFormImage[];
+    is_active: boolean;
+    sort_order: number;
+  }[]>([]);
+
+  async function addVariant() {
+    let newId: string | undefined = undefined;
+    if (isEdit && productId) {
+      try {
+        const variantData = {
+          product_id: productId,
+          name: "New Color",
+          color_hex: "#FFFFFF",
+          sku: form.sku ? `${form.sku}-${variants.length + 1}` : `SKU-${Date.now()}`,
+          price: form.price ? parseFloat(form.price) : null,
+          compare_price: form.compare_price ? parseFloat(form.compare_price) : null,
+          stock: 0,
+          sizes: form.sizes,
+          size_stock: form.sizes.reduce((acc, s) => ({ ...acc, [s]: 0 }), {}),
+          is_active: true,
+          sort_order: variants.length,
+        };
+        const { data, error } = await supabase
+          .from("product_variants")
+          .insert(variantData)
+          .select("id")
+          .single();
+        if (error) throw error;
+        if (data) newId = data.id;
+      } catch (err: any) {
+        toast.error(`Failed to add variant to database: ${err.message}`);
+        return;
+      }
+    }
+
+    setVariants((prev) => [
+      ...prev,
+      {
+        id: newId,
+        name: "New Color",
+        color_hex: "#FFFFFF",
+        sku: form.sku ? `${form.sku}-${prev.length + 1}` : `SKU-${Date.now()}`,
+        price: form.price,
+        compare_price: form.compare_price,
+        stock: "0",
+        sizes: form.sizes,
+        size_stock: form.sizes.reduce((acc, s) => ({ ...acc, [s]: 0 }), {}),
+        images: [],
+        is_active: true,
+        sort_order: prev.length,
+      },
+    ]);
+  }
+
+  async function removeVariant(index: number) {
+    const v = variants[index];
+    if (v.id) {
+      try {
+        const { error } = await supabase.from("product_variants").delete().eq("id", v.id);
+        if (error) throw error;
+      } catch (err: any) {
+        toast.error(`Failed to remove variant from database: ${err.message}`);
+        return;
+      }
+    }
+    setVariants((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function updateVariant(index: number, key: string, value: any) {
+    setVariants((prev) =>
+      prev.map((v, i) => (i === index ? { ...v, [key]: value } : v)),
+    );
+  }
+
+  async function handleVariantFilesAdded(idx: number, selectedFiles: File[]) {
+    const v = variants[idx];
+    if (isEdit && v.id) {
+      setUploading(true);
+      try {
+        for (const file of selectedFiles) {
+          const result = await uploadProductImage(productId!, file, v.id);
+          const newImg: VariantFormImage = {
+            id: result.id,
+            image_url: result.image_url,
+            alt_text: null,
+            sort_order: v.images.length,
+          };
+          setVariants((prev) =>
+            prev.map((item, i) => (i === idx ? { ...item, images: [...item.images, newImg] } : item)),
+          );
+        }
+      } catch (err: any) {
+        toast.error(`Variant image upload failed: ${err.message}`);
+      } finally {
+        setUploading(false);
+      }
+    } else {
+      const nextImages = [...v.images];
+      for (const file of selectedFiles) {
+        nextImages.push({
+          id: crypto.randomUUID(),
+          file,
+          previewUrl: URL.createObjectURL(file),
+          sort_order: nextImages.length,
+        });
+      }
+      updateVariant(idx, "images", nextImages);
+    }
+  }
+
+  async function handleVariantDeleteImage(idx: number, imgId: string) {
+    const v = variants[idx];
+    const isLocal = v.images.some((img) => isLocalVariantImage(img) && img.id === imgId);
+    if (!isLocal) {
+      try {
+        await deleteProductImage(imgId);
+      } catch (err: any) {
+        toast.error(`Failed to delete variant image: ${err.message}`);
+        return;
+      }
+    } else {
+      const localImg = v.images.find((img) => img.id === imgId);
+      if (localImg && isLocalVariantImage(localImg) && localImg.previewUrl) {
+        URL.revokeObjectURL(localImg.previewUrl);
+      }
+    }
+    updateVariant(idx, "images", v.images.filter((img) => img.id !== imgId));
+  }
+
+  async function handleVariantSetPrimaryImage(idx: number, imgIdx: number) {
+    if (imgIdx === 0) return;
+    const v = variants[idx];
+    const newImages = [...v.images];
+    const [primary] = newImages.splice(imgIdx, 1);
+    newImages.unshift(primary);
+    const reordered = newImages.map((img, i) => ({ ...img, sort_order: i }));
+    updateVariant(idx, "images", reordered);
+    if (v.id) {
+      try {
+        await reorderProductImages(
+          reordered.map((img) => ({ id: img.id, sort_order: img.sort_order })),
+        );
+      } catch {
+        toast.error("Failed to update main image sorting");
+      }
+    }
+  }
+
+  async function handleVariantMoveImage(idx: number, imgIdx: number, direction: -1 | 1) {
+    const v = variants[idx];
+    const newImages = [...v.images];
+    const target = imgIdx + direction;
+    if (target < 0 || target >= newImages.length) return;
+    [newImages[imgIdx], newImages[target]] = [newImages[target], newImages[imgIdx]];
+    const reordered = newImages.map((img, i) => ({ ...img, sort_order: i }));
+    updateVariant(idx, "images", reordered);
+    if (v.id) {
+      try {
+        await reorderProductImages(
+          reordered.map((img) => ({ id: img.id, sort_order: img.sort_order })),
+        );
+      } catch {
+        toast.error("Failed to update image sorting");
+      }
+    }
+  }
+
   const [errors, setErrors] = useState<FormErrors>({});
 
   const localImagesRef = useRef(localImages);
@@ -134,6 +349,58 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
       setUploadProgressText("");
     }
   }, [open]);
+
+  // Synchronize top Colors section with active variants
+  useEffect(() => {
+    if (variants.length === 0) return;
+
+    setForm((prev) => {
+      // Find all variant colors
+      const variantColors = variants.map((v) => ({
+        name: v.name.trim(),
+        hex: v.color_hex.trim(),
+      }));
+
+      // Find variant color names for quick lookup
+      const variantColorNames = new Set(variantColors.map((vc) => vc.name.toLowerCase()));
+
+      // Keep manually added colors that don't match any variant color name
+      const manualColors = prev.colors.filter(
+        (c) => !variantColorNames.has(c.name.trim().toLowerCase())
+      );
+
+      // Combine manually added colors and variant colors, avoiding duplicates by name
+      const combinedColors: ColorEntry[] = [...manualColors];
+      const addedNames = new Set(manualColors.map((c) => c.name.toLowerCase()));
+
+      for (const vc of variantColors) {
+        if (!addedNames.has(vc.name.toLowerCase())) {
+          combinedColors.push(vc);
+          addedNames.add(vc.name.toLowerCase());
+        } else {
+          // If the name exists but the hex is different, update the hex to match the variant
+          const index = combinedColors.findIndex((c) => c.name.toLowerCase() === vc.name.toLowerCase());
+          if (index !== -1) {
+            combinedColors[index].hex = vc.hex;
+          }
+        }
+      }
+
+      // Check if colors actually changed to avoid infinite loop
+      const equal =
+        combinedColors.length === prev.colors.length &&
+        combinedColors.every(
+          (c, idx) => c.name === prev.colors[idx].name && c.hex === prev.colors[idx].hex
+        );
+
+      if (equal) return prev;
+
+      return {
+        ...prev,
+        colors: combinedColors,
+      };
+    });
+  }, [variants]);
 
   // Resolve parent category when editing an existing product
   useEffect(() => {
@@ -163,7 +430,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
     if (open && productId) {
       setLoadingData(true);
       getAdminProduct(productId)
-        .then((data: AdminProductResponse) => {
+        .then(async (data: AdminProductResponse) => {
           const p = data.product;
           setForm({
             name: p.name,
@@ -171,8 +438,8 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
             sku: p.sku ?? "",
             description: p.description ?? "",
             short_description: p.short_description ?? "",
-            price: String(p.price),
-            compare_price: p.compare_price ? String(p.compare_price) : "",
+            price: (p.sale_active && p.compare_price && Number(p.compare_price) > Number(p.price)) ? String(p.compare_price) : String(p.price),
+            compare_price: (p.sale_active && p.compare_price && Number(p.compare_price) > Number(p.price)) ? "" : (p.compare_price ? String(p.compare_price) : ""),
             stock: String(p.stock),
             low_stock_threshold: String(p.low_stock_threshold),
             status: p.status,
@@ -186,8 +453,59 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
             is_best_seller: p.is_best_seller,
             featured: p.featured,
             size_stock: (p.size_stock ?? {}) as Record<string, number>,
+            sale_active: p.sale_active ?? false,
+            discount_percent: p.discount_percent ? String(p.discount_percent) : "10",
           });
           setImages(data.images ?? []);
+
+          try {
+            const { data: vRows } = await supabase
+              .from("product_variants")
+              .select("*")
+              .eq("product_id", productId)
+              .order("sort_order", { ascending: true });
+
+            const { data: imgRows } = await supabase
+              .from("product_images")
+              .select("id, image_url, alt_text, variant_id, sort_order")
+              .eq("product_id", productId)
+              .not("variant_id", "is", null);
+
+            if (vRows) {
+              const mapped = vRows.map((v, idx) => {
+                const vImages: VariantFormImage[] = (imgRows ?? [])
+                  .filter((img) => img.variant_id === v.id)
+                  .sort((a, b) => a.sort_order - b.sort_order)
+                  .map((img) => ({
+                    id: img.id,
+                    image_url: img.image_url,
+                    alt_text: img.alt_text || null,
+                    sort_order: img.sort_order,
+                  }));
+
+                return {
+                  id: v.id,
+                  name: v.name,
+                  color_hex: v.color_hex || "#FFFFFF",
+                  sku: v.sku || "",
+                  price: v.price ? String(v.price) : "",
+                  compare_price: v.compare_price ? String(v.compare_price) : "",
+                  stock: String(v.stock),
+                  sizes: v.sizes || [],
+                  size_stock: v.size_stock || {},
+                  images: vImages,
+                  is_active: v.is_active ?? true,
+                  sort_order: v.sort_order ?? idx,
+                };
+              });
+              setVariants(mapped);
+            } else {
+              setVariants([]);
+            }
+          } catch (err) {
+            console.error("Failed to load product variants", err);
+          }
+
           setLoadingData(false);
         })
         .catch(() => setLoadingData(false));
@@ -213,8 +531,11 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
         is_best_seller: false,
         featured: false,
         size_stock: {},
+        sale_active: false,
+        discount_percent: "10",
       });
       setImages([]);
+      setVariants([]);
       setErrors({});
     }
   }, [open, productId]);
@@ -242,6 +563,13 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
 
   function addColor() {
     if (!colorName.trim()) return;
+    const nameLower = colorName.trim().toLowerCase();
+    const isDuplicate = form.colors.some((c) => c.name.trim().toLowerCase() === nameLower) ||
+                        variants.some((v) => v.name.trim().toLowerCase() === nameLower);
+    if (isDuplicate) {
+      toast.error("Color name already exists");
+      return;
+    }
     setForm((prev) => ({
       ...prev,
       colors: [...prev.colors, { name: colorName.trim(), hex: colorHex }],
@@ -470,12 +798,16 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
         featured: form.featured,
         category_id: form.subcategory_id,
         status: form.status,
+        sale_active: form.sale_active,
+        discount_percent: form.sale_active ? parseInt(form.discount_percent, 10) || 0 : 0,
       };
 
+      let targetProductId = productId;
       if (isEdit && productId) {
         await updateProduct(productId, productData as any);
       } else {
         const newProductId = await createProduct(productData as any);
+        targetProductId = newProductId;
         if (localImages.length > 0) {
           const uploadedIds: string[] = [];
           for (let i = 0; i < localImages.length; i++) {
@@ -487,6 +819,77 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
           setUploadProgressText("Finalizing image order...");
           const reordered = uploadedIds.map((id, index) => ({ id, sort_order: index }));
           await reorderProductImages(reordered);
+        }
+      }
+
+      if (targetProductId) {
+        if (isEdit) {
+          const keepIds = variants.map((v) => v.id).filter(Boolean) as string[];
+          if (keepIds.length > 0) {
+            await supabase
+              .from("product_variants")
+              .delete()
+              .eq("product_id", targetProductId)
+              .not("id", "in", keepIds);
+          } else {
+            await supabase
+              .from("product_variants")
+              .delete()
+              .eq("product_id", targetProductId);
+          }
+        }
+
+        for (const v of variants) {
+          const variantData = {
+            product_id: targetProductId,
+            name: v.name,
+            color_hex: v.color_hex,
+            sku: v.sku,
+            price: v.price ? parseFloat(v.price) : null,
+            compare_price: v.compare_price ? parseFloat(v.compare_price) : null,
+            stock: parseInt(v.stock, 10) || 0,
+            sizes: v.sizes,
+            size_stock: v.size_stock,
+            is_active: v.is_active,
+            sort_order: v.sort_order,
+          };
+
+          let resolvedVariantId = v.id;
+          if (v.id) {
+            await supabase.from("product_variants").update(variantData).eq("id", v.id);
+          } else {
+            const { data: newV, error: insertError } = await supabase
+              .from("product_variants")
+              .insert(variantData)
+              .select("id")
+              .single();
+
+            if (!insertError && newV) {
+              resolvedVariantId = newV.id;
+            }
+          }
+
+          if (resolvedVariantId) {
+            const finalImageIds: string[] = [];
+            for (let i = 0; i < v.images.length; i++) {
+              const img = v.images[i];
+              if (isLocalVariantImage(img)) {
+                setUploadProgressText(`Uploading variant image ${i + 1} of ${v.images.length}...`);
+                const uploadResult = await uploadProductImage(targetProductId, img.file, resolvedVariantId);
+                finalImageIds.push(uploadResult.id);
+              } else if (img && typeof img === "object" && "id" in img) {
+                finalImageIds.push(img.id);
+              }
+            }
+
+            if (finalImageIds.length > 0) {
+              const reorderedPayload = finalImageIds.map((id, index) => ({
+                id,
+                sort_order: index,
+              }));
+              await reorderProductImages(reorderedPayload);
+            }
+          }
         }
       }
       onSaved();
@@ -598,6 +1001,44 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
                 </div>
               </div>
 
+              <div className="border border-border p-4 space-y-4 rounded-sm bg-neutral/10">
+                <p className="text-sm font-semibold tracking-wider uppercase font-sans text-gold">Sale / Discount Settings</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center space-x-2 pt-2">
+                    <input
+                      id="sale_active"
+                      type="checkbox"
+                      checked={form.sale_active}
+                      onChange={(e) => set("sale_active", e.target.checked)}
+                      className="h-4 w-4 rounded border-border bg-transparent text-gold focus:ring-gold animate-none"
+                    />
+                    <Label htmlFor="sale_active" className="cursor-pointer font-medium">On Sale</Label>
+                  </div>
+                  {form.sale_active && (
+                    <div className="space-y-2">
+                      <Label htmlFor="discount_percent">Discount Percentage (%)</Label>
+                      <select
+                        id="discount_percent"
+                        value={form.discount_percent}
+                        onChange={(e) => set("discount_percent", e.target.value)}
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        <option value="5">5%</option>
+                        <option value="10">10%</option>
+                        <option value="15">15%</option>
+                        <option value="20">20%</option>
+                        <option value="25">25%</option>
+                        <option value="30">30%</option>
+                        <option value="40">40%</option>
+                        <option value="50">50%</option>
+                        <option value="60">60%</option>
+                        <option value="70">70%</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
                 <textarea
@@ -703,25 +1144,32 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
 
               {form.colors.length > 0 && (
                 <div className="flex flex-wrap gap-3 mb-3">
-                  {form.colors.map((c, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center gap-2 border border-border/60 px-3 py-1.5"
-                    >
-                      <span
-                        className="w-5 h-5 rounded-full border"
-                        style={{ backgroundColor: c.hex }}
-                      />
-                      <span className="text-sm">{c.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeColor(i)}
-                        className="text-xs text-muted-foreground hover:text-red ml-1"
+                  {form.colors.map((c, i) => {
+                    const isOwnedByVariant = variants.some(
+                      (v) => v.name.trim().toLowerCase() === c.name.trim().toLowerCase()
+                    );
+                    return (
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 border border-border/60 px-3 py-1.5"
                       >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
+                        <span
+                          className="w-5 h-5 rounded-full border"
+                          style={{ backgroundColor: c.hex }}
+                        />
+                        <span className="text-sm">{c.name}</span>
+                        {!isOwnedByVariant && (
+                          <button
+                            type="button"
+                            onClick={() => removeColor(i)}
+                            className="text-xs text-muted-foreground hover:text-red ml-1"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -755,6 +1203,230 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
                   Add
                 </Button>
               </div>
+            </fieldset>
+
+            {/* ─── Product Color Variants ─── */}
+            <fieldset className="space-y-4 border border-border/40 p-5 rounded-md bg-stone-50/20 dark:bg-stone-900/5">
+              <div className="flex items-center justify-between">
+                <legend className="text-xs tracking-[0.2em] uppercase px-2 font-medium">
+                  Color Variants
+                </legend>
+                <Button type="button" variant="outline" size="sm" onClick={addVariant}>
+                  + Add Variant
+                </Button>
+              </div>
+
+              {variants.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No variants added yet. Add one to enable color variants.</p>
+              ) : (
+                <div className="space-y-6">
+                  {variants.map((v, idx) => (
+                    <div key={idx} className="border border-border p-4 rounded-sm space-y-4 bg-background">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm">Variant #{idx + 1}: {v.name}</span>
+                        <Button type="button" variant="ghost" size="sm" className="text-red hover:bg-red/10" onClick={() => removeVariant(idx)}>
+                          Remove
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Color Name</Label>
+                          <Input
+                            value={v.name}
+                            onChange={(e) => updateVariant(idx, "name", e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Color Hex</Label>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="color"
+                              value={v.color_hex}
+                              onChange={(e) => updateVariant(idx, "color_hex", e.target.value)}
+                              className="h-8 w-8 border p-0.5"
+                            />
+                            <Input
+                              value={v.color_hex}
+                              onChange={(e) => updateVariant(idx, "color_hex", e.target.value)}
+                              className="h-8 text-xs font-mono"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">SKU</Label>
+                          <Input
+                            value={v.sku}
+                            onChange={(e) => updateVariant(idx, "sku", e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Sort Order</Label>
+                          <Input
+                            type="number"
+                            value={String(v.sort_order)}
+                            onChange={(e) => updateVariant(idx, "sort_order", parseInt(e.target.value) || 0)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Price Override</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={v.price}
+                            onChange={(e) => updateVariant(idx, "price", e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Compare Price Override</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={v.compare_price}
+                            onChange={(e) => updateVariant(idx, "compare_price", e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Total Stock</Label>
+                          <Input
+                            type="number"
+                            value={v.stock}
+                            onChange={(e) => updateVariant(idx, "stock", e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <Label className="text-xs font-semibold block">Variant Images</Label>
+                        
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/jpeg,image/jpg,image/png,image/webp"
+                            onChange={(e) => {
+                              if (e.target.files) {
+                                void handleVariantFilesAdded(idx, Array.from(e.target.files));
+                              }
+                            }}
+                            className="hidden"
+                            id={`variant-upload-${idx}`}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => document.getElementById(`variant-upload-${idx}`)?.click()}
+                          >
+                            Upload Variant Images
+                          </Button>
+                          <span className="text-xs text-muted-foreground">JPG, JPEG, PNG, WEBP</span>
+                        </div>
+
+                        {v.images.length > 0 && (
+                          <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 pt-1">
+                            {v.images.map((img, i) => {
+                              const url = getVariantImageUrl(img);
+                              const isPrimary = i === 0;
+                              return (
+                                <div key={img.id} className="relative aspect-[3/4] border rounded-md overflow-hidden bg-neutral/10 group shadow-sm">
+                                  <img src={url} alt="Variant Preview" className="w-full h-full object-cover" />
+                                  {isPrimary && (
+                                    <span className="absolute top-1 left-1 bg-amber-500 text-stone-950 font-sans font-semibold text-[8px] uppercase px-1 rounded z-10 leading-none py-0.5 tracking-wider">
+                                      Main
+                                    </span>
+                                  )}
+                                  
+                                  <div className="absolute inset-0 bg-stone-950/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-1.5">
+                                    <div className="flex justify-between items-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleVariantSetPrimaryImage(idx, i)}
+                                        disabled={isPrimary}
+                                        className={`p-1 rounded bg-background/95 hover:bg-amber-500 hover:text-stone-950 text-foreground transition-colors disabled:opacity-50`}
+                                        title="Set as Main"
+                                      >
+                                        <svg className="h-3 w-3" fill={isPrimary ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.907c.961 0 1.36 1.246.577 1.838l-3.97 2.883a1 1 0 00-.364 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.971-2.883a1 1 0 00-1.17 0l-3.97 2.883c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.364-1.118l-3.97-2.883c-.784-.592-.386-1.838.577-1.838h4.906a1 1 0 00.951-.69l1.519-4.674z" />
+                                        </svg>
+                                      </button>
+                                      
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleVariantDeleteImage(idx, img.id)}
+                                        className="p-1 rounded bg-red-600/90 text-white hover:bg-red-700 transition-colors"
+                                        title="Delete"
+                                      >
+                                        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                    
+                                    <div className="flex justify-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleVariantMoveImage(idx, i, -1)}
+                                        disabled={i === 0}
+                                        className="px-1 py-0.5 bg-background/95 hover:bg-foreground hover:text-background rounded disabled:opacity-40 disabled:hover:bg-background/95 text-[9px] font-sans"
+                                      >
+                                        ◀
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleVariantMoveImage(idx, i, 1)}
+                                        disabled={i === v.images.length - 1}
+                                        className="px-1 py-0.5 bg-background/95 hover:bg-foreground hover:text-background rounded disabled:opacity-40 disabled:hover:bg-background/95 text-[9px] font-sans"
+                                      >
+                                        ▶
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Variant size stock */}
+                      {form.sizes.length > 0 && (
+                        <div className="border-t border-border/40 pt-3">
+                          <p className="text-xs font-semibold mb-2">Variant Sizes Stock</p>
+                          <div className="grid grid-cols-6 gap-2">
+                            {form.sizes.map((sz) => (
+                              <div key={sz} className="space-y-1">
+                                <Label className="text-[10px] text-center block">{sz}</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={v.size_stock[sz] ?? 0}
+                                  onChange={(e) => {
+                                    const nextStock = { ...v.size_stock, [sz]: Math.max(0, parseInt(e.target.value) || 0) };
+                                    updateVariant(idx, "size_stock", nextStock);
+                                    const total = Object.values(nextStock).reduce((sum, val) => sum + val, 0);
+                                    updateVariant(idx, "stock", String(total));
+                                  }}
+                                  className="h-7 text-center text-xs"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </fieldset>
 
             {/* ─── Images ─── */}
@@ -823,7 +1495,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
               {((isEdit ? images : localImages).length > 0) && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-4 pt-2">
                   {(isEdit ? images : localImages).map((img, i) => {
-                    const url = isEdit ? (img as AdminProductImage).image_url : (img as any).previewUrl;
+                    const url = getVariantImageUrl(img);
                     const id = img.id;
                     const isPrimary = i === 0;
                     return (

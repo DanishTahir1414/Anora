@@ -11,13 +11,16 @@ import blog3 from "@/assets/blog3.jpg";
 export type Category = "clothing" | "jewellery";
 
 export interface ColorVariant {
+  id?: string;
   color: string;
+  color_hex?: string;
   images: string[];
   sizes?: string[];
   sizeStock?: Record<string, number>;
   stock: number;
   sku?: string;
   priceOverride?: number;
+  comparePriceOverride?: number;
   attributes?: Record<string, unknown>;
 }
 
@@ -26,6 +29,7 @@ export interface Product {
   slug: string;
   name: string;
   price: number;
+  compare_price?: number | null;
   category: Category;
   subcategory: string;
   description: string;
@@ -39,7 +43,74 @@ export interface Product {
   images: string[];
   badge?: string;
   colorVariants?: ColorVariant[];
+  sale_active?: boolean;
+  discount_percent?: number;
   metadata?: Record<string, unknown>;
+  selectedVariantId?: string;
+}
+
+export interface ProductPriceInfo {
+  isOnSale: boolean;
+  originalPrice: number;
+  salePrice: number;
+  discountPercent: number;
+  badgeText: string;
+}
+
+export function calculateSalePrice(originalPrice: number, discountPercent: number): number {
+  if (discountPercent <= 0) return originalPrice;
+  return originalPrice * (1 - discountPercent / 100);
+}
+
+export function getProductPriceInfo(product: {
+  price: number;
+  compare_price?: number | null;
+  sale_active?: boolean;
+  discount_percent?: number;
+  colorVariants?: ColorVariant[];
+  selectedVariantId?: string;
+}, selectedColor?: string): ProductPriceInfo {
+  // Determine if sale is active
+  const discountPercent = (product.sale_active && product.discount_percent) ? product.discount_percent : 0;
+  const isOnSale = product.sale_active && discountPercent > 0;
+
+  // Find variant if selected
+  const variant = selectedColor ? product.colorVariants?.find((v) => v.color.toLowerCase() === selectedColor.toLowerCase()) : undefined;
+
+  // Determine original base price (non-discounted price)
+  let basePrice: number;
+  if (variant) {
+    basePrice = variant.priceOverride !== undefined ? variant.priceOverride : product.price;
+  } else {
+    // Backward compatibility check for parent products saved under the old system
+    basePrice = (product.sale_active && product.compare_price && Number(product.compare_price) > Number(product.price))
+      ? Number(product.compare_price)
+      : Number(product.price);
+  }
+
+  if (isOnSale) {
+    const salePrice = basePrice * (1 - discountPercent / 100);
+    return {
+      isOnSale: true,
+      originalPrice: basePrice,
+      salePrice: salePrice,
+      discountPercent,
+      badgeText: `-${discountPercent}%`,
+    };
+  }
+
+  // Not on sale
+  const comparePrice = variant?.comparePriceOverride !== undefined ? variant.comparePriceOverride : product.compare_price;
+  const originalPrice = Number(comparePrice || basePrice);
+  const salePrice = Number(basePrice);
+
+  return {
+    isOnSale: false,
+    originalPrice,
+    salePrice,
+    discountPercent: 0,
+    badgeText: "",
+  };
 }
 
 export const subcategories: Record<Category, string[]> = {

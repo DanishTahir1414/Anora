@@ -53,14 +53,22 @@ interface DbProduct {
   is_active: boolean;
   status: string | null;
   updated_at: string;
+  sale_active?: boolean;
+  discount_percent?: number;
+  compare_price?: number | null;
 }
 
 interface DbVariant {
   id: string;
   product_id: string;
+  name: string;
   price: number | null;
+  compare_price: number | null;
   stock: number;
   is_active: boolean;
+  sizes: string[] | null;
+  size_stock: Record<string, number> | null;
+  color_hex: string | null;
 }
 
 function collectErrors(errors: InventoryError[]): { message: string; isStructural: boolean } {
@@ -106,7 +114,7 @@ export async function validateCartItems(input: CartItemInput[]): Promise<CartVal
 
   const { data: products, error: productError } = await supabaseAdmin
     .from("products")
-    .select("id, name, price, stock, size_stock, sizes, is_active, status, updated_at")
+    .select("id, name, price, stock, size_stock, sizes, is_active, status, updated_at, sale_active, discount_percent, compare_price")
     .in("id", productIds);
 
   if (productError) {
@@ -151,16 +159,21 @@ export async function validateCartItems(input: CartItemInput[]): Promise<CartVal
   }
 
   const variantMap = new Map<string, DbVariant>();
-  if (variantIds.length > 0) {
-    const { data: variants, error: variantError } = await supabaseAdmin
-      .from("product_variants")
-      .select("id, product_id, price, stock, is_active")
-      .in("id", variantIds);
+  const productVariantsMap = new Map<string, DbVariant[]>();
 
-    if (!variantError && variants) {
-      for (const v of variants as DbVariant[]) {
-        variantMap.set(v.id, v);
-      }
+  const { data: allProductVariants, error: variantError } = await supabaseAdmin
+    .from("product_variants")
+    .select("id, product_id, name, price, compare_price, stock, is_active, sizes, size_stock, color_hex")
+    .in("product_id", productIds)
+    .eq("is_active", true);
+
+  if (!variantError && allProductVariants) {
+    for (const v of allProductVariants as DbVariant[]) {
+      variantMap.set(v.id, v);
+      
+      const list = productVariantsMap.get(v.product_id) ?? [];
+      list.push(v);
+      productVariantsMap.set(v.product_id, list);
     }
   }
 
@@ -183,41 +196,85 @@ export async function validateCartItems(input: CartItemInput[]): Promise<CartVal
 
     const size = item.size ?? "";
 
-    const sizeListError = validateSizeInList(size, product.sizes, product.name);
-    if (sizeListError) {
-      errors.push(sizeListError);
-      continue;
-    }
+    const activeVariants = productVariantsMap.get(item.productId) ?? [];
 
-    if (item.expectedUnitPrice != null) {
-      const priceError = validatePrice(Number(product.price), item.expectedUnitPrice);
-      if (priceError) {
-        errors.push(priceError);
-        continue;
-      }
-    }
-
-    if (item.variantId) {
-      const variant = variantMap.get(item.variantId) ?? null;
-      const variantError = validateVariant(
-        variant?.product_id === item.productId ? variant : null,
-        product.name,
-      );
-      if (variantError) {
-        errors.push(variantError);
-        continue;
-      }
-
-      const unitPrice = variant!.price ?? product.price;
+    if (activeVariants.length === 0) {
       if (item.expectedUnitPrice != null) {
-        const priceError = validatePrice(Number(unitPrice), item.expectedUnitPrice);
+        let dbPrice = Number(product.price);
+        if (product.sale_active && product.compare_price && Number(product.compare_price) > Number(product.price)) {
+          dbPrice = Number(product.compare_price);
+        }
+        if (product.sale_active && product.discount_percent && product.discount_percent > 0) {
+          dbPrice = dbPrice * (1 - product.discount_percent / 100);
+        }
+        const priceError = validatePrice(dbPrice, item.expectedUnitPrice);
+        if (priceError) {
+          errors.push(priceError);
+          continue;
+        }
+      }
+    }
+
+    if (activeVariants.length > 0) {
+      if (!item.variantId) {
+        errors.push({
+          code: "VARIANT_NOT_FOUND",
+          message: `Color variant selection is required for ${product.name}.`,
+        });
+        continue;
+      }
+
+      const variant = variantMap.get(item.variantId);
+      if (!variant || variant.product_id !== item.productId || !variant.is_active) {
+        errors.push({
+          code: "VARIANT_NOT_FOUND",
+          message: `Selected color variant is unavailable for ${product.name}.`,
+        });
+        continue;
+      }
+
+      const color = variant.name;
+      if (!color) {
+        errors.push({
+          code: "VARIANT_NOT_FOUND",
+          message: `Selected color is unavailable for ${product.name}.`,
+        });
+        continue;
+      }
+
+      const variantSizes = variant.sizes ?? product.sizes;
+      const sizeListError = validateSizeInList(size, variantSizes, product.name);
+      if (sizeListError) {
+        errors.push(sizeListError);
+        continue;
+      }
+
+      const basePrice = variant.price ?? product.price;
+      let unitPrice = Number(basePrice);
+      if (product.sale_active && product.discount_percent && product.discount_percent > 0) {
+        unitPrice = unitPrice * (1 - product.discount_percent / 100);
+      }
+      if (item.expectedUnitPrice != null) {
+        const priceError = validatePrice(unitPrice, item.expectedUnitPrice);
         if (priceError) {
           errors.push(priceError);
           continue;
         }
       }
 
-      const qtyError = validateQuantity(item.quantity, variant!.stock, product.name);
+      const effectiveSizeStock = variant.size_stock ?? product.size_stock;
+      const sizeStockError = validateSizeStock(size, effectiveSizeStock, product.name);
+      if (sizeStockError) {
+        errors.push(sizeStockError);
+        continue;
+      }
+
+      const { quantity: maxAvailable } = getAvailableStock(
+        { stock: variant.stock, size_stock: effectiveSizeStock },
+        size,
+      );
+
+      const qtyError = validateQuantity(item.quantity, maxAvailable, product.name);
       if (qtyError) {
         errors.push(qtyError);
         continue;
@@ -232,10 +289,24 @@ export async function validateCartItems(input: CartItemInput[]): Promise<CartVal
         productName: product.name,
         unitPrice: Number(unitPrice),
         quantity: item.quantity,
-        maxAvailable: variant!.stock,
+        maxAvailable,
         subtotal: lineSubtotal,
         imageUrl: imageMap.get(item.productId),
       });
+      continue;
+    }
+
+    if (item.variantId) {
+      errors.push({
+        code: "VARIANT_NOT_FOUND",
+        message: `Product ${product.name} does not have variants.`,
+      });
+      continue;
+    }
+
+    const sizeListError = validateSizeInList(size, product.sizes, product.name);
+    if (sizeListError) {
+      errors.push(sizeListError);
       continue;
     }
 
@@ -253,14 +324,22 @@ export async function validateCartItems(input: CartItemInput[]): Promise<CartVal
       continue;
     }
 
-    const lineSubtotal = Number(product.price) * item.quantity;
+    let unitPrice = Number(product.price);
+    if (product.sale_active && product.compare_price && Number(product.compare_price) > Number(product.price)) {
+      unitPrice = Number(product.compare_price);
+    }
+    if (product.sale_active && product.discount_percent && product.discount_percent > 0) {
+      unitPrice = unitPrice * (1 - product.discount_percent / 100);
+    }
+
+    const lineSubtotal = unitPrice * item.quantity;
     subtotal += lineSubtotal;
     validated.push({
       productId: item.productId,
       variantId: null,
       size,
       productName: product.name,
-      unitPrice: Number(product.price),
+      unitPrice: unitPrice,
       quantity: item.quantity,
       maxAvailable,
       subtotal: lineSubtotal,
