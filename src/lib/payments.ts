@@ -198,7 +198,7 @@ export const createOrderFromPayPal = createServerFn({ method: "POST" })
       userId,
       email,
       paypalOrderId,
-      items: cartValidation.items.map((v: { productId: string; variantId: string | null; size: string; quantity: number; unitPrice: number; productName: string; imageUrl?: string }) => ({
+      items: cartValidation.items.map((v: { productId: string; variantId: string | null; size: string; quantity: number; unitPrice: number; productName: string; imageUrl?: string; color?: string; variantName?: string }) => ({
         productId: v.productId,
         variantId: v.variantId ?? null,
         size: v.size ?? "",
@@ -206,6 +206,8 @@ export const createOrderFromPayPal = createServerFn({ method: "POST" })
         unitPrice: v.unitPrice,
         productName: v.productName,
         imageUrl: v.imageUrl || undefined,
+        color: v.color,
+        variantName: v.variantName,
       })),
       shippingAddress: shippingAddress as Record<string, string>,
       billingAddress: (billingAddress ?? shippingAddress) as Record<string, string>,

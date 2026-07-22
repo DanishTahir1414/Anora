@@ -23,6 +23,8 @@ export interface ValidatedLineItem {
   maxAvailable: number;
   subtotal: number;
   imageUrl?: string;
+  color?: string;
+  variantName?: string;
 }
 
 export interface CartValidationResult {
@@ -123,15 +125,22 @@ export async function validateCartItems(input: CartItemInput[]): Promise<CartVal
 
   const { data: images, error: imagesError } = await supabaseAdmin
     .from("product_images")
-    .select("product_id, image_url, sort_order")
+    .select("product_id, variant_id, image_url, sort_order")
     .in("product_id", productIds)
     .order("sort_order", { ascending: true });
 
   const imageMap = new Map<string, string>();
+  const variantImageMap = new Map<string, string>();
   if (!imagesError && images) {
     for (const img of images) {
-      if (!imageMap.has(img.product_id)) {
-        imageMap.set(img.product_id, img.image_url);
+      if (img.variant_id) {
+        if (!variantImageMap.has(img.variant_id)) {
+          variantImageMap.set(img.variant_id, img.image_url);
+        }
+      } else {
+        if (!imageMap.has(img.product_id)) {
+          imageMap.set(img.product_id, img.image_url);
+        }
       }
     }
   }
@@ -291,7 +300,9 @@ export async function validateCartItems(input: CartItemInput[]): Promise<CartVal
         quantity: item.quantity,
         maxAvailable,
         subtotal: lineSubtotal,
-        imageUrl: imageMap.get(item.productId),
+        imageUrl: (item.variantId && variantImageMap.get(item.variantId)) || imageMap.get(item.productId),
+        color: color || undefined,
+        variantName: variant.name !== "Default" ? variant.name : undefined,
       });
       continue;
     }

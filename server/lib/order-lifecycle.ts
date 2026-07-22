@@ -57,6 +57,8 @@ export interface PayPalOrderCreationInput {
     unitPrice: number;
     productName: string;
     imageUrl?: string;
+    color?: string;
+    variantName?: string;
   }>;
   shippingAddress: Record<string, string>;
   billingAddress: Record<string, string>;
@@ -83,12 +85,18 @@ type EmailPayloadInput = {
   paymentMethod: string;
   paymentStatus: string;
   trackingId?: string;
+  discount?: number;
+  shippingMethodName?: string;
 };
 
 function estimatedDeliveryFrom(orderDateIso: string): string {
   const deliveryDate = new Date(orderDateIso);
   deliveryDate.setDate(deliveryDate.getDate() + 7);
-  return deliveryDate.toISOString().slice(0, 10);
+  return deliveryDate.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function buildEmailPayload(input: EmailPayloadInput): Record<string, unknown> {
@@ -121,12 +129,16 @@ function buildEmailPayload(input: EmailPayloadInput): Record<string, unknown> {
       items: input.items,
       subtotal: input.subtotal,
       shippingAddress: shippingAddressText,
+      billingAddress: billingAddressText,
       estimatedDelivery: estimatedDeliveryFrom(input.orderDate),
       shipping: input.shipping,
       tax: input.tax,
       total: input.total,
       paymentMethod: input.paymentMethod,
       trackingId: input.trackingId,
+      invoiceNumber: input.invoiceNumber,
+      discount: input.discount,
+      shippingMethodName: input.shippingMethodName,
     }),
     invoiceEmailHtml: buildInvoiceEmailHtml({
       customer: customerNameInput,
@@ -196,6 +208,8 @@ async function verifyPaymentIntent(paymentIntentId: string): Promise<{
     unitPrice: number;
     productName: string;
     imageUrl?: string;
+    color?: string;
+    variantName?: string;
   }>;
   paymentMethod?: string;
   amount?: number;
@@ -272,6 +286,8 @@ async function verifyPaymentIntent(paymentIntentId: string): Promise<{
       unitPrice: number;
       productName: string;
       imageUrl?: string;
+      color?: string;
+      variantName?: string;
     }> = sessionData?.metadata?.items || [];
 
     if (items.length === 0 && metadata.validated_items) {
@@ -478,6 +494,35 @@ export async function createOrderFromPaymentIntent(
 
   logger.info("Order created via RPC", { orderId, orderNumber, invoiceId });
 
+  // Fetch actual order details to get final subtotal, discount, total, shipping, etc.
+  let subtotal = total;
+  let shippingCost = 0;
+  let discountVal = 0;
+  let grandTotal = total;
+  let shippingMethodName = "Standard Delivery";
+
+  try {
+    const { data: orderDetails } = await (supabase
+      .from("orders") as any)
+      .select("subtotal, shipping_cost, discount, total, shipping_method")
+      .eq("id", orderId)
+      .maybeSingle();
+
+    if (orderDetails) {
+      subtotal = Number(orderDetails.subtotal);
+      shippingCost = Number(orderDetails.shipping_cost);
+      discountVal = Number(orderDetails.discount);
+      grandTotal = Number(orderDetails.total);
+      if (orderDetails.shipping_method === "express") {
+        shippingMethodName = "Express Delivery";
+      } else if (shippingCost === 0) {
+        shippingMethodName = "Complimentary Shipping";
+      }
+    }
+  } catch (err) {
+    logger.warn("Failed to query order details for confirmation email", { error: String(err) });
+  }
+
   // Build email data for background jobs
   const shippingAddr = verification.shippingAddress ?? {};
   const billingAddr = verification.billingAddress ?? verification.shippingAddress ?? {};
@@ -534,14 +579,18 @@ export async function createOrderFromPaymentIntent(
       size: i.size,
       quantity: i.quantity,
       unitPrice: i.unitPrice,
+      color: i.color,
+      variant: i.variantName,
     })),
-    subtotal: total,
-    shipping: 0,
+    subtotal: subtotal,
+    shipping: shippingCost,
     tax: 0,
-    total,
+    total: grandTotal,
     paymentMethod: verification.paymentMethod ?? "card",
     paymentStatus: "completed",
     trackingId,
+    discount: discountVal,
+    shippingMethodName,
   });
 
   try {
@@ -815,6 +864,35 @@ export async function createOrderFromPayPal(
     // paypal_order_id reference is non-critical
   }
 
+  // Fetch actual order details to get final subtotal, discount, total, shipping, etc.
+  let subtotal = total;
+  let shippingCost = 0;
+  let discountVal = 0;
+  let grandTotal = total;
+  let shippingMethodName = "Standard Delivery";
+
+  try {
+    const { data: orderDetails } = await (supabase
+      .from("orders") as any)
+      .select("subtotal, shipping_cost, discount, total, shipping_method")
+      .eq("id", orderId)
+      .maybeSingle();
+
+    if (orderDetails) {
+      subtotal = Number(orderDetails.subtotal);
+      shippingCost = Number(orderDetails.shipping_cost);
+      discountVal = Number(orderDetails.discount);
+      grandTotal = Number(orderDetails.total);
+      if (orderDetails.shipping_method === "express") {
+        shippingMethodName = "Express Delivery";
+      } else if (shippingCost === 0) {
+        shippingMethodName = "Complimentary Shipping";
+      }
+    }
+  } catch (err) {
+    logger.warn("Failed to query order details for confirmation email", { error: String(err) });
+  }
+
   const shippingAddr = input.shippingAddress;
   const billingAddr = input.billingAddress;
 
@@ -870,20 +948,24 @@ export async function createOrderFromPayPal(
       size: i.size,
       quantity: i.quantity,
       unitPrice: i.unitPrice,
+      color: i.color,
+      variant: i.variantName,
     })),
-    subtotal: total,
-    shipping: 0,
+    subtotal: subtotal,
+    shipping: shippingCost,
     tax: 0,
-    total,
+    total: grandTotal,
     paymentMethod: input.paymentMethod,
     paymentStatus: "completed",
     trackingId,
+    discount: discountVal,
+    shippingMethodName,
   });
 
   try {
     await queue.enqueue(orderId, emailPayload);
   } catch (err) {
-    logger.error("Job enqueue failed", { orderId, error: String(err) });
+    logger.error("Job enqueue failed for PayPal", { orderId, error: String(err) });
   }
 
   return {

@@ -178,6 +178,8 @@ export async function createPaymentIntent(
               unitPrice: v.unitPrice,
               productName: v.productName,
               imageUrl: v.imageUrl,
+              color: v.color,
+              variantName: v.variantName,
             })),
           },
           expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),

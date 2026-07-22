@@ -59,6 +59,8 @@ export interface EmailItem {
   size: string;
   quantity: number;
   unitPrice: number;
+  color?: string;
+  variant?: string;
 }
 
 export interface ThankYouData {
@@ -75,6 +77,12 @@ export interface ThankYouData {
   total?: number;
   paymentMethod?: string;
   trackingId?: string;
+  invoiceNumber?: string;
+  invoicePdfUrl?: string;
+  billingAddress?: string;
+  discount?: number;
+  shippingMethodName?: string;
+  paymentStatus?: string;
 }
 
 export interface InvoiceEmailData {
@@ -209,21 +217,21 @@ export function wrap(content: string): string {
   <title>ANORA</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: ${LIGHT_BG}; -webkit-font-smoothing: antialiased; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: ${WHITE}; -webkit-font-smoothing: antialiased; }
     a { color: ${GOLD}; text-decoration: none; }
     @media only screen and (max-width: 600px) {
       .container { width: 100% !important; }
       .content { padding: 32px 24px !important; }
-      .item-image { width: 56px !important; height: 56px !important; }
-      .logo { font-size: 24px !important; }
+      .item-image { width: 70px !important; height: 70px !important; }
+      .logo { font-size: 28px !important; }
     }
   </style>
 </head>
-<body style="margin:0;padding:0;background-color:${LIGHT_BG};">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${LIGHT_BG};">
+<body style="margin:0;padding:0;background-color:${WHITE};">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${WHITE};">
     <tr>
       <td align="center" style="padding:48px 16px;">
-        <table class="container" role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:${WHITE};border:1px solid ${BORDER};">
+        <table class="container" role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:${WHITE};">
           ${content}
         </table>
       </td>
@@ -235,41 +243,21 @@ export function wrap(content: string): string {
 
 export function header(): string {
   return `<tr>
-    <td class="content" style="padding:48px 48px 32px;text-align:center;background-color:${WHITE};">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-        <tr>
-          <td style="padding-bottom:32px;border-bottom:1px solid ${BORDER};">
-            <a href="https://anora-elegance.com" style="text-decoration:none;display:inline-block;">
-              <h1 class="logo" style="font-family:'Didot','Playfair Display','Times New Roman',serif;font-size:28px;letter-spacing:8px;color:${DARK};margin:0;font-weight:300;text-transform:uppercase;">ANORA</h1>
-              <p style="font-size:10px;letter-spacing:4px;color:${MUTED};margin:6px 0 0;text-transform:uppercase;font-weight:400;">Atelier</p>
-            </a>
-          </td>
-        </tr>
-      </table>
+    <td style="padding:64px 48px 48px;text-align:center;background-color:${WHITE};">
+      <a href="https://anora-elegance.com" style="text-decoration:none;display:inline-block;">
+        <h1 class="logo" style="font-family:'Didot','Playfair Display','Times New Roman',serif;font-size:32px;letter-spacing:10px;color:${DARK};margin:0;font-weight:300;text-transform:uppercase;line-height:1;">ANORA</h1>
+        <p style="font-size:10px;letter-spacing:5px;color:${MUTED};margin:8px 0 0;text-transform:uppercase;font-weight:400;line-height:1;">ATELIER</p>
+      </a>
     </td>
   </tr>`;
 }
 
 export function footer(): string {
   return `<tr>
-    <td class="content" style="padding:32px 48px 48px;background-color:${WHITE};">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-        <tr>
-          <td style="padding:32px 0 0;border-top:1px solid ${BORDER};">
-            <p style="font-size:11px;color:${MUTED};text-align:center;margin:0 0 8px;line-height:1.6;letter-spacing:0.5px;">
-              Thank you for shopping with ANORA.
-            </p>
-            <p style="font-size:11px;color:${MUTED};text-align:center;margin:0 0 8px;line-height:1.6;">
-              Customer Support &nbsp;·&nbsp; 
-              <a href="https://anora-elegance.com" style="color:${DARK};text-decoration:none;font-weight:500;">www.anora-elegance.com</a> &nbsp;·&nbsp;
-              <a href="mailto:support@anora-elegance.com" style="color:${DARK};text-decoration:none;font-weight:500;">support@anora-elegance.com</a>
-            </p>
-            <p style="font-size:10px;color:${MUTED};text-align:center;margin:16px 0 0;line-height:1.5;">
-              © ${new Date().getFullYear()} ANORA. All rights reserved.
-            </p>
-          </td>
-        </tr>
-      </table>
+    <td style="padding:0 48px 64px;background-color:${WHITE};text-align:center;border-top:1px solid #ECECED;">
+      <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:11px;color:${MUTED};margin:32px 0 8px;letter-spacing:0.5px;">
+        © ${new Date().getFullYear()} ANORA. Made with elegance.
+      </p>
     </td>
   </tr>`;
 }
@@ -279,11 +267,10 @@ export function orderSummaryTable(items: EmailItem[]): string {
   const rows = items
     .map((item) => {
       const imageCell = item.imageUrl
-        ? `<img class="item-image" src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}" width="64" height="64" style="display:block;width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid ${BORDER};" />`
-        : `<div class="item-image" style="width:64px;height:64px;background-color:${LIGHT_BG};border-radius:6px;border:1px solid ${BORDER};"></div>`;
+        ? `<img class="item-image" src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}" width="70" height="70" style="display:block;width:70px;height:70px;object-fit:cover;" />`
+        : `<div class="item-image" style="width:70px;height:70px;background-color:#F5F5F7;"></div>`;
 
       const details: string[] = [];
-      if (item.variant) details.push(`Variant: ${escapeHtml(item.variant)}`);
       if (item.color) details.push(`Color: ${escapeHtml(item.color)}`);
       if (item.size) details.push(`Size: ${escapeHtml(item.size)}`);
       const detailsText = details.length > 0 ? details.join(" &nbsp;·&nbsp; ") : "";
@@ -291,32 +278,26 @@ export function orderSummaryTable(items: EmailItem[]): string {
       const itemSubtotal = ((item.unitPrice ?? 0) * (item.quantity ?? 1)).toFixed(2);
 
       return `<tr>
-      <td style="padding:16px 8px 16px 0;border-bottom:1px solid ${BORDER};vertical-align:top;">
-        <table role="presentation" cellpadding="0" cellspacing="0">
+      <td style="padding:24px 0;border-bottom:1px solid #EAEAEA;vertical-align:middle;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
           <tr>
-            <td style="vertical-align:top;padding-right:16px;">${imageCell}</td>
-            <td style="vertical-align:top;">
-              <p style="font-size:14px;color:${DARK};margin:0 0 4px;font-weight:600;line-height:1.4;">${escapeHtml(item.name)}</p>
-              ${detailsText ? `<p style="font-size:12px;color:${MUTED};margin:0 0 4px;font-weight:500;">${detailsText}</p>` : ""}
-              <p style="font-size:12px;color:${MUTED};margin:0;">Qty: ${item.quantity} &nbsp;&times;&nbsp; $${(item.unitPrice ?? 0).toFixed(2)}</p>
+            <td style="vertical-align:middle;padding-right:16px;width:70px;">${imageCell}</td>
+            <td style="vertical-align:middle;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+              <p style="font-size:14px;color:${DARK};margin:0 0 4px;font-weight:500;line-height:1.4;">${escapeHtml(item.name)}</p>
+              ${detailsText ? `<p style="font-size:12px;color:${MUTED};margin:0 0 4px;font-weight:400;">${detailsText}</p>` : ""}
+              <p style="font-size:12px;color:${MUTED};margin:0;font-weight:400;">Qty &times; ${item.quantity}</p>
             </td>
           </tr>
         </table>
       </td>
-      <td style="padding:16px 0 16px 8px;border-bottom:1px solid ${BORDER};text-align:right;vertical-align:top;font-size:14px;color:${DARK};font-weight:600;">
+      <td style="padding:24px 0;border-bottom:1px solid #EAEAEA;text-align:right;vertical-align:middle;font-size:14px;color:${DARK};font-weight:500;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
         $${itemSubtotal}
       </td>
     </tr>`;
     })
     .join("");
 
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">
-    <thead>
-      <tr>
-        <th style="padding-bottom:12px;text-align:left;font-size:11px;letter-spacing:1px;color:${MUTED};text-transform:uppercase;font-weight:600;border-bottom:1px solid ${BORDER};">Selected Items</th>
-        <th style="padding-bottom:12px;text-align:right;font-size:11px;letter-spacing:1px;color:${MUTED};text-transform:uppercase;font-weight:600;border-bottom:1px solid ${BORDER};">Subtotal</th>
-      </tr>
-    </thead>
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
     <tbody>${rows}</tbody>
   </table>`;
 }
@@ -359,139 +340,171 @@ export function divider(): string {
 
 // ─── Order Confirmation Email ────────────────────────────────────────
 export function buildThankYouHtml(data: ThankYouData): string {
-  const itemsHtml = orderSummaryTable(data.items);
   const resolvedName = getCustomerDisplayName(data.customer || { displayName: data.customerName });
-  const formattedDate = new Date(data.orderDate).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-  const trackingId = data.trackingId || "";
 
+  // Format estimated delivery nicely
+  let formattedDelivery = data.estimatedDelivery;
+  if (formattedDelivery && /^\d{4}-\d{2}-\d{2}$/.test(formattedDelivery)) {
+    const parts = formattedDelivery.split("-");
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    formattedDelivery = d.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+
+  const trackingId = data.trackingId || "";
   const trackingUrl = `${env.publicAppUrl}/track?tracking=${encodeURIComponent(trackingId)}`;
-  const invoiceUrl = data.invoicePdfUrl || `${env.publicAppUrl}/account`;
+
+  const itemsHtml = orderSummaryTable(data.items);
 
   const body = `
+    <!-- HEADER -->
     ${header()}
+
+    <!-- THANK YOU MESSAGE -->
     <tr>
-      <td class="content" style="padding:0 48px;background-color:${WHITE};">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            <td style="padding:16px 0 28px;text-align:left;">
-              <h2 style="font-family:'Didot','Playfair Display',serif;font-size:26px;color:${DARK};margin:0 0 20px;font-weight:400;letter-spacing:1px;text-align:center;">Order Confirmed</h2>
-              <p style="font-size:14px;color:${TEXT};margin:0 0 16px;line-height:1.6;">Dear ${escapeHtml(resolvedName)},</p>
-              <p style="font-size:14px;color:${TEXT};margin:0 0 16px;line-height:1.6;">Thank you for choosing ANORA. We are delighted to confirm that your order has been received successfully and is now being hand-crafted and prepared in our atelier.</p>
-              <p style="font-size:14px;color:${TEXT};margin:0 0 24px;line-height:1.6;">You can track your package progress anytime or download your official receipt using the links below.</p>
-            </td>
-          </tr>
-        </table>
+      <td style="padding: 0 48px; background-color: ${WHITE}; text-align: center;">
+        <h2 style="font-family: 'Didot', 'Playfair Display', 'Times New Roman', serif; font-size: 28px; color: ${DARK}; margin: 0 0 16px; font-weight: 300; letter-spacing: 1px; text-transform: uppercase; line-height: 1.2;">Thank You For Your Order</h2>
+        <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: ${TEXT}; line-height: 1.6; margin: 0 0 8px; max-width: 480px; display: inline-block;">
+          Your order has been successfully placed and payment has been confirmed.
+        </p>
+        <br/>
+        <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: ${TEXT}; line-height: 1.6; margin: 0 0 32px; max-width: 480px; display: inline-block;">
+          We are now preparing your order and will notify you again as soon as it ships.
+        </p>
+        
+        <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: ${MUTED}; margin: 0 0 8px; font-weight: 600;">Order Number</p>
+        <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 20px; color: ${DARK}; margin: 0 0 48px; font-weight: 400; letter-spacing: 0.5px;">${escapeHtml(data.orderNumber)}</p>
       </td>
     </tr>
 
-    <!-- TRACKING & ACTION CARD -->
+    <!-- ESTIMATED DELIVERY & CTA BUTTON -->
     <tr>
-      <td class="content" style="padding:0 48px;background-color:${WHITE};text-align:center;">
-        <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:10px;padding:24px;margin-bottom:28px;text-align:center;">
-          <p style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${MUTED};margin:0 0 8px;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;">Tracking Number</p>
-          <div style="display:inline-block;background-color:#F4F4F5;border:1px solid ${BORDER};border-radius:6px;padding:8px 18px;font-family:-apple-system,BlinkMacSystemFont,'Inter','Manrope','Segoe UI',sans-serif;font-size:16px;letter-spacing:0.08em;color:${DARK};font-weight:600;margin:0 0 20px;">
-            ${escapeHtml(trackingId || 'Generating...')}
-          </div>
-          <div>
-            <a href="${escapeHtml(trackingUrl)}" style="display:inline-block;background-color:${DARK};color:${WHITE};padding:12px 28px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;text-decoration:none;font-weight:600;border-radius:6px;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;">Track Your Order</a>
-            ${data.invoiceNumber || data.invoicePdfUrl ? `
-            <a href="${escapeHtml(invoiceUrl)}" style="display:inline-block;background-color:${WHITE};border:1px solid ${BORDER};color:${DARK};padding:11px 24px;font-size:12px;letter-spacing:0.05em;text-decoration:none;font-weight:600;border-radius:6px;margin-left:8px;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;">Download Invoice</a>
-            ` : ""}
-          </div>
+      <td style="padding: 0 48px; background-color: ${WHITE}; text-align: center;">
+        <div style="border-top: 1px solid #ECECED; border-bottom: 1px solid #ECECED; padding: 32px 0; margin-bottom: 48px;">
+          <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: ${MUTED}; margin: 0 0 8px; font-weight: 600;">Estimated Delivery</p>
+          <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 18px; color: ${DARK}; margin: 0 0 32px; font-weight: 400;">${escapeHtml(formattedDelivery)}</p>
+          
+          <a href="${escapeHtml(trackingUrl)}" style="display: inline-block; background-color: ${DARK}; color: ${WHITE}; padding: 16px 36px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; text-decoration: none; font-weight: 500; transition: background-color 0.2s;">View Your Order</a>
         </div>
       </td>
     </tr>
 
-    <!-- ORDER INFORMATION CARDS -->
+    <!-- ORDER SUMMARY -->
     <tr>
-      <td class="content" style="padding:0 48px;background-color:${WHITE};">
-        <p style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${MUTED};margin:0 0 12px;font-weight:600;">Order Information</p>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-          <tr>
-            <td style="padding:4px;width:33.33%;vertical-align:top;">
-              <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:8px;padding:12px 14px;">
-                <p style="font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:${MUTED};margin:0 0 4px;font-weight:600;">Order Number</p>
-                <p style="font-size:13px;color:${DARK};margin:0;font-weight:600;">${escapeHtml(data.orderNumber)}</p>
-              </div>
-            </td>
-            <td style="padding:4px;width:33.33%;vertical-align:top;">
-              <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:8px;padding:12px 14px;">
-                <p style="font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:${MUTED};margin:0 0 4px;font-weight:600;">Invoice Number</p>
-                <p style="font-size:13px;color:${DARK};margin:0;font-weight:600;">${escapeHtml(data.invoiceNumber || 'Pending')}</p>
-              </div>
-            </td>
-            <td style="padding:4px;width:33.33%;vertical-align:top;">
-              <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:8px;padding:12px 14px;">
-                <p style="font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:${MUTED};margin:0 0 4px;font-weight:600;">Tracking Number</p>
-                <p style="font-size:13px;color:${DARK};margin:0;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;letter-spacing:0.05em;">${escapeHtml(trackingId || 'Pending')}</p>
-              </div>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:4px;width:33.33%;vertical-align:top;">
-              <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:8px;padding:12px 14px;">
-                <p style="font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:${MUTED};margin:0 0 4px;font-weight:600;">Payment Method</p>
-                <p style="font-size:13px;color:${DARK};margin:0;font-weight:500;text-transform:capitalize;">${escapeHtml(data.paymentMethod || 'Card')}</p>
-              </div>
-            </td>
-            <td style="padding:4px;width:33.33%;vertical-align:top;">
-              <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:8px;padding:12px 14px;">
-                <p style="font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:${MUTED};margin:0 0 4px;font-weight:600;">Payment Status</p>
-                <p style="font-size:13px;color:${EMERALD};margin:0;font-weight:600;text-transform:capitalize;">${escapeHtml(data.paymentStatus || 'Completed')}</p>
-              </div>
-            </td>
-            <td style="padding:4px;width:33.33%;vertical-align:top;">
-              <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:8px;padding:12px 14px;">
-                <p style="font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:${MUTED};margin:0 0 4px;font-weight:600;">Order Date</p>
-                <p style="font-size:13px;color:${DARK};margin:0;font-weight:500;">${formattedDate}</p>
-              </div>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-
-    <!-- ESTIMATED DELIVERY ROW -->
-    <tr>
-      <td class="content" style="padding:0 48px 16px;background-color:${WHITE};">
-        <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:8px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
-          <span style="font-size:12px;color:${MUTED};font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Estimated Delivery</span>
-          <span style="font-size:14px;color:${DARK};font-weight:600;">${escapeHtml(data.estimatedDelivery)}</span>
-        </div>
-      </td>
-    </tr>
-
-    <!-- ITEMS TABLE -->
-    <tr>
-      <td class="content" style="padding:16px 48px 0;background-color:${WHITE};">
+      <td style="padding: 0 48px; background-color: ${WHITE};">
+        <h3 style="font-family: 'Didot', 'Playfair Display', 'Times New Roman', serif; font-size: 18px; color: ${DARK}; margin: 0 0 24px; font-weight: 300; letter-spacing: 1px; text-transform: uppercase;">Order Summary</h3>
         ${itemsHtml}
       </td>
     </tr>
 
-    <!-- TOTALS BREAKDOWN -->
+    <!-- PRICE BREAKDOWN -->
     <tr>
-      <td class="content" style="padding:24px 48px 0;background-color:${WHITE};">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-          ${totalRow("Subtotal", `$${data.subtotal.toFixed(2)}`)}
-          ${data.shipping && data.shipping > 0 ? totalRow("Shipping", `$${data.shipping.toFixed(2)}`) : totalRow("Shipping", "Complimentary")}
-          ${data.tax && data.tax > 0 ? totalRow("Tax", `$${data.tax.toFixed(2)}`) : ""}
+      <td style="padding: 24px 48px 48px; background-color: ${WHITE};">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.8;">
           <tr>
-            <td style="padding:12px 0;text-align:right;border-top:1px solid ${BORDER};"><span style="font-size:14px;color:${DARK};font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Grand Total</span></td>
-            <td style="padding:12px 0;text-align:right;border-top:1px solid ${BORDER};width:120px;"><span style="font-size:16px;color:${DARK};font-weight:600;">$${(data.total ?? data.subtotal).toFixed(2)}</span></td>
+            <td style="padding: 6px 0; color: ${MUTED};">Subtotal</td>
+            <td style="padding: 6px 0; text-align: right; color: ${DARK};">$${data.subtotal.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: ${MUTED};">Shipping</td>
+            <td style="padding: 6px 0; text-align: right; color: ${DARK};">${data.shipping && data.shipping > 0 ? `$${data.shipping.toFixed(2)}` : "Free"}</td>
+          </tr>
+          ${data.tax && data.tax > 0 ? `
+          <tr>
+            <td style="padding: 6px 0; color: ${MUTED};">Tax</td>
+            <td style="padding: 6px 0; text-align: right; color: ${DARK};">$${data.tax.toFixed(2)}</td>
+          </tr>
+          ` : ""}
+          ${data.discount && data.discount > 0 ? `
+          <tr>
+            <td style="padding: 6px 0; color: ${MUTED};">Discount</td>
+            <td style="padding: 6px 0; text-align: right; color: ${RED};">-$${data.discount.toFixed(2)}</td>
+          </tr>
+          ` : ""}
+          <tr>
+            <td style="padding: 20px 0 0; font-weight: 600; font-size: 16px; color: ${DARK}; border-top: 1px solid #ECECED;">Total</td>
+            <td style="padding: 20px 0 0; text-align: right; font-weight: 600; font-size: 16px; color: ${DARK}; border-top: 1px solid #ECECED;">$${(data.total ?? data.subtotal).toFixed(2)}</td>
           </tr>
         </table>
       </td>
     </tr>
+
+    <!-- CUSTOMER INFORMATION -->
     <tr>
-      <td class="content" style="padding:24px 48px 0;background-color:${WHITE};">
-        ${shippingBlock("Shipping Address", data.shippingAddress)}
+      <td style="padding: 0 48px 48px; background-color: ${WHITE};">
+        <div style="border-top: 1px solid #ECECED; padding-top: 48px;">
+          <h3 style="font-family: 'Didot', 'Playfair Display', 'Times New Roman', serif; font-size: 18px; color: ${DARK}; margin: 0 0 32px; font-weight: 300; letter-spacing: 1px; text-transform: uppercase;">Customer Information</h3>
+          
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; line-height: 1.6; margin-bottom: 24px;">
+            <tr>
+              <td style="width: 50%; vertical-align: top; padding-right: 16px;">
+                <p style="font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: ${MUTED}; margin: 0 0 12px; font-weight: 600;">Shipping Address</p>
+                <p style="color: ${TEXT}; margin: 0;">${escapeHtml(resolvedName)}</p>
+                <p style="color: ${TEXT}; margin: 0; line-height: 1.6;">${escapeHtml(data.shippingAddress).replace(/\n/g, "<br>")}</p>
+              </td>
+              <td style="width: 50%; vertical-align: top; padding-left: 16px;">
+                <p style="font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: ${MUTED}; margin: 0 0 12px; font-weight: 600;">Billing Address</p>
+                <p style="color: ${TEXT}; margin: 0;">${escapeHtml(resolvedName)}</p>
+                <p style="color: ${TEXT}; margin: 0; line-height: 1.6;">${escapeHtml(data.billingAddress || data.shippingAddress).replace(/\n/g, "<br>")}</p>
+              </td>
+            </tr>
+          </table>
+
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; line-height: 1.6;">
+            <tr>
+              <td style="padding: 12px 0; border-top: 1px solid #F4F4F5;">
+                <p style="font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: ${MUTED}; margin: 0 0 4px; font-weight: 500;">Shipping Method</p>
+                <p style="color: ${DARK}; margin: 0; font-weight: 500;">${escapeHtml(data.shippingMethodName || 'Standard Shipping')}</p>
+              </td>
+            </tr>
+          </table>
+        </div>
       </td>
     </tr>
-    ${footer()}
+
+    <!-- PAYMENT INFORMATION -->
+    <tr>
+      <td style="padding: 0 48px 48px; background-color: ${WHITE};">
+        <div style="border-top: 1px solid #ECECED; padding-top: 48px;">
+          <h3 style="font-family: 'Didot', 'Playfair Display', 'Times New Roman', serif; font-size: 18px; color: ${DARK}; margin: 0 0 24px; font-weight: 300; letter-spacing: 1px; text-transform: uppercase;">Payment Information</h3>
+          
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; line-height: 1.8;">
+            <tr>
+              <td style="padding: 6px 0; color: ${MUTED};">Payment Method</td>
+              <td style="padding: 6px 0; text-align: right; color: ${DARK}; font-weight: 500; text-transform: capitalize;">${escapeHtml(data.paymentMethod || 'Card')}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 0; color: ${MUTED};">Payment Status</td>
+              <td style="padding: 6px 0; text-align: right; color: ${EMERALD}; font-weight: 500;">${escapeHtml(data.paymentStatus === 'paid' || data.paymentStatus === 'completed' || !data.paymentStatus ? 'Completed' : data.paymentStatus)}</td>
+            </tr>
+            ${data.invoiceNumber ? `
+            <tr>
+              <td style="padding: 6px 0; color: ${MUTED};">Invoice Number</td>
+              <td style="padding: 6px 0; text-align: right; color: ${DARK}; font-weight: 500;">${escapeHtml(data.invoiceNumber)}</td>
+            </tr>
+            ` : ""}
+          </table>
+        </div>
+      </td>
+    </tr>
+
+    <!-- NEED HELP SECTION -->
+    <tr>
+      <td style="padding: 48px; background-color: ${WHITE}; text-align: center; border-top: 1px solid #ECECED;">
+        <h4 style="font-family: 'Didot', 'Playfair Display', 'Times New Roman', serif; font-size: 18px; color: ${DARK}; margin: 0 0 12px; font-weight: 300; letter-spacing: 1px; text-transform: uppercase;">Need Help?</h4>
+        <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; color: ${TEXT}; line-height: 1.6; margin: 0 0 24px;">
+          If you have any questions about your order, our support team is always happy to help.
+        </p>
+        <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; color: ${MUTED}; margin: 0;">
+          <a href="mailto:${escapeHtml(env.fromEmail)}" style="color: ${DARK}; text-decoration: none; font-weight: 500;">Email Us</a> &nbsp;·&nbsp;
+          <a href="https://instagram.com/anora" style="color: ${DARK}; text-decoration: none; font-weight: 500;">Instagram</a> &nbsp;·&nbsp;
+          <a href="https://anora-elegance.com" style="color: ${DARK}; text-decoration: none; font-weight: 500;">Our Website</a>
+        </p>
+      </td>
+    </tr>
   `;
   return wrap(body);
 }
