@@ -275,29 +275,36 @@ export function footer(): string {
 }
 
 export function orderSummaryTable(items: EmailItem[]): string {
-  if (items.length === 0) return "";
+  if (!items || items.length === 0) return "";
   const rows = items
-    .map((item, i) => {
+    .map((item) => {
       const imageCell = item.imageUrl
-        ? `<img class="item-image" src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}" width="56" height="56" style="display:block;width:56px;height:56px;object-fit:cover;border:1px solid ${BORDER};" />`
-        : `<div class="item-image" style="width:56px;height:56px;background-color:${LIGHT_BG};border:1px solid ${BORDER};"></div>`;
+        ? `<img class="item-image" src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}" width="64" height="64" style="display:block;width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid ${BORDER};" />`
+        : `<div class="item-image" style="width:64px;height:64px;background-color:${LIGHT_BG};border-radius:6px;border:1px solid ${BORDER};"></div>`;
 
-      const subtotal = (item.unitPrice * item.quantity).toFixed(2);
+      const details: string[] = [];
+      if (item.variant) details.push(`Variant: ${escapeHtml(item.variant)}`);
+      if (item.color) details.push(`Color: ${escapeHtml(item.color)}`);
+      if (item.size) details.push(`Size: ${escapeHtml(item.size)}`);
+      const detailsText = details.length > 0 ? details.join(" &nbsp;·&nbsp; ") : "";
+
+      const itemSubtotal = ((item.unitPrice ?? 0) * (item.quantity ?? 1)).toFixed(2);
 
       return `<tr>
-      <td style="padding:16px 8px 16px 0;border-bottom:1px solid ${BORDER};">
+      <td style="padding:16px 8px 16px 0;border-bottom:1px solid ${BORDER};vertical-align:top;">
         <table role="presentation" cellpadding="0" cellspacing="0">
           <tr>
             <td style="vertical-align:top;padding-right:16px;">${imageCell}</td>
             <td style="vertical-align:top;">
-              <p style="font-size:13px;color:${DARK};margin:0 0 4px;font-weight:500;">${escapeHtml(item.name)}</p>
-              <p style="font-size:11px;color:${MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;">Size ${escapeHtml(item.size)} · Qty ${item.quantity}</p>
+              <p style="font-size:14px;color:${DARK};margin:0 0 4px;font-weight:600;line-height:1.4;">${escapeHtml(item.name)}</p>
+              ${detailsText ? `<p style="font-size:12px;color:${MUTED};margin:0 0 4px;font-weight:500;">${detailsText}</p>` : ""}
+              <p style="font-size:12px;color:${MUTED};margin:0;">Qty: ${item.quantity} &nbsp;&times;&nbsp; $${(item.unitPrice ?? 0).toFixed(2)}</p>
             </td>
           </tr>
         </table>
       </td>
-      <td style="padding:16px 0 16px 8px;border-bottom:1px solid ${BORDER};text-align:right;vertical-align:top;font-size:13px;color:${DARK};font-weight:500;">
-        $${subtotal}
+      <td style="padding:16px 0 16px 8px;border-bottom:1px solid ${BORDER};text-align:right;vertical-align:top;font-size:14px;color:${DARK};font-weight:600;">
+        $${itemSubtotal}
       </td>
     </tr>`;
     })
@@ -306,8 +313,8 @@ export function orderSummaryTable(items: EmailItem[]): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;">
     <thead>
       <tr>
-        <th style="padding-bottom:12px;text-align:left;font-size:10px;letter-spacing:1px;color:${MUTED};text-transform:uppercase;font-weight:500;border-bottom:1px solid ${BORDER};">Selected Items</th>
-        <th style="padding-bottom:12px;text-align:right;font-size:10px;letter-spacing:1px;color:${MUTED};text-transform:uppercase;font-weight:500;border-bottom:1px solid ${BORDER};">Total</th>
+        <th style="padding-bottom:12px;text-align:left;font-size:11px;letter-spacing:1px;color:${MUTED};text-transform:uppercase;font-weight:600;border-bottom:1px solid ${BORDER};">Selected Items</th>
+        <th style="padding-bottom:12px;text-align:right;font-size:11px;letter-spacing:1px;color:${MUTED};text-transform:uppercase;font-weight:600;border-bottom:1px solid ${BORDER};">Subtotal</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -328,8 +335,8 @@ export function shippingBlock(label: string, address: string): string {
 export function totalRow(label: string, value: string, bold = false, color = TEXT): string {
   const weight = bold ? "font-weight:600;font-size:14px;color:${DARK};" : "font-size:13px;";
   return `<tr>
-    <td style="padding:6px 0;text-align:right;"><span style="font-size:13px;color:${MUTED};">${escapeHtml(label)}</span></td>
-    <td style="padding:6px 0;text-align:right;width:120px;"><span style="${weight}color:${color};">${value}</span></td>
+    <td style="padding:6px 0;text-align:right;color:${MUTED};"><span style="${weight}">${escapeHtml(label)}</span></td>
+    <td style="padding:6px 0;text-align:right;width:120px;color:${color};"><span style="${weight}">${escapeHtml(value)}</span></td>
   </tr>`;
 }
 
@@ -354,6 +361,15 @@ export function divider(): string {
 export function buildThankYouHtml(data: ThankYouData): string {
   const itemsHtml = orderSummaryTable(data.items);
   const resolvedName = getCustomerDisplayName(data.customer || { displayName: data.customerName });
+  const formattedDate = new Date(data.orderDate).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  const trackingId = data.trackingId || "";
+
+  const trackingUrl = `${env.publicAppUrl}/track?tracking=${encodeURIComponent(trackingId)}`;
+  const invoiceUrl = data.invoicePdfUrl || `${env.publicAppUrl}/account`;
 
   const body = `
     ${header()}
@@ -361,79 +377,102 @@ export function buildThankYouHtml(data: ThankYouData): string {
       <td class="content" style="padding:0 48px;background-color:${WHITE};">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           <tr>
-            <td style="padding:16px 0 32px;text-align:left;">
-              <h2 style="font-family:'Didot','Playfair Display','Times New Roman',serif;font-size:24px;color:${DARK};margin:0 0 24px;font-weight:400;letter-spacing:1px;text-align:center;">Order Confirmed</h2>
+            <td style="padding:16px 0 28px;text-align:left;">
+              <h2 style="font-family:'Didot','Playfair Display',serif;font-size:26px;color:${DARK};margin:0 0 20px;font-weight:400;letter-spacing:1px;text-align:center;">Order Confirmed</h2>
               <p style="font-size:14px;color:${TEXT};margin:0 0 16px;line-height:1.6;">Dear ${escapeHtml(resolvedName)},</p>
-              <p style="font-size:14px;color:${TEXT};margin:0 0 16px;line-height:1.6;">Thank you for choosing ANORA.</p>
-              <p style="font-size:14px;color:${TEXT};margin:0 0 16px;line-height:1.6;">We are delighted to confirm that your order has been received successfully. Every piece is carefully prepared in our atelier to ensure it meets the quality and craftsmanship you expect from us.</p>
-              <p style="font-size:14px;color:${TEXT};margin:0 0 24px;line-height:1.6;">Your order is now being processed, and you'll be able to track its progress from your account once it moves through our fulfillment stages.</p>
-              <p style="font-size:14px;color:${TEXT};margin:0 0 8px;line-height:1.6;">Warm regards,</p>
-              <p style="font-size:14px;color:${TEXT};margin:0;font-weight:500;line-height:1.6;">The ANORA Team</p>
+              <p style="font-size:14px;color:${TEXT};margin:0 0 16px;line-height:1.6;">Thank you for choosing ANORA. We are delighted to confirm that your order has been received successfully and is now being hand-crafted and prepared in our atelier.</p>
+              <p style="font-size:14px;color:${TEXT};margin:0 0 24px;line-height:1.6;">You can track your package progress anytime or download your official receipt using the links below.</p>
             </td>
           </tr>
         </table>
       </td>
     </tr>
+
+    <!-- TRACKING & ACTION CARD -->
     <tr>
       <td class="content" style="padding:0 48px;background-color:${WHITE};text-align:center;">
-        <div style="border:1px solid ${BORDER};background-color:${LIGHT_BG};padding:24px;margin-bottom:24px;text-align:center;">
-          <p style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${MUTED};margin:0 0 8px;font-weight:500;">Secure Tracking ID</p>
-          <h3 style="font-family:'Courier New',Courier,monospace;font-size:22px;letter-spacing:4px;color:${DARK};margin:0 0 16px;font-weight:700;">${escapeHtml(data.trackingId || '')}</h3>
-          <button type="button" onclick="navigator.clipboard.writeText('${escapeHtml(data.trackingId || '')}').then(() => { this.innerText = '✓ Copied'; const self = this; setTimeout(() => { self.innerText = 'Copy Tracking ID'; }, 2000); }).catch(() => {})" style="display:inline-block;background-color:${WHITE};border:1px solid ${DARK};color:${DARK};padding:8px 18px;font-size:10px;letter-spacing:1px;text-transform:uppercase;text-decoration:none;font-weight:500;cursor:pointer;outline:none;font-family:inherit;line-height:normal;">Copy Tracking ID</button>
-        </div>
-        <a href="${escapeHtml(env.publicAppUrl)}/track?tracking=${escapeHtml(encodeURIComponent(data.trackingId || ''))}" style="display:inline-block;background-color:${DARK};color:${WHITE};padding:14px 36px;font-size:11px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;font-weight:500;border-radius:0;">View Your Order</a>
-      </td>
-    </tr>
-    <tr>
-      <td class="content" style="padding:24px 48px 0;background-color:${WHITE};">
-        <div style="border-top:1px solid ${BORDER};padding-top:24px;text-align:left;">
-          <p style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:${MUTED};margin:0 0 12px;font-weight:600;">Next Steps</p>
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;color:${TEXT};line-height:1.6;">
-            <tr>
-              <td style="padding:4px 0;vertical-align:top;width:20px;color:${GOLD};">•</td>
-              <td style="padding:4px 0;"><strong>Atelier Preparation:</strong> Our team is hand-packaging and verifying your selected items.</td>
-            </tr>
-            <tr>
-              <td style="padding:4px 0;vertical-align:top;width:20px;color:${GOLD};">•</td>
-              <td style="padding:4px 0;"><strong>Dispatch:</strong> As soon as your order ships, we will send you a tracking number via email.</td>
-            </tr>
-            <tr>
-              <td style="padding:4px 0;vertical-align:top;width:20px;color:${GOLD};">•</td>
-              <td style="padding:4px 0;"><strong>Invoice Attached:</strong> A detailed PDF copy of your invoice is attached to this email for your records.</td>
-            </tr>
-          </table>
+        <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:10px;padding:24px;margin-bottom:28px;text-align:center;">
+          <p style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${MUTED};margin:0 0 8px;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;">Tracking Number</p>
+          <div style="display:inline-block;background-color:#F4F4F5;border:1px solid ${BORDER};border-radius:6px;padding:8px 18px;font-family:-apple-system,BlinkMacSystemFont,'Inter','Manrope','Segoe UI',sans-serif;font-size:16px;letter-spacing:0.08em;color:${DARK};font-weight:600;margin:0 0 20px;">
+            ${escapeHtml(trackingId || 'Generating...')}
+          </div>
+          <div>
+            <a href="${escapeHtml(trackingUrl)}" style="display:inline-block;background-color:${DARK};color:${WHITE};padding:12px 28px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;text-decoration:none;font-weight:600;border-radius:6px;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;">Track Your Order</a>
+            ${data.invoiceNumber || data.invoicePdfUrl ? `
+            <a href="${escapeHtml(invoiceUrl)}" style="display:inline-block;background-color:${WHITE};border:1px solid ${BORDER};color:${DARK};padding:11px 24px;font-size:12px;letter-spacing:0.05em;text-decoration:none;font-weight:600;border-radius:6px;margin-left:8px;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;">Download Invoice</a>
+            ` : ""}
+          </div>
         </div>
       </td>
     </tr>
+
+    <!-- ORDER INFORMATION CARDS -->
     <tr>
-      <td class="content" style="padding:24px 48px 0;background-color:${WHITE};">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${LIGHT_BG};border:1px solid ${BORDER};padding:24px;margin-bottom:16px;">
+      <td class="content" style="padding:0 48px;background-color:${WHITE};">
+        <p style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${MUTED};margin:0 0 12px;font-weight:600;">Order Information</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
           <tr>
-            <td style="text-align:center;padding:0 8px;border-right:1px solid ${BORDER};width:25%;">
-              <p style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${MUTED};margin:0 0 6px;">Order Ref</p>
-              <p style="font-size:13px;color:${DARK};margin:0;font-weight:500;">${escapeHtml(data.orderNumber)}</p>
+            <td style="padding:4px;width:33.33%;vertical-align:top;">
+              <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:8px;padding:12px 14px;">
+                <p style="font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:${MUTED};margin:0 0 4px;font-weight:600;">Order Number</p>
+                <p style="font-size:13px;color:${DARK};margin:0;font-weight:600;">${escapeHtml(data.orderNumber)}</p>
+              </div>
             </td>
-            <td style="text-align:center;padding:0 8px;border-right:1px solid ${BORDER};width:25%;">
-              <p style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${MUTED};margin:0 0 6px;">Date Ordered</p>
-              <p style="font-size:12px;color:${DARK};margin:0;">${new Date(data.orderDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+            <td style="padding:4px;width:33.33%;vertical-align:top;">
+              <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:8px;padding:12px 14px;">
+                <p style="font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:${MUTED};margin:0 0 4px;font-weight:600;">Invoice Number</p>
+                <p style="font-size:13px;color:${DARK};margin:0;font-weight:600;">${escapeHtml(data.invoiceNumber || 'Pending')}</p>
+              </div>
             </td>
-            <td style="text-align:center;padding:0 8px;border-right:1px solid ${BORDER};width:25%;">
-              <p style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${MUTED};margin:0 0 6px;">Est. Delivery</p>
-              <p style="font-size:12px;color:${DARK};margin:0;">${data.estimatedDelivery}</p>
+            <td style="padding:4px;width:33.33%;vertical-align:top;">
+              <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:8px;padding:12px 14px;">
+                <p style="font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:${MUTED};margin:0 0 4px;font-weight:600;">Tracking Number</p>
+                <p style="font-size:13px;color:${DARK};margin:0;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;letter-spacing:0.05em;">${escapeHtml(trackingId || 'Pending')}</p>
+              </div>
             </td>
-            <td style="text-align:center;padding:0 8px;width:25%;">
-              <p style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${MUTED};margin:0 0 6px;">Payment Method</p>
-              <p style="font-size:12px;color:${DARK};margin:0;text-transform:capitalize;">${escapeHtml(data.paymentMethod || "Card")}</p>
+          </tr>
+          <tr>
+            <td style="padding:4px;width:33.33%;vertical-align:top;">
+              <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:8px;padding:12px 14px;">
+                <p style="font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:${MUTED};margin:0 0 4px;font-weight:600;">Payment Method</p>
+                <p style="font-size:13px;color:${DARK};margin:0;font-weight:500;text-transform:capitalize;">${escapeHtml(data.paymentMethod || 'Card')}</p>
+              </div>
+            </td>
+            <td style="padding:4px;width:33.33%;vertical-align:top;">
+              <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:8px;padding:12px 14px;">
+                <p style="font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:${MUTED};margin:0 0 4px;font-weight:600;">Payment Status</p>
+                <p style="font-size:13px;color:${EMERALD};margin:0;font-weight:600;text-transform:capitalize;">${escapeHtml(data.paymentStatus || 'Completed')}</p>
+              </div>
+            </td>
+            <td style="padding:4px;width:33.33%;vertical-align:top;">
+              <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:8px;padding:12px 14px;">
+                <p style="font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:${MUTED};margin:0 0 4px;font-weight:600;">Order Date</p>
+                <p style="font-size:13px;color:${DARK};margin:0;font-weight:500;">${formattedDate}</p>
+              </div>
             </td>
           </tr>
         </table>
       </td>
     </tr>
+
+    <!-- ESTIMATED DELIVERY ROW -->
+    <tr>
+      <td class="content" style="padding:0 48px 16px;background-color:${WHITE};">
+        <div style="background-color:${LIGHT_BG};border:1px solid ${BORDER};border-radius:8px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:12px;color:${MUTED};font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Estimated Delivery</span>
+          <span style="font-size:14px;color:${DARK};font-weight:600;">${escapeHtml(data.estimatedDelivery)}</span>
+        </div>
+      </td>
+    </tr>
+
+    <!-- ITEMS TABLE -->
     <tr>
       <td class="content" style="padding:16px 48px 0;background-color:${WHITE};">
         ${itemsHtml}
       </td>
     </tr>
+
+    <!-- TOTALS BREAKDOWN -->
     <tr>
       <td class="content" style="padding:24px 48px 0;background-color:${WHITE};">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
@@ -444,15 +483,6 @@ export function buildThankYouHtml(data: ThankYouData): string {
             <td style="padding:12px 0;text-align:right;border-top:1px solid ${BORDER};"><span style="font-size:14px;color:${DARK};font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Grand Total</span></td>
             <td style="padding:12px 0;text-align:right;border-top:1px solid ${BORDER};width:120px;"><span style="font-size:16px;color:${DARK};font-weight:600;">$${(data.total ?? data.subtotal).toFixed(2)}</span></td>
           </tr>
-          ${data.paymentMethod ? `
-          <tr>
-            <td colspan="2" style="padding:16px 0 0;text-align:right;">
-              <p style="font-size:11px;color:${MUTED};margin:0;text-transform:uppercase;letter-spacing:0.5px;">
-                Paid via ${escapeHtml(data.paymentMethod)}
-              </p>
-            </td>
-          </tr>
-          ` : ""}
         </table>
       </td>
     </tr>

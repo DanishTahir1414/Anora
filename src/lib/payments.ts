@@ -25,7 +25,7 @@ const PaymentIntentSchema = z.object({
   shippingAddress: AddressSchema,
   billingAddress: AddressSchema.optional(),
   email: z.string().min(1),
-  accessToken: z.string().min(1),
+  accessToken: z.string().optional(),
   idempotencyKey: z.string().optional(),
   checkoutRequestId: z.string().optional(),
 });
@@ -35,12 +35,12 @@ const PayPalCreateSchema = z.object({
   shippingAddress: AddressSchema,
   billingAddress: AddressSchema.optional(),
   email: z.string().email(),
-  accessToken: z.string().min(1),
+  accessToken: z.string().optional(),
 });
 
 const PayPalCaptureSchema = z.object({
   paypalOrderId: z.string().min(1),
-  accessToken: z.string().min(1),
+  accessToken: z.string().optional(),
   email: z.string().email(),
   items: z.array(CheckoutItemSchema).min(1),
   shippingAddress: AddressSchema,
@@ -53,21 +53,32 @@ const StripeCheckoutSchema = z.object({
   shippingAddress: AddressSchema,
   billingAddress: AddressSchema.optional(),
   email: z.string().email(),
-  accessToken: z.string().min(1),
+  accessToken: z.string().optional(),
 });
 
 const UpdatePaymentIntentSchema = z.object({
   paymentIntentId: z.string().min(1),
   email: z.string().email(),
-  accessToken: z.string().min(1),
+  accessToken: z.string().optional(),
   shippingAddress: AddressSchema,
   billingAddress: AddressSchema.optional(),
 });
 
 const CreateOrderSchema = z.object({
   paymentIntentId: z.string().min(1),
-  accessToken: z.string().min(1),
+  accessToken: z.string().optional(),
 });
+
+
+async function getUserId(accessToken?: string): Promise<string | null> {
+  if (!accessToken) return null;
+  const { supabaseAdmin } = await import("../../server/lib/supabase-admin");
+  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
+  if (userError || !userData?.user) {
+    throw new Error("Authentication required or session expired");
+  }
+  return userData.user.id;
+}
 
 export const createPaymentIntent = createServerFn({ method: "POST" })
   .validator(PaymentIntentSchema)
@@ -82,14 +93,12 @@ export const createPaymentIntent = createServerFn({ method: "POST" })
       checkoutRequestId,
     } = data;
 
-    const { supabaseAdmin } = await import("../../server/lib/supabase-admin");
-    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
-    if (userError || !userData?.user) throw new Error("Authentication required");
+    const userId = await getUserId(accessToken);
 
     const { createPaymentIntent: serverCreatePaymentIntent } =
       await import("../../server/lib/payments");
     return await serverCreatePaymentIntent({
-      userId: userData.user.id,
+      userId,
       email,
       items,
       shippingAddress,
@@ -104,9 +113,10 @@ export const createPayPalOrder = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { email, items, shippingAddress, billingAddress, accessToken } = data;
 
-    const { supabaseAdmin } = await import("../../server/lib/supabase-admin");
-    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
-    if (userError || !userData?.user) throw new Error("Authentication required");
+    // Optional token validation (non-blocking for guest)
+    if (accessToken) {
+      await getUserId(accessToken);
+    }
 
     const { createPayPalOrder: serverCreatePayPalOrder, validateAndBuildLineItems } =
       await import("../../server/lib/payments");
@@ -137,16 +147,14 @@ export const createStripeCheckoutSession = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { email, items, shippingAddress, billingAddress, accessToken } = data;
 
-    const { supabaseAdmin } = await import("../../server/lib/supabase-admin");
-    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
-    if (userError || !userData?.user) throw new Error("Authentication required");
+    const userId = await getUserId(accessToken);
 
     const { createStripeCheckoutSession: serverCreateSession } =
       await import("../../server/lib/payments");
     const baseUrl = process.env.PUBLIC_APP_URL ?? "http://localhost:5173";
 
     return await serverCreateSession({
-      userId: userData.user.id,
+      userId,
       email,
       items,
       shippingAddress,
@@ -159,12 +167,7 @@ export const createStripeCheckoutSession = createServerFn({ method: "POST" })
 export const createOrder = createServerFn({ method: "POST" })
   .validator(CreateOrderSchema)
   .handler(async ({ data }) => {
-    const { paymentIntentId, accessToken } = data;
-
-    const { supabaseAdmin } = await import("../../server/lib/supabase-admin");
-    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
-    if (userError || !userData?.user) throw new Error("Authentication required");
-
+    const { paymentIntentId } = data;
     const { createOrderFromPaymentIntent } = await import("../../server/lib/order-lifecycle");
     return await createOrderFromPaymentIntent({ paymentIntentId });
   });
@@ -174,9 +177,7 @@ export const createOrderFromPayPal = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { paypalOrderId, accessToken, email, items, shippingAddress, billingAddress, paymentMethod } = data;
 
-    const { supabaseAdmin } = await import("../../server/lib/supabase-admin");
-    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
-    if (userError || !userData?.user) throw new Error("Authentication required");
+    const userId = await getUserId(accessToken);
 
     const { capturePayPalOrder: serverCapturePayPal, validateAndBuildLineItems } =
       await import("../../server/lib/payments");
@@ -194,7 +195,7 @@ export const createOrderFromPayPal = createServerFn({ method: "POST" })
 
     const { createOrderFromPayPal: serverCreateFromPayPal } = await import("../../server/lib/order-lifecycle");
     return await serverCreateFromPayPal({
-      userId: userData.user.id,
+      userId,
       email,
       paypalOrderId,
       items: cartValidation.items.map((v: { productId: string; variantId: string | null; size: string; quantity: number; unitPrice: number; productName: string; imageUrl?: string }) => ({
@@ -216,11 +217,7 @@ export const createOrderFromPayPal = createServerFn({ method: "POST" })
 export const updatePaymentIntent = createServerFn({ method: "POST" })
   .validator(UpdatePaymentIntentSchema)
   .handler(async ({ data }) => {
-    const { paymentIntentId, email, shippingAddress, billingAddress, accessToken } = data;
-
-    const { supabaseAdmin } = await import("../../server/lib/supabase-admin");
-    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
-    if (userError || !userData?.user) throw new Error("Authentication required");
+    const { paymentIntentId, email, shippingAddress, billingAddress } = data;
 
     const { updatePaymentIntent: serverUpdatePaymentIntent } =
       await import("../../server/lib/payments");

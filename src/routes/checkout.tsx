@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { ProtectedRoute, useAuth } from "@/lib/auth-context";
 import { useCart } from "@/lib/cart-context";
 import { supabase } from "@/lib/supabase";
@@ -60,6 +60,11 @@ export function CheckoutForm() {
   const navigate = useNavigate();
   const { success, canceled, payment_intent, redirect_status } = Route.useSearch();
   const [billingSame, setBillingSame] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const [submitting, setSubmitting] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethodId>("stripe");
@@ -92,8 +97,7 @@ export function CheckoutForm() {
       setOrderCreating(true);
 
       supabase.auth.getSession().then(async ({ data: sessionData }) => {
-        const accessToken = sessionData.session?.access_token;
-        if (!accessToken) { navigate({ to: "/login" }); return; }
+        const accessToken = sessionData.session?.access_token || undefined;
         try {
           const order = await createOrder({ data: { paymentIntentId: payment_intent, accessToken } });
           if (order.success) {
@@ -117,19 +121,44 @@ export function CheckoutForm() {
     }
   }, [success, payment_intent, navigate]);
 
-  // Auto-initialize Stripe PaymentIntent on page load
+  const [email, setEmail] = useState("");
+
+  // Sync email with logged in user
   useEffect(() => {
-    if (cart.items.length === 0 || !user?.email || clientSecret) return;
+    if (user?.email) {
+      setEmail(user.email);
+    }
+  }, [user?.email]);
+
+  const cartHash = useMemo(() => {
+    return cart.items.map((i) => `${i.productId}:${i.variantId || ""}:${i.size}:${i.quantity}`).join(",");
+  }, [cart.items]);
+
+  // Reset clientSecret if cart items change, to force recreation of PaymentIntent with new amount/items
+  useEffect(() => {
+    setClientSecret(null);
+  }, [cartHash]);
+
+  // Auto-initialize Stripe PaymentIntent on page load or when valid email is entered
+  useEffect(() => {
+    const isEmailValid = z.string().email().safeParse(email).success;
+    if (cart.items.length === 0 || !isEmailValid || clientSecret) return;
 
     const init = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) return;
+        const accessToken = session?.access_token || undefined;
+
+        // Create a unique idempotency key for this email and cart state
+        const cartItemsHash = cart.items.map(i => `${i.productId}-${i.variantId ?? "none"}-${i.size}-${i.quantity}`).join("|");
+        const cleanEmail = email.replace(/[^a-zA-Z0-9]/g, "");
+        const cleanCart = cartItemsHash.replace(/[^a-zA-Z0-9]/g, "");
+        const idempotencyKey = `init-${checkoutRequestId.current}-${cleanEmail}-${cleanCart}`.substring(0, 100);
 
         const result = await createPaymentIntent({
           data: {
-            accessToken: session.access_token,
-            email: user.email!,
+            accessToken,
+            email,
             items: cart.items.map((item) => ({
               productId: item.productId,
               variantId: item.variantId ?? null,
@@ -139,7 +168,7 @@ export function CheckoutForm() {
             shippingAddress: emptyAddress,
             billingAddress: emptyAddress,
             checkoutRequestId: checkoutRequestId.current,
-            idempotencyKey: `init-${checkoutRequestId.current}`,
+            idempotencyKey,
           },
         });
         setClientSecret(result.clientSecret);
@@ -149,7 +178,7 @@ export function CheckoutForm() {
     };
 
     init();
-  }, [cart.items, user?.email, clientSecret]);
+  }, [cartHash, email, clientSecret]);
 
   const handleConfirmReady = useCallback((fn: Exclude<typeof confirmHandler, null>) => {
     setConfirmHandler(() => fn);
@@ -169,8 +198,7 @@ export function CheckoutForm() {
       const { shippingAddress, billingAddress } = getAddress();
 
       const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) throw new Error("Please sign in to complete checkout");
+      const accessToken = sessionData.session?.access_token || undefined;
 
       const piId = clientSecret.split("_secret_")[0];
       await updatePaymentIntent({
@@ -236,7 +264,7 @@ export function CheckoutForm() {
 
   const total = cart.subtotal;
 
-  if (cart.isRestoring) {
+  if (!isMounted || cart.isRestoring) {
     return (
       <div className="px-5 lg:px-10 py-16 max-w-6xl mx-auto">
         <div className="text-center mb-10">
@@ -287,10 +315,9 @@ export function CheckoutForm() {
         ref={formRef}
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!user) { toast.error("Please sign in to complete checkout"); return; }
           const form = e.currentTarget;
-          const email = getFormValue(form, "email");
-          const emailResult = z.string().email().safeParse(email);
+          const emailVal = getFormValue(form, "email");
+          const emailResult = z.string().email().safeParse(emailVal);
           if (!emailResult.success) { toast.error("Please enter a valid email address"); return; }
 
           if (selectedMethod === "stripe") {
@@ -301,7 +328,7 @@ export function CheckoutForm() {
       >
         <div className="space-y-10">
           <Section title="Contact Information">
-            <Input label="Email" name="email" type="email" required defaultValue={user?.email ?? ""} />
+            <Input label="Email" name="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             <Input label="Phone" name="phone" type="tel" required />
           </Section>
 
@@ -345,34 +372,40 @@ export function CheckoutForm() {
               disabled={submitting}
             />
 
-            <div className={`mt-5${selectedMethod === "stripe" ? "" : " hidden"}`}>
-              {clientSecret ? (
-                <StripePaymentForm
-                  stripeKey={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || ""}
-                  clientSecret={clientSecret}
-                  onConfirmReady={handleConfirmReady}
-                />
-              ) : (
-                <div className="space-y-3 animate-pulse">
-                  <div className="h-11 bg-neutral rounded-md" />
-                  <div className="h-11 bg-neutral rounded-md" />
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="h-11 bg-neutral rounded-md" />
-                    <div className="h-11 bg-neutral rounded-md" />
-                  </div>
+            {!user && !z.string().email().safeParse(email).success ? (
+              <p className="text-sm text-muted-foreground py-4">Enter your email to continue.</p>
+            ) : (
+              <>
+                <div className={`mt-5${selectedMethod === "stripe" ? "" : " hidden"}`}>
+                  {clientSecret ? (
+                    <StripePaymentForm
+                      stripeKey={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || ""}
+                      clientSecret={clientSecret}
+                      onConfirmReady={handleConfirmReady}
+                    />
+                  ) : (
+                    <div className="space-y-3 animate-pulse">
+                      <div className="h-11 bg-neutral rounded-md" />
+                      <div className="h-11 bg-neutral rounded-md" />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="h-11 bg-neutral rounded-md" />
+                        <div className="h-11 bg-neutral rounded-md" />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div className={`mt-5${selectedMethod === "paypal" ? "" : " hidden"}`}>
-              <PayPalPayment
-                items={cart.items as CheckoutItem[]}
-                email={user?.email ?? ""}
-                getAddress={getAddress}
-                onSuccess={handlePayPalSuccess}
-                onError={handlePayPalError}
-              />
-            </div>
+                <div className={`mt-5${selectedMethod === "paypal" ? "" : " hidden"}`}>
+                  <PayPalPayment
+                    items={cart.items as CheckoutItem[]}
+                    email={email}
+                    getAddress={getAddress}
+                    onSuccess={handlePayPalSuccess}
+                    onError={handlePayPalError}
+                  />
+                </div>
+              </>
+            )}
           </Section>
         </div>
 
@@ -457,9 +490,5 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
 }
 
 function CheckoutPage() {
-  return (
-    <ProtectedRoute>
-      <CheckoutForm />
-    </ProtectedRoute>
-  );
+  return <CheckoutForm />;
 }

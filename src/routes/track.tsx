@@ -436,22 +436,54 @@ const TIMELINE_STEPS = [
 
 const CopyTrackingButton = ({ trackingId }: { trackingId: string }) => {
   const [copied, setCopied] = useState(false);
-  
+
+  const fallbackCopy = () => {
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = trackingId;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const successful = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      if (successful) {
+        setCopied(true);
+        toast.success("Tracking ID copied to clipboard");
+        setTimeout(() => setCopied(false), 2000);
+      } else {
+        toast.error("Could not copy tracking ID");
+      }
+    } catch {
+      toast.error("Could not copy tracking ID");
+    }
+  };
+
   const handleCopy = () => {
-    navigator.clipboard.writeText(trackingId).then(() => {
-      setCopied(true);
-      toast.success("Tracking ID copied to clipboard");
-      setTimeout(() => setCopied(false), 2000);
-    });
+    if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard
+        .writeText(trackingId)
+        .then(() => {
+          setCopied(true);
+          toast.success("Tracking ID copied to clipboard");
+          setTimeout(() => setCopied(false), 2000);
+        })
+        .catch(() => {
+          fallbackCopy();
+        });
+    } else {
+      fallbackCopy();
+    }
   };
 
   return (
     <button
       onClick={handleCopy}
-      className="inline-flex items-center gap-1.5 px-3 py-1 border border-border hover:border-foreground transition-colors text-[10px] uppercase tracking-widest font-medium"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-md border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors text-[11px] font-sans font-semibold tracking-[0.08em] uppercase"
       title="Copy Tracking ID"
     >
-      <span>{copied ? "✓ Copied" : "Copy"}</span>
+      <span>{copied ? "Copied ✓" : "Copy"}</span>
     </button>
   );
 };
@@ -744,7 +776,7 @@ function TrackPage() {
             <div className="border border-border/60 p-6 bg-background shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade">
               <div className="flex flex-col sm:items-start items-center space-y-1">
                 <span className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground">Tracking ID</span>
-                <span className="font-mono text-lg font-bold tracking-[0.25em] text-foreground uppercase">{order.tracking_id}</span>
+                <span className="font-sans font-semibold text-base tracking-[0.08em] text-foreground bg-zinc-100 dark:bg-zinc-800/80 px-3 py-1 rounded-md border border-zinc-200 dark:border-zinc-700/60 uppercase">{order.tracking_id}</span>
               </div>
               <CopyTrackingButton trackingId={order.tracking_id} />
             </div>

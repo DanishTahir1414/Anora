@@ -23,21 +23,13 @@ export const Route = createFileRoute("/order/success")({
 });
 
 function OrderSuccessPage() {
-  return (
-    <ProtectedRoute>
-      <OrderSuccess />
-    </ProtectedRoute>
-  );
+  return <OrderSuccess />;
 }
 
 async function downloadInvoice(invoiceId: string): Promise<boolean> {
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData.session?.access_token;
-    if (!token) {
-      toast.error("Please sign in to download your invoice.");
-      return false;
-    }
 
     const result = await getInvoicePdfUrl({
       data: {
@@ -95,12 +87,10 @@ function OrderSuccess() {
   const sessionId = searchParams.get("session_id");
 
   useEffect(() => {
-    if (!user) return;
-
     async function fetchByOrderId() {
       if (!orderId) return null;
 
-      const { data } = await supabase
+      let query = supabase
         .from("orders")
         .select(
           `id, order_number, status, subtotal, total, payment_status, payment_method,
@@ -109,9 +99,13 @@ function OrderSuccess() {
            invoices (id, invoice_number, status, total_amount),
            order_timeline (id, event_type, description, created_at)`,
         )
-        .eq("id", orderId)
-        .eq("user_id", user?.id ?? "")
-        .maybeSingle();
+        .eq("id", orderId);
+
+      if (user) {
+        query = query.eq("user_id", user.id);
+      }
+
+      const { data } = await query.maybeSingle();
 
       return data;
     }
@@ -158,24 +152,26 @@ function OrderSuccess() {
 
       // If no session_id or orderId, try to find most recent order
       if (!sessionId && !orderId) {
-        const { data: recentOrder } = await supabase
-          .from("orders")
-          .select(
-            `id, order_number, status, subtotal, total, payment_status, payment_method,
-             shipping_address, billing_address, created_at,
-             order_items (id, product_id, name, price, quantity, image_url, attributes),
-             invoices (id, invoice_number, status, total_amount),
-             order_timeline (id, event_type, description, created_at)`,
-          )
-          .eq("user_id", user?.id ?? "")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        if (user) {
+          const { data: recentOrder } = await supabase
+            .from("orders")
+            .select(
+              `id, order_number, status, subtotal, total, payment_status, payment_method,
+               shipping_address, billing_address, created_at,
+               order_items (id, product_id, name, price, quantity, image_url, attributes),
+               invoices (id, invoice_number, status, total_amount),
+               order_timeline (id, event_type, description, created_at)`,
+            )
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
-        if (recentOrder) {
-          setOrder(recentOrder);
-          setLoading(false);
-          return;
+          if (recentOrder) {
+            setOrder(recentOrder);
+            setLoading(false);
+            return;
+          }
         }
 
         if (!orderNumber) {

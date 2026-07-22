@@ -50,7 +50,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const cartSnapshot = useSyncExternalStore(subscribe, getCartSnapshot, getCartSnapshot);
   const wishSnapshot = useSyncExternalStore(subscribe, getWishlistSnapshot, getWishlistSnapshot);
-  const [isRestoring, setIsRestoring] = useState(!!user);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   useEffect(() => {
     initCrossTabSync();

@@ -63,7 +63,7 @@ export const PayPalPayment = memo(function PayPalPayment({
 
   const createOrder = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error("Your session expired. Please sign in again.");
+    const accessToken = session?.access_token || undefined;
 
     const { shippingAddress, billingAddress } = getAddress();
 
@@ -76,7 +76,7 @@ export const PayPalPayment = memo(function PayPalPayment({
 
     const result = await createPayPalOrder({
       data: {
-        accessToken: session.access_token,
+        accessToken,
         email,
         items: items.map((i) => ({
           productId: i.productId,
@@ -100,10 +100,7 @@ export const PayPalPayment = memo(function PayPalPayment({
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        onError("Your session expired. Please sign in again.");
-        return;
-      }
+      const accessToken = session?.access_token || undefined;
 
       const captureResult = await capturePayPalOrder({
         data: { orderId: data.orderID },
@@ -117,7 +114,7 @@ export const PayPalPayment = memo(function PayPalPayment({
       const result = await createOrderFromPayPal({
         data: {
           paypalOrderId: data.orderID,
-          accessToken: session.access_token,
+          accessToken,
           email: pending.email,
           items: pending.items.map((i) => ({
             productId: i.productId,

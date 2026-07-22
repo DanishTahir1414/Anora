@@ -94,29 +94,18 @@ export async function createPaymentIntent(
   const totals = calculateTotals(validation.items);
   const amountInCents = Math.round(totals.total * 100);
 
+  const cartHash = validation.items
+    .map((v) => `${v.productId}:${v.variantId || ""}:${v.size}:${v.quantity}`)
+    .join(",");
+
   const metadata: Record<string, string> = {
-    user_id: input.userId,
-    email: input.email,
-    subtotal: String(totals.subtotal),
-    total: String(totals.total),
+    user_id: input.userId || "",
+    email: input.email || "",
+    cart_hash: cartHash.length > 200 ? cartHash.substring(0, 200) : cartHash,
+    item_count: String(validation.items.length),
     currency: totals.currency,
-    shipping_address: JSON.stringify(input.shippingAddress),
-    validated_items: JSON.stringify(
-      validation.items.map((v) => ({
-        productId: v.productId,
-        variantId: v.variantId,
-        size: v.size,
-        quantity: v.quantity,
-        unitPrice: v.unitPrice,
-        productName: v.productName,
-        imageUrl: v.imageUrl,
-      })),
-    ),
   };
 
-  if (input.billingAddress) {
-    metadata.billing_address = JSON.stringify(input.billingAddress);
-  }
   if (input.checkoutRequestId) {
     metadata.checkout_request_id = input.checkoutRequestId;
   }
@@ -132,7 +121,8 @@ export async function createPaymentIntent(
     metadata,
     ...(isValidEmail ? { receipt_email: input.email } : {}),
     shipping: {
-      name: `${input.shippingAddress.firstName} ${input.shippingAddress.lastName}`.trim() || "Customer",
+      name:
+        `${input.shippingAddress.firstName} ${input.shippingAddress.lastName}`.trim() || "Customer",
       address: {
         line1: input.shippingAddress.line1 || undefined,
         line2: input.shippingAddress.line2 || undefined,
@@ -161,17 +151,35 @@ export async function createPaymentIntent(
   // Create payment session for checkout tracking
   if (input.checkoutRequestId) {
     try {
-      await (container.supabase.from("payment_sessions") as any).upsert(
+      const sessionTable = container.supabase.from("payment_sessions") as unknown as {
+        upsert: (
+          values: Record<string, unknown>,
+          options?: { onConflict?: string; ignoreDuplicates?: boolean },
+        ) => Promise<{ error: Error | null }>;
+      };
+      await sessionTable.upsert(
         {
           checkout_request_id: input.checkoutRequestId,
-          user_id: input.userId,
+          user_id: input.userId || null,
           email: input.email,
-          status: "pending",
+          status: "created",
           payment_intent_id: paymentIntent.id,
           payment_method: "card",
           currency: totals.currency,
           amount: amountInCents,
-          metadata: {},
+          metadata: {
+            shippingAddress: input.shippingAddress,
+            billingAddress: input.billingAddress,
+            items: validation.items.map((v) => ({
+              productId: v.productId,
+              variantId: v.variantId,
+              size: v.size,
+              quantity: v.quantity,
+              unitPrice: v.unitPrice,
+              productName: v.productName,
+              imageUrl: v.imageUrl,
+            })),
+          },
           expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
           browser: input.browser ?? null,
           ip_address: input.ipAddress ?? null,
@@ -227,12 +235,62 @@ export async function updatePaymentIntent(
     },
     metadata: {
       email: input.email,
-      shipping_address: JSON.stringify(input.shippingAddress),
-      billing_address: JSON.stringify(input.billingAddress ?? input.shippingAddress),
     },
   };
 
   const paymentIntent = await container.stripe.paymentIntents.update(paymentIntentId, params);
+
+  let existingItems: unknown[] = [];
+  try {
+    const sessionTable = container.supabase.from("payment_sessions") as unknown as {
+      select: (columns?: string) => {
+        eq: (
+          column: string,
+          value: string,
+        ) => {
+          maybeSingle: () => Promise<{ data: { metadata?: { items?: unknown[] } } | null }>;
+        };
+      };
+    };
+    const { data: existingSession } = await sessionTable
+      .select("metadata")
+      .eq("payment_intent_id", paymentIntentId)
+      .maybeSingle();
+    if (existingSession?.metadata?.items) {
+      existingItems = existingSession.metadata.items;
+    }
+  } catch (err) {
+    logger.warn("Failed to fetch existing payment session metadata", { error: String(err) });
+  }
+
+  try {
+    const sessionTable = container.supabase.from("payment_sessions") as unknown as {
+      update: (values: {
+        email: string;
+        status: string;
+        metadata: {
+          shippingAddress: CheckoutAddress;
+          billingAddress: CheckoutAddress;
+          items: unknown[];
+        };
+      }) => {
+        eq: (column: string, value: string) => Promise<{ error: Error | null }>;
+      };
+    };
+    await sessionTable
+      .update({
+        email: input.email,
+        status: "pending",
+        metadata: {
+          shippingAddress: input.shippingAddress,
+          billingAddress: input.billingAddress ?? input.shippingAddress,
+          items: existingItems,
+        },
+      })
+      .eq("payment_intent_id", paymentIntentId);
+  } catch (err) {
+    logger.warn("Failed to update payment session address", { error: String(err) });
+  }
 
   return {
     clientSecret: paymentIntent.client_secret!,

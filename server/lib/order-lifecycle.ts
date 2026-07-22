@@ -21,7 +21,7 @@ export interface OrderCreationResult {
 }
 
 export interface OrderCreationInput {
-  userId: string;
+  userId?: string | null;
   email: string;
   phone?: string;
   subtotal: number;
@@ -46,7 +46,7 @@ export interface PaymentIntentCreationInput {
 }
 
 export interface PayPalOrderCreationInput {
-  userId: string;
+  userId?: string | null;
   email: string;
   paypalOrderId: string;
   items: Array<{
@@ -183,7 +183,7 @@ async function nextInvoiceNumber(): Promise<string> {
 
 async function verifyPaymentIntent(paymentIntentId: string): Promise<{
   ok: boolean;
-  userId?: string;
+  userId?: string | null;
   email?: string;
   subtotal?: number;
   shippingAddress?: Record<string, string>;
@@ -203,7 +203,7 @@ async function verifyPaymentIntent(paymentIntentId: string): Promise<{
   checkoutRequestId?: string;
   error?: string;
 }> {
-  const { stripe } = getContainer();
+  const { stripe, supabase } = getContainer();
 
   try {
     const pi = await stripe.paymentIntents.retrieve(paymentIntentId, {
@@ -218,29 +218,51 @@ async function verifyPaymentIntent(paymentIntentId: string): Promise<{
     }
 
     const metadata = pi.metadata ?? {};
-    const userId = metadata.user_id;
-    const email = metadata.email;
-    const subtotal = parseFloat(metadata.subtotal ?? "0");
+    const checkoutRequestId = metadata.checkout_request_id;
+    let userId = metadata.user_id || undefined;
+    let email = metadata.email || pi.receipt_email || undefined;
+    let subtotal = parseFloat(metadata.subtotal ?? "0");
 
-    if (!userId || !email) {
-      return { ok: false, error: "PaymentIntent missing user metadata" };
-    }
-
-    let shippingAddress: Record<string, string> = {};
-    try {
-      shippingAddress = metadata.shipping_address ? JSON.parse(metadata.shipping_address) : {};
-    } catch {
-      shippingAddress = {};
-    }
-
-    let billingAddress: Record<string, string> | undefined;
-    if (metadata.billing_address) {
-      try {
-        billingAddress = JSON.parse(metadata.billing_address);
-      } catch {
-        /* ignore */
+    // Fetch rich session payload (cart items & addresses) from DB
+    let sessionData: any = null;
+    if (paymentIntentId || checkoutRequestId) {
+      let sessionQuery = (supabase.from("payment_sessions") as any).select("*");
+      if (paymentIntentId) {
+        sessionQuery = sessionQuery.eq("payment_intent_id", paymentIntentId);
+      } else if (checkoutRequestId) {
+        sessionQuery = sessionQuery.eq("checkout_request_id", checkoutRequestId);
       }
+      const { data } = await sessionQuery.maybeSingle();
+      sessionData = data;
     }
+
+    if (sessionData) {
+      if (!userId && sessionData.user_id) userId = sessionData.user_id;
+      if (!email && sessionData.email) email = sessionData.email;
+    }
+
+    if (!email) {
+      return { ok: false, error: "PaymentIntent missing customer email metadata" };
+    }
+
+    let shippingAddress: Record<string, string> = sessionData?.metadata?.shippingAddress || {};
+    if (Object.keys(shippingAddress).length === 0 && pi.shipping) {
+      const ship = pi.shipping;
+      const [firstName, ...lastNames] = (ship.name || "").split(" ");
+      shippingAddress = {
+        firstName: firstName || "",
+        lastName: lastNames.join(" ") || "",
+        line1: ship.address?.line1 || "",
+        line2: ship.address?.line2 || "",
+        city: ship.address?.city || "",
+        state: ship.address?.state || "",
+        postalCode: ship.address?.postal_code || "",
+        country: ship.address?.country || "",
+        phone: ship.phone || "",
+      };
+    }
+
+    let billingAddress: Record<string, string> | undefined = sessionData?.metadata?.billingAddress || shippingAddress;
 
     let items: Array<{
       productId: string;
@@ -250,17 +272,22 @@ async function verifyPaymentIntent(paymentIntentId: string): Promise<{
       unitPrice: number;
       productName: string;
       imageUrl?: string;
-    }> = [];
-    try {
-      if (metadata.validated_items) {
+    }> = sessionData?.metadata?.items || [];
+
+    if (items.length === 0 && metadata.validated_items) {
+      try {
         items = JSON.parse(metadata.validated_items);
+      } catch {
+        /* ignore */
       }
-    } catch {
-      return { ok: false, error: "Invalid items metadata" };
     }
 
     if (items.length === 0) {
-      return { ok: false, error: "No items in PaymentIntent metadata" };
+      return { ok: false, error: "No order items found for PaymentIntent" };
+    }
+
+    if (!subtotal || subtotal === 0) {
+      subtotal = items.reduce((sum, item) => sum + (item.unitPrice || 0) * (item.quantity || 1), 0);
     }
 
     const charge = (pi.latest_charge as any) as Record<string, unknown> | undefined;
@@ -393,16 +420,19 @@ export async function createOrderFromPaymentIntent(
   const amount = verification.amount ? verification.amount / 100 : (verification.subtotal ?? 0);
   const total = verification.subtotal ?? amount;
 
-  const orderItems = (verification.items ?? []).map((item) => ({
-    product_id: item.productId,
-    variant_id: item.variantId ?? null,
-    name: item.productName,
-    price: item.unitPrice,
-    quantity: item.quantity,
-    image_url: item.imageUrl ?? null,
-    size: item.size,
-    attributes: JSON.stringify({ size: item.size }),
-  }));
+  const orderItems = (verification.items ?? []).map((item) => {
+    const attrs: Record<string, string> = {};
+    if (item.size) attrs.size = item.size;
+    return {
+      product_id: item.productId,
+      variant_id: item.variantId ?? null,
+      name: item.productName,
+      price: item.unitPrice,
+      quantity: item.quantity,
+      image_url: item.imageUrl ?? null,
+      attributes: JSON.stringify(attrs),
+    };
+  });
 
   const shippingAddressJson = JSON.stringify(verification.shippingAddress ?? {});
   const billingAddressJson = verification.billingAddress
@@ -411,7 +441,7 @@ export async function createOrderFromPaymentIntent(
 
   // Call the database RPC to create the order, decrement stock, create invoice
   const { data: rpcResult, error: rpcError } = await (supabase.rpc as any)("create_order_from_payment", {
-    p_user_id: verification.userId,
+    p_user_id: verification.userId || null,
     p_order_number: orderNumber,
     p_subtotal: total,
     p_total: total,
@@ -425,6 +455,7 @@ export async function createOrderFromPaymentIntent(
     p_invoice_number: invoiceNumber,
     p_items: JSON.stringify(orderItems),
     p_checkout_request_id: checkoutRequestId ?? null,
+    p_email: verification.email || null,
   });
 
   if (rpcError) {
@@ -452,21 +483,23 @@ export async function createOrderFromPaymentIntent(
   const billingAddr = verification.billingAddress ?? verification.shippingAddress ?? {};
 
   let customerProfile: { firstName?: string | null; lastName?: string | null; displayName?: string | null } | null = null;
-  try {
-    const { data: profile } = await (supabase
-      .from("profiles") as any)
-      .select("first_name, last_name, email, metadata")
-      .eq("id", verification.userId)
-      .maybeSingle();
-    if (profile) {
-      customerProfile = {
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-        displayName: (profile.metadata as Record<string, any>)?.displayName || "",
-      };
+  if (verification.userId) {
+    try {
+      const { data: profile } = await (supabase
+        .from("profiles") as any)
+        .select("first_name, last_name, email, metadata")
+        .eq("id", verification.userId)
+        .maybeSingle();
+      if (profile) {
+        customerProfile = {
+          firstName: profile.first_name,
+          lastName: profile.last_name,
+          displayName: (profile.metadata as Record<string, any>)?.displayName || "",
+        };
+      }
+    } catch (err) {
+      logger.warn("Failed to fetch customer profile for order email", { error: String(err) });
     }
-  } catch (err) {
-    logger.warn("Failed to fetch customer profile for order email", { error: String(err) });
   }
 
   let trackingId = "";
@@ -555,16 +588,19 @@ export async function createOrderFromPayment(
   const invoiceNumber = await nextInvoiceNumber();
   const total = input.subtotal;
 
-  const orderItems = input.items.map((item) => ({
-    product_id: item.productId,
-    variant_id: item.variantId ?? null,
-    name: item.productName,
-    price: item.unitPrice,
-    quantity: item.quantity,
-    image_url: item.imageUrl ?? null,
-    size: item.size,
-    attributes: JSON.stringify({ size: item.size }),
-  }));
+  const orderItems = input.items.map((item) => {
+    const attrs: Record<string, string> = {};
+    if (item.size) attrs.size = item.size;
+    return {
+      product_id: item.productId,
+      variant_id: item.variantId ?? null,
+      name: item.productName,
+      price: item.unitPrice,
+      quantity: item.quantity,
+      image_url: item.imageUrl ?? null,
+      attributes: JSON.stringify(attrs),
+    };
+  });
 
   const shippingAddressJson = JSON.stringify(input.shippingAddress);
   const billingAddressJson = input.billingAddress
@@ -572,7 +608,7 @@ export async function createOrderFromPayment(
     : shippingAddressJson;
 
   const { data: rpcResult, error: rpcError } = await (supabase.rpc as any)("create_order_from_payment", {
-    p_user_id: input.userId,
+    p_user_id: input.userId || null,
     p_order_number: orderNumber,
     p_subtotal: input.subtotal,
     p_total: total,
@@ -586,6 +622,7 @@ export async function createOrderFromPayment(
     p_invoice_number: invoiceNumber,
     p_items: JSON.stringify(orderItems),
     p_checkout_request_id: null,
+    p_email: input.email || null,
   });
 
   if (rpcError) {
@@ -608,21 +645,23 @@ export async function createOrderFromPayment(
   const billingAddr = input.billingAddress || input.shippingAddress;
 
   let customerProfile: { firstName?: string | null; lastName?: string | null; displayName?: string | null } | null = null;
-  try {
-    const { data: profile } = await (supabase
-      .from("profiles") as any)
-      .select("first_name, last_name, email, metadata")
-      .eq("id", input.userId)
-      .maybeSingle();
-    if (profile) {
-      customerProfile = {
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-        displayName: (profile.metadata as Record<string, any>)?.displayName || "",
-      };
+  if (input.userId) {
+    try {
+      const { data: profile } = await (supabase
+        .from("profiles") as any)
+        .select("first_name, last_name, email, metadata")
+        .eq("id", input.userId)
+        .maybeSingle();
+      if (profile) {
+        customerProfile = {
+          firstName: profile.first_name,
+          lastName: profile.last_name,
+          displayName: (profile.metadata as Record<string, any>)?.displayName || "",
+        };
+      }
+    } catch (err) {
+      logger.warn("Failed to fetch customer profile for order email", { error: String(err) });
     }
-  } catch (err) {
-    logger.warn("Failed to fetch customer profile for order email", { error: String(err) });
   }
 
   let trackingId = "";
@@ -715,22 +754,25 @@ export async function createOrderFromPayPal(
   const invoiceNumber = await nextInvoiceNumber();
   const total = input.total;
 
-  const orderItems = input.items.map((item) => ({
-    product_id: item.productId,
-    variant_id: item.variantId ?? null,
-    name: item.productName,
-    price: item.unitPrice,
-    quantity: item.quantity,
-    image_url: item.imageUrl ?? null,
-    size: item.size,
-    attributes: JSON.stringify({ size: item.size }),
-  }));
+  const orderItems = input.items.map((item) => {
+    const attrs: Record<string, string> = {};
+    if (item.size) attrs.size = item.size;
+    return {
+      product_id: item.productId,
+      variant_id: item.variantId ?? null,
+      name: item.productName,
+      price: item.unitPrice,
+      quantity: item.quantity,
+      image_url: item.imageUrl ?? null,
+      attributes: JSON.stringify(attrs),
+    };
+  });
 
   const shippingAddressJson = JSON.stringify(input.shippingAddress);
   const billingAddressJson = JSON.stringify(input.billingAddress);
 
   const { data: rpcResult, error: rpcError } = await (supabase.rpc as any)("create_order_from_payment", {
-    p_user_id: input.userId,
+    p_user_id: input.userId || null,
     p_order_number: orderNumber,
     p_subtotal: total,
     p_total: total,
@@ -744,6 +786,7 @@ export async function createOrderFromPayPal(
     p_invoice_number: invoiceNumber,
     p_items: JSON.stringify(orderItems),
     p_checkout_request_id: null,
+    p_email: input.email || null,
   });
 
   if (rpcError) {
@@ -776,21 +819,23 @@ export async function createOrderFromPayPal(
   const billingAddr = input.billingAddress;
 
   let customerProfile: { firstName?: string | null; lastName?: string | null; displayName?: string | null } | null = null;
-  try {
-    const { data: profile } = await (supabase
-      .from("profiles") as any)
-      .select("first_name, last_name, email, metadata")
-      .eq("id", input.userId)
-      .maybeSingle();
-    if (profile) {
-      customerProfile = {
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-        displayName: (profile.metadata as Record<string, any>)?.displayName || "",
-      };
+  if (input.userId) {
+    try {
+      const { data: profile } = await (supabase
+        .from("profiles") as any)
+        .select("first_name, last_name, email, metadata")
+        .eq("id", input.userId)
+        .maybeSingle();
+      if (profile) {
+        customerProfile = {
+          firstName: profile.first_name,
+          lastName: profile.last_name,
+          displayName: (profile.metadata as Record<string, any>)?.displayName || "",
+        };
+      }
+    } catch (err) {
+      logger.warn("Failed to fetch customer profile for order email", { error: String(err) });
     }
-  } catch (err) {
-    logger.warn("Failed to fetch customer profile for order email", { error: String(err) });
   }
 
   let trackingId = "";
