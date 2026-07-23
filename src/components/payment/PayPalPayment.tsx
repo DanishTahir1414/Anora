@@ -1,9 +1,34 @@
-import { useState, useEffect, useCallback, useRef, memo } from "react";
+import React, { useState, useEffect, useCallback, useRef, memo } from "react";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { getPayPalClientId, createPayPalOrder, capturePayPalOrder, createOrderFromPayPal } from "@/lib/payments";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import type { CheckoutItem, CheckoutAddress, PaymentResult } from "@/payments/types";
+
+class PayPalErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; fallback: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("PayPal script loading or runtime error caught by boundary:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
 
 interface PayPalPaymentProps {
   items: CheckoutItem[];
@@ -11,6 +36,8 @@ interface PayPalPaymentProps {
   getAddress: () => { shippingAddress: CheckoutAddress; billingAddress: CheckoutAddress };
   onSuccess: (result: PaymentResult) => void;
   onError: (error: string) => void;
+  submitting?: boolean;
+  setSubmitting?: (val: boolean) => void;
 }
 
 interface PendingOrderData {
@@ -43,6 +70,8 @@ export const PayPalPayment = memo(function PayPalPayment({
   getAddress,
   onSuccess,
   onError,
+  submitting,
+  setSubmitting,
 }: PayPalPaymentProps) {
   // Start with cached value if already available (avoids flash of skeleton)
   const [clientId, setClientId] = useState<string | null>(
@@ -95,6 +124,7 @@ export const PayPalPayment = memo(function PayPalPayment({
     const pending = pendingDataRef.current;
     if (!pending) {
       onError("Session data not found. Please try again.");
+      setSubmitting?.(false);
       return;
     }
 
@@ -108,6 +138,7 @@ export const PayPalPayment = memo(function PayPalPayment({
 
       if (captureResult.status !== "COMPLETED") {
         onError("PayPal payment could not be completed. Please try again.");
+        setSubmitting?.(false);
         return;
       }
 
@@ -132,11 +163,13 @@ export const PayPalPayment = memo(function PayPalPayment({
         onSuccess(result);
       } else {
         onError(result.error ?? "Failed to create order");
+        setSubmitting?.(false);
       }
     } catch (err) {
       onError(err instanceof Error ? err.message : "Payment could not be completed.");
+      setSubmitting?.(false);
     }
-  }, [onSuccess, onError]);
+  }, [onSuccess, onError, setSubmitting]);
 
   if (sdkLoading) {
     return (
@@ -155,36 +188,63 @@ export const PayPalPayment = memo(function PayPalPayment({
     );
   }
 
+  const fallbackUI = (
+    <p className="text-xs text-red/70">
+      PayPal is not configured. Please contact support.
+    </p>
+  );
+
   return (
-    <PayPalScriptProvider
-      options={{
-        clientId,
-        currency: "USD",
-        intent: "capture",
-        "enable-funding": "paypal,venmo,paylater,card",
-        "disable-funding": "",
-      }}
-    >
-      <PayPalButtons
-        style={{
-          layout: "vertical",
-          shape: "rect",
-          color: "gold",
-          label: "paypal",
-          tagline: false,
+    <PayPalErrorBoundary fallback={fallbackUI}>
+      <PayPalScriptProvider
+        options={{
+          clientId,
+          currency: "USD",
+          intent: "capture",
+          "enable-funding": "paypal,venmo,paylater,card",
+          "disable-funding": "",
         }}
-        createOrder={createOrder}
-        onApprove={onApprove}
-        onError={() => {
-          toast.error("PayPal encountered an error. Please try again.");
-        }}
-        onCancel={() => {
-          toast.info("PayPal payment was cancelled.");
-        }}
-      />
-      <p className="text-[10px] text-muted-foreground text-center mt-2 tracking-wider">
-        PayPal • Credit • Debit • Venmo • Pay Later
-      </p>
-    </PayPalScriptProvider>
+      >
+        <PayPalButtons
+          style={{
+            layout: "vertical",
+            shape: "rect",
+            color: "gold",
+            label: "paypal",
+            tagline: false,
+          }}
+          createOrder={async () => {
+            setSubmitting?.(true);
+            try {
+              return await createOrder();
+            } catch (err) {
+              setSubmitting?.(false);
+              throw err;
+            }
+          }}
+          onApprove={async (data) => {
+            setSubmitting?.(true);
+            try {
+              await onApprove(data);
+            } catch (err) {
+              setSubmitting?.(false);
+              throw err;
+            }
+          }}
+          onError={() => {
+            setSubmitting?.(false);
+            toast.error("PayPal encountered an error. Please try again.");
+            onError("PayPal encountered an error. Please try again.");
+          }}
+          onCancel={() => {
+            setSubmitting?.(false);
+            toast.info("PayPal payment was cancelled.");
+          }}
+        />
+        <p className="text-[10px] text-muted-foreground text-center mt-2 tracking-wider">
+          PayPal • Credit • Debit • Venmo • Pay Later
+        </p>
+      </PayPalScriptProvider>
+    </PayPalErrorBoundary>
   );
 });

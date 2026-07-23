@@ -6,10 +6,8 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { z } from "zod";
 import { createPaymentIntent, createOrder, updatePaymentIntent } from "@/lib/payments";
-import { PaymentMethodList } from "@/components/payment/PaymentMethodList";
 import { StripePaymentForm } from "@/payments/hooks/useStripeCheckout";
 import { PayPalPayment } from "@/components/payment/PayPalPayment";
-import { type PaymentMethodId } from "@/payments/types";
 import type { CheckoutItem, CheckoutAddress, PaymentResult } from "@/payments/types";
 import { getProductPriceInfo } from "@/lib/products";
 import { ProductPrice } from "@/components/site/ProductPrice";
@@ -93,7 +91,6 @@ export function CheckoutForm() {
   }, []);
 
   const [submitting, setSubmitting] = useState(false);
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethodId>("stripe");
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [stripeLoadFailed, setStripeLoadFailed] = useState(false);
   const [orderCreating, setOrderCreating] = useState(false);
@@ -353,9 +350,7 @@ export function CheckoutForm() {
           const emailResult = z.string().email().safeParse(emailVal);
           if (!emailResult.success) { toast.error("Please enter a valid email address"); return; }
 
-          if (selectedMethod === "stripe") {
-            await handleStripeSubmit();
-          }
+          await handleStripeSubmit();
         }}
         className="grid lg:grid-cols-[1fr_360px] gap-12"
       >
@@ -397,100 +392,45 @@ export function CheckoutForm() {
             )}
           </Section>
 
-          <Section title={stripeLoadFailed ? "Choose Payment Method" : "Payment"}>
-            {stripeLoadFailed ? (
-              <>
-                <PaymentMethodList
-                  methods={["stripe", "paypal"]}
-                  selected={selectedMethod}
-                  onSelect={setSelectedMethod}
-                  disabled={submitting}
-                />
-
-                {!user && !z.string().email().safeParse(email).success ? (
-                  <p className="text-sm text-muted-foreground py-4">Enter your email to continue.</p>
-                ) : (
-                  <>
-                    <div className={`mt-5${selectedMethod === "stripe" ? "" : " hidden"}`}>
-                      {clientSecret ? (
-                        <StripeErrorBoundary onError={() => setStripeLoadFailed(true)}>
-                          <StripePaymentForm
-                            stripeKey={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || ""}
-                            clientSecret={clientSecret}
-                            onConfirmReady={handleConfirmReady}
-                          />
-                        </StripeErrorBoundary>
-                      ) : (
-                        <div className="space-y-3 animate-pulse">
-                          <div className="h-11 bg-neutral rounded-md" />
-                          <div className="h-11 bg-neutral rounded-md" />
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="h-11 bg-neutral rounded-md" />
-                            <div className="h-11 bg-neutral rounded-md" />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className={`mt-5${selectedMethod === "paypal" ? "" : " hidden"}`}>
-                      <PayPalPayment
-                        items={cart.items as CheckoutItem[]}
-                        email={email}
-                        getAddress={getAddress}
-                        onSuccess={handlePayPalSuccess}
-                        onError={handlePayPalError}
-                      />
-                    </div>
-                  </>
-                )}
-              </>
+          <Section title="Payment">
+            {!user && !z.string().email().safeParse(email).success ? (
+              <p className="text-sm text-muted-foreground py-4">Enter your email to continue.</p>
             ) : (
               <>
-                {/* Commented out custom payment selector to let Stripe Payment Element render directly
-                <PaymentMethodList
-                  methods={["stripe", "paypal"]}
-                  selected={selectedMethod}
-                  onSelect={setSelectedMethod}
-                  disabled={submitting}
-                />
-                */}
-
-                {!user && !z.string().email().safeParse(email).success ? (
-                  <p className="text-sm text-muted-foreground py-4">Enter your email to continue.</p>
-                ) : (
-                  <>
-                    <div className="mt-5">
-                      {clientSecret ? (
-                        <StripeErrorBoundary onError={() => setStripeLoadFailed(true)}>
-                          <StripePaymentForm
-                            stripeKey={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || ""}
-                            clientSecret={clientSecret}
-                            onConfirmReady={handleConfirmReady}
-                          />
-                        </StripeErrorBoundary>
-                      ) : (
-                        <div className="space-y-3 animate-pulse">
-                          <div className="h-11 bg-neutral rounded-md" />
-                          <div className="h-11 bg-neutral rounded-md" />
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="h-11 bg-neutral rounded-md" />
-                            <div className="h-11 bg-neutral rounded-md" />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="hidden mt-5">
-                      <PayPalPayment
-                        items={cart.items as CheckoutItem[]}
-                        email={email}
-                        getAddress={getAddress}
-                        onSuccess={handlePayPalSuccess}
-                        onError={handlePayPalError}
+                <div>
+                  {clientSecret ? (
+                    <StripeErrorBoundary onError={() => setStripeLoadFailed(true)}>
+                      <StripePaymentForm
+                        stripeKey={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || ""}
+                        clientSecret={clientSecret}
+                        onConfirmReady={handleConfirmReady}
                       />
+                    </StripeErrorBoundary>
+                  ) : (
+                    <div className="space-y-3 animate-pulse">
+                      <div className="h-11 bg-neutral rounded-md" />
+                      <div className="h-11 bg-neutral rounded-md" />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="h-11 bg-neutral rounded-md" />
+                        <div className="h-11 bg-neutral rounded-md" />
+                      </div>
                     </div>
-                  </>
-                )}
+                  )}
+                </div>
+
+                <div className="my-8 border-t border-border" />
+
+                <div>
+                  <PayPalPayment
+                    items={cart.items as CheckoutItem[]}
+                    email={email}
+                    getAddress={getAddress}
+                    onSuccess={handlePayPalSuccess}
+                    onError={handlePayPalError}
+                    submitting={submitting}
+                    setSubmitting={setSubmitting}
+                  />
+                </div>
               </>
             )}
           </Section>
