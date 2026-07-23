@@ -1,7 +1,7 @@
 import { createError, defineEventHandler, getHeader, readRawBody } from "h3";
-import { verifyStripeWebhookSignature } from "../../../lib/payments";
 import { createOrderFromPayment, createOrderFromPaymentIntent } from "../../../lib/order-lifecycle";
 import { getContainer } from "../../../container";
+import { env } from "../../../config/env";
 import { logger } from "../../../lib/logger";
 
 async function acquireWebhookEvent(
@@ -10,8 +10,8 @@ async function acquireWebhookEvent(
 ): Promise<{ status: "new" | "retry" | "duplicate"; orderId?: string }> {
   const { supabase } = getContainer();
 
-  const { data: existing } = await supabase
-    .from("webhook_events")
+  const { data: existing } = await (supabase
+    .from("webhook_events") as any)
     .select("status, order_id")
     .eq("event_id", eventId)
     .maybeSingle();
@@ -20,22 +20,22 @@ async function acquireWebhookEvent(
     if (existing.status === "completed") {
       return { status: "duplicate", orderId: existing.order_id ?? undefined };
     }
-    await supabase
-      .from("webhook_events")
+    await (supabase
+      .from("webhook_events") as any)
       .update({ status: "processing", processed_at: new Date().toISOString() })
       .eq("event_id", eventId);
     return { status: "retry" };
   }
 
-  const { error: insertError } = await supabase.from("webhook_events").insert({
+  const { error: insertError } = await (supabase.from("webhook_events") as any).insert({
     event_id: eventId,
     event_type: eventType,
     status: "processing",
   });
 
   if (insertError && insertError.code === "23505") {
-    const { data: race } = await supabase
-      .from("webhook_events")
+    const { data: race } = await (supabase
+      .from("webhook_events") as any)
       .select("status, order_id")
       .eq("event_id", eventId)
       .maybeSingle();
@@ -65,64 +65,105 @@ async function finalizeWebhookEvent(
   };
   if (orderId) update.order_id = orderId;
   if (errorMessage) update.error_message = errorMessage;
-  await supabase.from("webhook_events").update(update).eq("event_id", eventId);
+  await (supabase.from("webhook_events") as any).update(update).eq("event_id", eventId);
 }
 
 export default defineEventHandler(async (event) => {
   const rawBody = await readRawBody(event, "utf8");
   const signature = getHeader(event, "stripe-signature");
 
-  if (!rawBody || !verifyStripeWebhookSignature(rawBody, signature)) {
-    throw createError({ statusCode: 400, statusMessage: "Invalid Stripe signature" });
+  logger.info("Stripe Webhook: Event received");
+
+  // Validate server configuration
+  const webhookSecret = env.stripeWebhookSecret;
+  if (!webhookSecret) {
+    logger.error("Stripe Webhook: STRIPE_WEBHOOK_SECRET is not configured on the server");
+    throw createError({
+      statusCode: 500,
+      statusMessage: "STRIPE_WEBHOOK_SECRET is not configured on the server",
+    });
   }
 
-  const parsed = JSON.parse(rawBody) as {
-    id?: string;
-    type?: string;
-    data?: { object?: Record<string, unknown> };
-  };
-
-  if (!parsed.id || !parsed.type) {
-    throw createError({ statusCode: 400, statusMessage: "Invalid webhook payload" });
+  const { stripe } = getContainer();
+  if (!stripe) {
+    logger.error("Stripe Webhook: Stripe client not initialized inside ServerContainer");
+    throw createError({
+      statusCode: 500,
+      statusMessage: "Stripe client not initialized",
+    });
   }
 
-  const acquisition = await acquireWebhookEvent(parsed.id, parsed.type);
+  if (!rawBody || !signature) {
+    logger.warn("Stripe Webhook: Missing request body or signature header");
+    throw createError({
+      statusCode: 400,
+      statusMessage: "Missing request body or stripe-signature header",
+    });
+  }
+
+  let stripeEvent;
+  try {
+    stripeEvent = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+    logger.info("Stripe Webhook: Signature verified", {
+      eventId: stripeEvent.id,
+      eventType: stripeEvent.type,
+    });
+  } catch (err: any) {
+    logger.warn("Stripe Webhook: Signature verification failed", { error: err.message });
+    throw createError({
+      statusCode: 400,
+      statusMessage: `Invalid Stripe signature: ${err.message}`,
+    });
+  }
+
+  const acquisition = await acquireWebhookEvent(stripeEvent.id, stripeEvent.type);
   if (acquisition.status === "duplicate") {
+    logger.info("Stripe Webhook: Duplicate event detected", {
+      eventId: stripeEvent.id,
+      eventType: stripeEvent.type,
+      orderId: acquisition.orderId,
+    });
     return { received: true, duplicated: true, order_id: acquisition.orderId };
   }
 
   try {
-    if (parsed.type === "payment_intent.succeeded") {
-      const paymentIntent = parsed.data?.object as Record<string, unknown> | undefined;
-      if (!paymentIntent) {
-        throw createError({ statusCode: 400, statusMessage: "Invalid payment intent data" });
-      }
-
+    if (stripeEvent.type === "payment_intent.succeeded") {
+      const paymentIntent = stripeEvent.data.object as any;
       const piId = paymentIntent.id as string;
       if (!piId) {
-        throw createError({ statusCode: 400, statusMessage: "Missing payment intent ID" });
+        throw new Error("Missing payment intent ID in Stripe payload");
       }
+
+      logger.info("Stripe Webhook: Payment succeeded", {
+        eventId: stripeEvent.id,
+        paymentIntentId: piId,
+      });
 
       const result = await createOrderFromPaymentIntent({ paymentIntentId: piId });
-
       if (!result.success) {
-        throw createError({
-          statusCode: 500,
-          statusMessage: `Order creation failed: ${result.error}`,
-        });
+        throw new Error(`Order creation failed: ${result.error}`);
       }
 
-      await finalizeWebhookEvent(parsed.id, "completed", result.orderId);
-      logger.info("Webhook: order created from PI", { orderId: result.orderId, piId });
+      await finalizeWebhookEvent(stripeEvent.id, "completed", result.orderId);
+      logger.info("Stripe Webhook: Database event finalized", {
+        eventId: stripeEvent.id,
+        status: "completed",
+        orderId: result.orderId,
+      });
 
       return { received: true, order_id: result.orderId, order_number: result.orderNumber };
     }
 
-    if (parsed.type === "checkout.session.completed") {
-      const session = parsed.data?.object as Record<string, unknown> | undefined;
-      if (!session) {
-        throw createError({ statusCode: 400, statusMessage: "Invalid session data" });
+    if (stripeEvent.type === "checkout.session.completed") {
+      const session = stripeEvent.data.object as any;
+      if (!session.id) {
+        throw new Error("Missing session ID in Stripe payload");
       }
+
+      logger.info("Stripe Webhook: Checkout session completed", {
+        eventId: stripeEvent.id,
+        sessionId: session.id,
+      });
 
       const metadata = (session.metadata ?? {}) as Record<string, string>;
       const userId = metadata.user_id;
@@ -133,27 +174,18 @@ export default defineEventHandler(async (event) => {
       const itemsRaw = metadata.validated_items;
 
       if (!userId || !email) {
-        throw createError({ statusCode: 400, statusMessage: "Missing user metadata" });
+        throw new Error("Missing user metadata (user_id/email) in session");
       }
 
-      let items: Array<{
-        productId: string;
-        variantId?: string | null;
-        size: string;
-        quantity: number;
-        unitPrice: number;
-        productName: string;
-        imageUrl?: string;
-      }> = [];
-
+      let items = [];
       try {
         if (itemsRaw) items = JSON.parse(itemsRaw);
       } catch {
-        throw createError({ statusCode: 400, statusMessage: "Invalid items metadata" });
+        throw new Error("Invalid items metadata structure in session");
       }
 
       if (items.length === 0) {
-        throw createError({ statusCode: 400, statusMessage: "No items in session metadata" });
+        throw new Error("No items found in session metadata");
       }
 
       let shippingAddress: Record<string, string> = {};
@@ -186,27 +218,60 @@ export default defineEventHandler(async (event) => {
       });
 
       if (!result.success) {
-        throw createError({
-          statusCode: 500,
-          statusMessage: `Order creation failed: ${result.error}`,
-        });
+        throw new Error(`Order creation failed: ${result.error}`);
       }
 
-      await finalizeWebhookEvent(parsed.id, "completed", result.orderId);
-      logger.info("Webhook: order created from session", {
+      await finalizeWebhookEvent(stripeEvent.id, "completed", result.orderId);
+      logger.info("Stripe Webhook: Database event finalized", {
+        eventId: stripeEvent.id,
+        status: "completed",
         orderId: result.orderId,
-        sessionId: session.id,
       });
 
       return { received: true, order_id: result.orderId, order_number: result.orderNumber };
     }
 
-    await finalizeWebhookEvent(parsed.id, "completed");
+    if (stripeEvent.type === "payment_intent.payment_failed") {
+      const paymentIntent = stripeEvent.data.object as any;
+      logger.warn("Stripe Webhook: Payment failed", {
+        eventId: stripeEvent.id,
+        paymentIntentId: paymentIntent.id,
+        error: paymentIntent.last_payment_error,
+      });
+
+      await finalizeWebhookEvent(stripeEvent.id, "completed");
+      return { received: true, status: "payment_failed" };
+    }
+
+    if (stripeEvent.type === "charge.refunded") {
+      const charge = stripeEvent.data.object as any;
+      logger.info("Stripe Webhook: Refund received", {
+        eventId: stripeEvent.id,
+        chargeId: charge.id,
+        paymentIntentId: charge.payment_intent,
+      });
+
+      await finalizeWebhookEvent(stripeEvent.id, "completed");
+      return { received: true, status: "refunded" };
+    }
+
+    // Default fallback for unhandled event types
+    await finalizeWebhookEvent(stripeEvent.id, "completed");
+    logger.info("Stripe Webhook: Database event finalized", {
+      eventId: stripeEvent.id,
+      status: "completed",
+    });
     return { received: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    await finalizeWebhookEvent(parsed.id, "failed", undefined, message);
-    logger.error("Webhook processing failed", { eventType: parsed.type, error: message });
-    throw err;
+    await finalizeWebhookEvent(stripeEvent.id, "failed", undefined, message);
+    logger.error("Stripe Webhook processing failed", {
+      eventType: stripeEvent.type,
+      error: message,
+    });
+    throw createError({
+      statusCode: 500,
+      statusMessage: `Webhook processing failed: ${message}`,
+    });
   }
 });

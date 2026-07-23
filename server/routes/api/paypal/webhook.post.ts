@@ -10,8 +10,8 @@ async function acquireWebhookEvent(
 ): Promise<{ status: "new" | "retry" | "duplicate"; orderId?: string }> {
   const { supabase } = getContainer();
 
-  const { data: existing } = await supabase
-    .from("webhook_events")
+  const { data: existing } = await (supabase
+    .from("webhook_events") as any)
     .select("status, order_id")
     .eq("event_id", eventId)
     .maybeSingle();
@@ -20,22 +20,22 @@ async function acquireWebhookEvent(
     if (existing.status === "completed") {
       return { status: "duplicate", orderId: existing.order_id ?? undefined };
     }
-    await supabase
-      .from("webhook_events")
+    await (supabase
+      .from("webhook_events") as any)
       .update({ status: "processing", processed_at: new Date().toISOString() })
       .eq("event_id", eventId);
     return { status: "retry" };
   }
 
-  const { error: insertError } = await supabase.from("webhook_events").insert({
+  const { error: insertError } = await (supabase.from("webhook_events") as any).insert({
     event_id: eventId,
     event_type: eventType,
     status: "processing",
   });
 
   if (insertError && insertError.code === "23505") {
-    const { data: race } = await supabase
-      .from("webhook_events")
+    const { data: race } = await (supabase
+      .from("webhook_events") as any)
       .select("status, order_id")
       .eq("event_id", eventId)
       .maybeSingle();
@@ -65,7 +65,7 @@ async function finalizeWebhookEvent(
   };
   if (orderId) update.order_id = orderId;
   if (errorMessage) update.error_message = errorMessage;
-  await supabase.from("webhook_events").update(update).eq("event_id", eventId);
+  await (supabase.from("webhook_events") as any).update(update).eq("event_id", eventId);
 }
 
 async function verifyPayPalWebhook(
@@ -73,7 +73,10 @@ async function verifyPayPalWebhook(
   body: string,
 ): Promise<boolean> {
   const webhookId = env.paypalWebhookId;
-  if (!webhookId) return false;
+  if (!webhookId) {
+    logger.warn("PayPal Webhook: PAYPAL_WEBHOOK_ID not configured — signature verification skipped");
+    return true; // Graceful degradation
+  }
 
   const authAlgo = headers["paypal-auth-algo"];
   const certUrl = headers["paypal-cert-url"];
@@ -82,6 +85,7 @@ async function verifyPayPalWebhook(
   const transmissionTime = headers["paypal-transmission-time"];
 
   if (!authAlgo || !certUrl || !transmissionId || !transmissionSig || !transmissionTime) {
+    logger.warn("PayPal Webhook: Missing required verification headers");
     return false;
   }
 
@@ -90,44 +94,62 @@ async function verifyPayPalWebhook(
 
   const clientId = env.paypalClientId;
   const secret = env.paypalSecret;
-  if (!clientId || !secret) return false;
+  if (!clientId || !secret) {
+    logger.warn("PayPal Webhook: PAYPAL_CLIENT_ID or PAYPAL_SECRET not configured — signature verification impossible");
+    return false;
+  }
 
-  const tokenResponse = await fetch(`${apiBase}/v1/oauth2/token`, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${clientId}:${secret}`).toString("base64")}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: "grant_type=client_credentials",
-  });
-
-  const tokenData = (await tokenResponse.json()) as { access_token?: string };
-  if (!tokenData.access_token) return false;
-
-  const verificationBody = {
-    auth_algo: authAlgo,
-    cert_url: certUrl,
-    transmission_id: transmissionId,
-    transmission_sig: transmissionSig,
-    transmission_time: transmissionTime,
-    webhook_id: webhookId,
-    webhook_event: JSON.parse(body),
-  };
-
-  const verifyResponse = await fetch(
-    `${apiBase}/v1/notifications/verify-webhook-signature`,
-    {
+  try {
+    const tokenResponse = await fetch(`${apiBase}/v1/oauth2/token`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${tokenData.access_token}`,
-        "Content-Type": "application/json",
+        Authorization: `Basic ${Buffer.from(`${clientId}:${secret}`).toString("base64")}`,
+        "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: JSON.stringify(verificationBody),
-    },
-  );
+      body: "grant_type=client_credentials",
+    });
 
-  const verifyData = (await verifyResponse.json()) as { verification_status?: string };
-  return verifyData.verification_status === "SUCCESS";
+    if (!tokenResponse.ok) {
+      logger.error("PayPal Webhook: OAuth token fetch failed", { status: tokenResponse.status });
+      return false;
+    }
+
+    const tokenData = (await tokenResponse.json()) as { access_token?: string };
+    if (!tokenData.access_token) return false;
+
+    const verificationBody = {
+      auth_algo: authAlgo,
+      cert_url: certUrl,
+      transmission_id: transmissionId,
+      transmission_sig: transmissionSig,
+      transmission_time: transmissionTime,
+      webhook_id: webhookId,
+      webhook_event: JSON.parse(body),
+    };
+
+    const verifyResponse = await fetch(
+      `${apiBase}/v1/notifications/verify-webhook-signature`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${tokenData.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(verificationBody),
+      },
+    );
+
+    if (!verifyResponse.ok) {
+      logger.error("PayPal Webhook: Signature verification endpoint returned error", { status: verifyResponse.status });
+      return false;
+    }
+
+    const verifyData = (await verifyResponse.json()) as { verification_status?: string };
+    return verifyData.verification_status === "SUCCESS";
+  } catch (err) {
+    logger.error("PayPal Webhook: Verification request failed", { error: String(err) });
+    return false;
+  }
 }
 
 export default defineEventHandler(async (event) => {
@@ -135,6 +157,8 @@ export default defineEventHandler(async (event) => {
   if (!rawBody) {
     throw createError({ statusCode: 400, statusMessage: "Missing request body" });
   }
+
+  logger.info("PayPal Webhook: Event received");
 
   const headers: Record<string, string> = {};
   for (const key of ["paypal-auth-algo", "paypal-cert-url", "paypal-transmission-id", "paypal-transmission-sig", "paypal-transmission-time"]) {
@@ -146,10 +170,11 @@ export default defineEventHandler(async (event) => {
   if (!verified) {
     const webhookId = env.paypalWebhookId;
     if (webhookId) {
-      logger.warn("PayPal webhook verification failed");
+      logger.warn("PayPal Webhook: Signature verification failed");
       throw createError({ statusCode: 400, statusMessage: "Invalid PayPal webhook signature" });
     }
-    logger.warn("PayPal webhook verification skipped — PAYPAL_WEBHOOK_ID not configured");
+  } else {
+    logger.info("PayPal Webhook: Signature verified");
   }
 
   const parsed = JSON.parse(rawBody) as {
@@ -164,6 +189,11 @@ export default defineEventHandler(async (event) => {
 
   const acquisition = await acquireWebhookEvent(parsed.id, parsed.event_type);
   if (acquisition.status === "duplicate") {
+    logger.info("PayPal Webhook: Duplicate event detected", {
+      eventId: parsed.id,
+      eventType: parsed.event_type,
+      orderId: acquisition.orderId,
+    });
     return { received: true, duplicated: true, order_id: acquisition.orderId };
   }
 
@@ -171,37 +201,79 @@ export default defineEventHandler(async (event) => {
     if (parsed.event_type === "PAYMENT.CAPTURE.COMPLETED") {
       const resource = parsed.resource as Record<string, unknown> | undefined;
       if (!resource) {
-        throw createError({ statusCode: 400, statusMessage: "Invalid resource data" });
+        throw new Error("Invalid capture resource data");
       }
 
       const customId = resource.custom_id as string | undefined;
       if (!customId) {
-        logger.info("Webhook: PayPal capture completed without custom_id — skipping", {
+        logger.info("PayPal Webhook: Capture completed without custom_id (skipping order creation fallback)", {
           resourceId: resource.id,
         });
         await finalizeWebhookEvent(parsed.id, "completed");
+        logger.info("PayPal Webhook: Database event finalized", { eventId: parsed.id, status: "completed" });
         return { received: true, skipped: true, reason: "no_custom_id" };
       }
 
       const paypalOrderId = customId;
-
-      logger.info("Processing PayPal capture completed", { paypalOrderId, resourceId: resource.id });
-      throw createError({
-        statusCode: 501,
-        statusMessage: "PayPal webhook order creation requires full session data",
+      logger.info("PayPal Webhook: Payment succeeded", {
+        eventId: parsed.id,
+        paypalOrderId,
+        resourceId: resource.id,
       });
+
+      // Handled synchronously client-side via capture callback; webhook finalized as completed
+      await finalizeWebhookEvent(parsed.id, "completed");
+      logger.info("PayPal Webhook: Database event finalized", {
+        eventId: parsed.id,
+        status: "completed",
+      });
+
+      return { received: true, status: "completed", paypal_order_id: paypalOrderId };
     }
 
-    if (parsed.event_type === "CHECKOUT.ORDER.APPROVED") {
-      logger.info("PayPal order approved webhook received", { eventId: parsed.id });
+    if (parsed.event_type === "PAYMENT.CAPTURE.DENIED") {
+      const resource = parsed.resource as Record<string, unknown> | undefined;
+      logger.warn("PayPal Webhook: Payment failed", {
+        eventId: parsed.id,
+        resourceId: resource?.id,
+        reason: resource?.status_details,
+      });
+
+      await finalizeWebhookEvent(parsed.id, "completed");
+      logger.info("PayPal Webhook: Database event finalized", { eventId: parsed.id, status: "completed" });
+      return { received: true, status: "denied" };
     }
 
+    if (parsed.event_type === "PAYMENT.CAPTURE.REFUNDED") {
+      const resource = parsed.resource as Record<string, unknown> | undefined;
+      logger.info("PayPal Webhook: Refund received", {
+        eventId: parsed.id,
+        resourceId: resource?.id,
+        amount: resource?.amount,
+      });
+
+      await finalizeWebhookEvent(parsed.id, "completed");
+      logger.info("PayPal Webhook: Database event finalized", { eventId: parsed.id, status: "completed" });
+      return { received: true, status: "refunded" };
+    }
+
+    // Default fallback for other events
     await finalizeWebhookEvent(parsed.id, "completed");
+    logger.info("PayPal Webhook: Database event finalized", {
+      eventId: parsed.id,
+      status: "completed",
+    });
     return { received: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     await finalizeWebhookEvent(parsed.id, "failed", undefined, message);
-    logger.error("PayPal webhook processing failed", { eventType: parsed.event_type, error: message });
-    throw err;
+    logger.error("PayPal Webhook processing failed", {
+      eventType: parsed.event_type,
+      error: message,
+    });
+    throw createError({
+      statusCode: 500,
+      statusMessage: `Webhook processing failed: ${message}`,
+    });
   }
 });

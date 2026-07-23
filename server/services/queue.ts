@@ -82,12 +82,11 @@ export class QueueService {
 
     logger.info("Jobs enqueued", { orderId, count: jobs.length });
 
-    // Process them immediately to ensure execution inside the serverless runtime
-    try {
-      await this.processPending();
-    } catch (err) {
-      logger.error("Failed to process enqueued jobs immediately", { orderId, error: String(err) });
-    }
+    // Process them in the background without blocking the HTTP request thread
+    // using a non-blocking asynchronous call
+    this.processPending().catch((err) => {
+      logger.error("Failed to process enqueued jobs in background", { orderId, error: String(err) });
+    });
   }
 
   async processPending(limit: number = config.queue.batchSize): Promise<number> {

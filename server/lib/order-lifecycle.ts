@@ -384,31 +384,265 @@ async function verifyStripePayment(stripeSessionId: string): Promise<{
   }
 }
 
+export interface CheckoutPipelineParams {
+  userId?: string | null;
+  email: string;
+  phone?: string;
+  items: Array<{
+    productId: string;
+    variantId?: string | null;
+    size: string;
+    quantity: number;
+    unitPrice: number;
+    productName: string;
+    imageUrl?: string;
+    color?: string;
+    variantName?: string;
+  }>;
+  shippingAddress: Record<string, string>;
+  billingAddress: Record<string, string>;
+  total: number;
+  paymentMethod: string;
+  stripePaymentIntentId?: string;
+  stripeSessionId?: string;
+  paypalOrderId?: string;
+  checkoutRequestId?: string | null;
+}
+
+export async function runCheckoutPipeline(
+  params: CheckoutPipelineParams,
+): Promise<OrderCreationResult> {
+  const { supabase, queue } = getContainer();
+
+  logger.info("Transaction Started", {
+    userId: params.userId,
+    paymentMethod: params.paymentMethod,
+    stripePaymentIntentId: params.stripePaymentIntentId,
+    paypalOrderId: params.paypalOrderId,
+  });
+
+  try {
+    const orderNumber = await nextOrderNumber();
+    const invoiceNumber = await nextInvoiceNumber();
+
+    const orderItems = params.items.map((item) => {
+      const attrs: Record<string, string> = {};
+      if (item.size) attrs.size = item.size;
+      return {
+        product_id: item.productId,
+        variant_id: item.variantId ?? null,
+        name: item.productName,
+        price: item.unitPrice,
+        quantity: item.quantity,
+        image_url: item.imageUrl ?? null,
+        attributes: JSON.stringify(attrs),
+      };
+    });
+
+    const shippingAddressJson = JSON.stringify(params.shippingAddress);
+    const billingAddressJson = JSON.stringify(params.billingAddress);
+    const stripePaymentIntentId =
+      params.stripePaymentIntentId ??
+      (params.paypalOrderId ? `paypal_${params.paypalOrderId}` : "");
+
+    const { data: rpcResult, error: rpcError } = await (supabase.rpc as any)(
+      "create_order_from_payment",
+      {
+        p_user_id: params.userId || null,
+        p_order_number: orderNumber,
+        p_subtotal: params.total,
+        p_total: params.total,
+        p_shipping_address: shippingAddressJson,
+        p_billing_address: billingAddressJson,
+        p_stripe_session_id: params.stripeSessionId || "",
+        p_stripe_payment_intent_id: stripePaymentIntentId,
+        p_payment_method: params.paymentMethod,
+        p_currency: "usd",
+        p_amount: params.total,
+        p_invoice_number: invoiceNumber,
+        p_items: JSON.stringify(orderItems),
+        p_checkout_request_id: params.checkoutRequestId ?? null,
+        p_email: params.email || null,
+      },
+    );
+
+    if (rpcError) {
+      logger.warn("Rollback", { error: rpcError.message });
+      return { success: false, error: `Database error: ${rpcError.message}` };
+    }
+
+    const result = rpcResult as Record<string, unknown>;
+    if (!result?.success) {
+      logger.warn("Rollback", { error: result?.error });
+      return {
+        success: false,
+        error: (result?.error as string) ?? "Failed to create order",
+      };
+    }
+
+    const orderId = result.order_id as string;
+    const outInvoiceNumber = (result.invoice_number as string) ?? invoiceNumber;
+    const invoiceId = (result.invoice_id as string) ?? "";
+
+    logger.info("Transaction Committed", { orderId, orderNumber, invoiceId });
+
+    // Fetch actual order details to get final subtotal, discount, total, shipping, etc.
+    let subtotal = params.total;
+    let shippingCost = 0;
+    let discountVal = 0;
+    let grandTotal = params.total;
+    let shippingMethodName = "Standard Delivery";
+
+    try {
+      const { data: orderDetails } = await (supabase.from("orders") as any)
+        .select("subtotal, shipping_cost, discount, total, shipping_method")
+        .eq("id", orderId)
+        .maybeSingle();
+
+      if (orderDetails) {
+        subtotal = Number(orderDetails.subtotal);
+        shippingCost = Number(orderDetails.shipping_cost);
+        discountVal = Number(orderDetails.discount);
+        grandTotal = Number(orderDetails.total);
+        if (orderDetails.shipping_method === "express") {
+          shippingMethodName = "Express Delivery";
+        } else if (shippingCost === 0) {
+          shippingMethodName = "Complimentary Shipping";
+        }
+      }
+    } catch (err) {
+      logger.warn("Failed to query order details for confirmation email", {
+        error: String(err),
+      });
+    }
+
+    let trackingId = "";
+    try {
+      const { data: orderData } = await (supabase.from("orders") as any)
+        .select("tracking_id")
+        .eq("id", orderId)
+        .maybeSingle();
+      if (orderData?.tracking_id) {
+        trackingId = orderData.tracking_id;
+      }
+    } catch (err) {
+      logger.warn("Failed to fetch tracking_id for confirmation email", {
+        error: String(err),
+      });
+    }
+
+    let customerProfile: {
+      firstName?: string | null;
+      lastName?: string | null;
+      displayName?: string | null;
+    } | null = null;
+    if (params.userId) {
+      try {
+        const { data: profile } = await (supabase.from("profiles") as any)
+          .select("first_name, last_name, email, metadata")
+          .eq("id", params.userId)
+          .maybeSingle();
+        if (profile) {
+          customerProfile = {
+            firstName: profile.first_name,
+            lastName: profile.last_name,
+            displayName:
+              (profile.metadata as Record<string, any>)?.displayName || "",
+          };
+        }
+      } catch (err) {
+        logger.warn("Failed to fetch customer profile for order email", {
+          error: String(err),
+        });
+      }
+    }
+
+    // Build email data for background jobs
+    const orderDate = new Date().toISOString();
+    const emailPayload = buildEmailPayload({
+      orderId,
+      invoiceId,
+      customerEmail: params.email,
+      customerProfile,
+      phone: params.phone || params.shippingAddress.phone || "",
+      orderNumber,
+      invoiceNumber: outInvoiceNumber,
+      orderDate,
+      billingAddress: params.billingAddress,
+      shippingAddress: params.shippingAddress,
+      items: params.items.map((i) => ({
+        name: i.productName,
+        imageUrl: i.imageUrl,
+        size: i.size,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        color: i.color,
+        variant: i.variantName,
+      })),
+      subtotal: subtotal,
+      shipping: shippingCost,
+      tax: 0,
+      total: grandTotal,
+      paymentMethod: params.paymentMethod,
+      paymentStatus: "completed",
+      trackingId,
+      discount: discountVal,
+      shippingMethodName,
+    });
+
+    try {
+      logger.info("Queue Started", { orderId });
+      await queue.enqueue(orderId, emailPayload);
+    } catch (err) {
+      logger.error("Job enqueue failed", { orderId, error: String(err) });
+    }
+
+    return {
+      success: true,
+      orderId,
+      orderNumber,
+      invoiceNumber: outInvoiceNumber,
+      invoiceId,
+    };
+  } catch (err) {
+    logger.warn("Rollback", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return {
+      success: false,
+      error:
+        err instanceof Error ? err.message : "Checkout pipeline transaction failed",
+    };
+  }
+}
+
 export async function createOrderFromPaymentIntent(
   input: PaymentIntentCreationInput,
 ): Promise<OrderCreationResult> {
   const { paymentIntentId } = input;
-  const { supabase, queue } = getContainer();
+  const { supabase } = getContainer();
 
   logger.info("Creating order from PaymentIntent", { paymentIntentId });
 
   const verification = await verifyPaymentIntent(paymentIntentId);
   if (!verification.ok) {
-    logger.warn("PaymentIntent verification failed", { error: verification.error });
+    logger.warn("PaymentIntent verification failed", {
+      error: verification.error,
+    });
     return { success: false, error: verification.error };
   }
 
+  logger.info("Payment Verified", { paymentMethod: "stripe", stripePaymentIntentId: paymentIntentId });
+
   // Check for existing order (idempotency)
-  const { data: existingOrder } = await (supabase
-    .from("orders") as any)
+  const { data: existingOrder } = await (supabase.from("orders") as any)
     .select("id, order_number, status")
     .eq("stripe_payment_intent_id", paymentIntentId)
     .maybeSingle();
 
   if (existingOrder) {
     logger.info("Existing order found", { orderId: existingOrder.id });
-    const { data: invoiceRecord } = await (supabase
-      .from("invoices") as any)
+    const { data: invoiceRecord } = await (supabase.from("invoices") as any)
       .select("id, invoice_number")
       .eq("order_id", existingOrder.id)
       .maybeSingle();
@@ -425,202 +659,55 @@ export async function createOrderFromPaymentIntent(
   const checkoutRequestId = verification.checkoutRequestId;
 
   if (checkoutRequestId) {
-    await (supabase
-      .from("payment_sessions") as any)
+    await (supabase.from("payment_sessions") as any)
       .update({ status: "processing" })
       .eq("checkout_request_id", checkoutRequestId);
   }
 
-  const orderNumber = await nextOrderNumber();
-  const invoiceNumber = await nextInvoiceNumber();
-  const amount = verification.amount ? verification.amount / 100 : (verification.subtotal ?? 0);
+  const amount = verification.amount
+    ? verification.amount / 100
+    : (verification.subtotal ?? 0);
   const total = verification.subtotal ?? amount;
 
-  const orderItems = (verification.items ?? []).map((item) => {
-    const attrs: Record<string, string> = {};
-    if (item.size) attrs.size = item.size;
-    return {
-      product_id: item.productId,
-      variant_id: item.variantId ?? null,
-      name: item.productName,
-      price: item.unitPrice,
-      quantity: item.quantity,
-      image_url: item.imageUrl ?? null,
-      attributes: JSON.stringify(attrs),
-    };
-  });
-
-  const shippingAddressJson = JSON.stringify(verification.shippingAddress ?? {});
-  const billingAddressJson = verification.billingAddress
-    ? JSON.stringify(verification.billingAddress)
-    : shippingAddressJson;
-
-  // Call the database RPC to create the order, decrement stock, create invoice
-  const { data: rpcResult, error: rpcError } = await (supabase.rpc as any)("create_order_from_payment", {
-    p_user_id: verification.userId || null,
-    p_order_number: orderNumber,
-    p_subtotal: total,
-    p_total: total,
-    p_shipping_address: shippingAddressJson,
-    p_billing_address: billingAddressJson,
-    p_stripe_session_id: "",
-    p_stripe_payment_intent_id: paymentIntentId,
-    p_payment_method: verification.paymentMethod ?? "card",
-    p_currency: verification.currency ?? "usd",
-    p_amount: amount,
-    p_invoice_number: invoiceNumber,
-    p_items: JSON.stringify(orderItems),
-    p_checkout_request_id: checkoutRequestId ?? null,
-    p_email: verification.email || null,
-  });
-
-  if (rpcError) {
-    logger.error("RPC create_order_from_payment failed", { error: rpcError.message });
-    return { success: false, error: `Database error: ${rpcError.message}` };
-  }
-
-  const result = rpcResult as Record<string, unknown>;
-  if (!result?.success) {
-    logger.error("RPC returned failure", { error: result?.error });
-    return {
-      success: false,
-      error: (result?.error as string) ?? "Failed to create order",
-    };
-  }
-
-  const orderId = result.order_id as string;
-  const outInvoiceNumber = (result.invoice_number as string) ?? invoiceNumber;
-  const invoiceId = (result.invoice_id as string) ?? "";
-
-  logger.info("Order created via RPC", { orderId, orderNumber, invoiceId });
-
-  // Fetch actual order details to get final subtotal, discount, total, shipping, etc.
-  let subtotal = total;
-  let shippingCost = 0;
-  let discountVal = 0;
-  let grandTotal = total;
-  let shippingMethodName = "Standard Delivery";
-
-  try {
-    const { data: orderDetails } = await (supabase
-      .from("orders") as any)
-      .select("subtotal, shipping_cost, discount, total, shipping_method")
-      .eq("id", orderId)
-      .maybeSingle();
-
-    if (orderDetails) {
-      subtotal = Number(orderDetails.subtotal);
-      shippingCost = Number(orderDetails.shipping_cost);
-      discountVal = Number(orderDetails.discount);
-      grandTotal = Number(orderDetails.total);
-      if (orderDetails.shipping_method === "express") {
-        shippingMethodName = "Express Delivery";
-      } else if (shippingCost === 0) {
-        shippingMethodName = "Complimentary Shipping";
-      }
-    }
-  } catch (err) {
-    logger.warn("Failed to query order details for confirmation email", { error: String(err) });
-  }
-
-  // Build email data for background jobs
-  const shippingAddr = verification.shippingAddress ?? {};
-  const billingAddr = verification.billingAddress ?? verification.shippingAddress ?? {};
-
-  let customerProfile: { firstName?: string | null; lastName?: string | null; displayName?: string | null } | null = null;
-  if (verification.userId) {
-    try {
-      const { data: profile } = await (supabase
-        .from("profiles") as any)
-        .select("first_name, last_name, email, metadata")
-        .eq("id", verification.userId)
-        .maybeSingle();
-      if (profile) {
-        customerProfile = {
-          firstName: profile.first_name,
-          lastName: profile.last_name,
-          displayName: (profile.metadata as Record<string, any>)?.displayName || "",
-        };
-      }
-    } catch (err) {
-      logger.warn("Failed to fetch customer profile for order email", { error: String(err) });
-    }
-  }
-
-  let trackingId = "";
-  try {
-    const { data: orderData } = await (supabase
-      .from("orders") as any)
-      .select("tracking_id")
-      .eq("id", orderId)
-      .maybeSingle();
-    if (orderData?.tracking_id) {
-      trackingId = orderData.tracking_id;
-    }
-  } catch (err) {
-    logger.warn("Failed to fetch tracking_id for confirmation email", { error: String(err) });
-  }
-
-  const orderDate = new Date().toISOString();
-  const emailPayload = buildEmailPayload({
-    orderId,
-    invoiceId,
-    customerEmail: verification.email ?? "",
-    customerProfile,
-    phone: shippingAddr.phone ?? "",
-    orderNumber,
-    invoiceNumber: outInvoiceNumber,
-    orderDate,
-    billingAddress: billingAddr,
-    shippingAddress: shippingAddr,
+  return await runCheckoutPipeline({
+    userId: verification.userId,
+    email: verification.email,
+    phone: verification.shippingAddress?.phone ?? "",
     items: (verification.items ?? []).map((i) => ({
-      name: i.productName,
-      imageUrl: i.imageUrl,
-      size: i.size,
+      productId: i.productId,
+      variantId: i.variantId ?? null,
+      size: i.size ?? "",
       quantity: i.quantity,
       unitPrice: i.unitPrice,
+      productName: i.productName,
+      imageUrl: i.imageUrl,
       color: i.color,
-      variant: i.variantName,
+      variantName: i.variantName,
     })),
-    subtotal: subtotal,
-    shipping: shippingCost,
-    tax: 0,
-    total: grandTotal,
+    shippingAddress: verification.shippingAddress ?? {},
+    billingAddress:
+      verification.billingAddress ?? verification.shippingAddress ?? {},
+    total,
     paymentMethod: verification.paymentMethod ?? "card",
-    paymentStatus: "completed",
-    trackingId,
-    discount: discountVal,
-    shippingMethodName,
+    stripePaymentIntentId: paymentIntentId,
+    checkoutRequestId: checkoutRequestId ?? null,
   });
-
-  try {
-    await queue.enqueue(orderId, emailPayload);
-  } catch (err) {
-    logger.error("Job enqueue failed", { orderId, error: String(err) });
-  }
-
-  return {
-    success: true,
-    orderId,
-    orderNumber: result.order_number as string,
-    invoiceNumber: outInvoiceNumber,
-    invoiceId,
-  };
 }
 
 export async function createOrderFromPayment(
   input: OrderCreationInput,
 ): Promise<OrderCreationResult> {
   const { stripeSessionId } = input;
-  const { supabase, queue } = getContainer();
+  const { supabase } = getContainer();
 
   const verification = await verifyStripePayment(stripeSessionId);
   if (!verification.ok) {
     return { success: false, error: verification.error };
   }
 
-  const { data: existingOrder } = await (supabase
-    .from("orders") as any)
+  logger.info("Payment Verified", { paymentMethod: "stripe", stripeSessionId });
+
+  const { data: existingOrder } = await (supabase.from("orders") as any)
     .select("id, order_number, status")
     .eq("stripe_session_id", stripeSessionId)
     .maybeSingle();
@@ -633,160 +720,43 @@ export async function createOrderFromPayment(
     };
   }
 
-  const orderNumber = await nextOrderNumber();
-  const invoiceNumber = await nextInvoiceNumber();
-  const total = input.subtotal;
-
-  const orderItems = input.items.map((item) => {
-    const attrs: Record<string, string> = {};
-    if (item.size) attrs.size = item.size;
-    return {
-      product_id: item.productId,
-      variant_id: item.variantId ?? null,
-      name: item.productName,
-      price: item.unitPrice,
-      quantity: item.quantity,
-      image_url: item.imageUrl ?? null,
-      attributes: JSON.stringify(attrs),
-    };
+  return await runCheckoutPipeline({
+    userId: input.userId,
+    email: input.email,
+    phone: input.phone,
+    items: input.items,
+    shippingAddress: input.shippingAddress,
+    billingAddress: input.billingAddress || input.shippingAddress,
+    total: input.subtotal,
+    paymentMethod:
+      verification.paymentMethod ?? input.stripePaymentMethod ?? "card",
+    stripePaymentIntentId:
+      verification.paymentIntentId ?? input.stripePaymentIntentId,
+    stripeSessionId,
   });
-
-  const shippingAddressJson = JSON.stringify(input.shippingAddress);
-  const billingAddressJson = input.billingAddress
-    ? JSON.stringify(input.billingAddress)
-    : shippingAddressJson;
-
-  const { data: rpcResult, error: rpcError } = await (supabase.rpc as any)("create_order_from_payment", {
-    p_user_id: input.userId || null,
-    p_order_number: orderNumber,
-    p_subtotal: input.subtotal,
-    p_total: total,
-    p_shipping_address: shippingAddressJson,
-    p_billing_address: billingAddressJson,
-    p_stripe_session_id: stripeSessionId,
-    p_stripe_payment_intent_id: verification.paymentIntentId ?? input.stripePaymentIntentId,
-    p_payment_method: verification.paymentMethod ?? input.stripePaymentMethod ?? "card",
-    p_currency: verification.currency ?? "usd",
-    p_amount: verification.amount ? verification.amount / 100 : input.subtotal,
-    p_invoice_number: invoiceNumber,
-    p_items: JSON.stringify(orderItems),
-    p_checkout_request_id: null,
-    p_email: input.email || null,
-  });
-
-  if (rpcError) {
-    return { success: false, error: `Database error: ${rpcError.message}` };
-  }
-
-  const result = rpcResult as Record<string, unknown>;
-  if (!result?.success) {
-    return {
-      success: false,
-      error: (result?.error as string) ?? "Failed to create order",
-    };
-  }
-
-  const orderId = result.order_id as string;
-  const outInvoiceNumber = (result.invoice_number as string) ?? invoiceNumber;
-  const invoiceId = (result.invoice_id as string) ?? "";
-
-  const shippingAddr = input.shippingAddress;
-  const billingAddr = input.billingAddress || input.shippingAddress;
-
-  let customerProfile: { firstName?: string | null; lastName?: string | null; displayName?: string | null } | null = null;
-  if (input.userId) {
-    try {
-      const { data: profile } = await (supabase
-        .from("profiles") as any)
-        .select("first_name, last_name, email, metadata")
-        .eq("id", input.userId)
-        .maybeSingle();
-      if (profile) {
-        customerProfile = {
-          firstName: profile.first_name,
-          lastName: profile.last_name,
-          displayName: (profile.metadata as Record<string, any>)?.displayName || "",
-        };
-      }
-    } catch (err) {
-      logger.warn("Failed to fetch customer profile for order email", { error: String(err) });
-    }
-  }
-
-  let trackingId = "";
-  try {
-    const { data: orderData } = await (supabase
-      .from("orders") as any)
-      .select("tracking_id")
-      .eq("id", orderId)
-      .maybeSingle();
-    if (orderData?.tracking_id) {
-      trackingId = orderData.tracking_id;
-    }
-  } catch (err) {
-    logger.warn("Failed to fetch tracking_id for confirmation email", { error: String(err) });
-  }
-
-  const orderDate = new Date().toISOString();
-  const emailPayload = buildEmailPayload({
-    orderId,
-    invoiceId,
-    customerEmail: input.email,
-    customerProfile,
-    phone: input.phone || "",
-    orderNumber,
-    invoiceNumber: outInvoiceNumber,
-    orderDate,
-    billingAddress: billingAddr,
-    shippingAddress: shippingAddr,
-    items: input.items.map((i) => ({
-      name: i.productName,
-      imageUrl: i.imageUrl,
-      size: i.size,
-      quantity: i.quantity,
-      unitPrice: i.unitPrice,
-    })),
-    subtotal: input.subtotal,
-    shipping: 0,
-    tax: 0,
-    total,
-    paymentMethod: verification.paymentMethod ?? input.stripePaymentMethod ?? "card",
-    paymentStatus: "completed",
-    trackingId,
-  });
-
-  try {
-    await queue.enqueue(orderId, emailPayload);
-  } catch (err) {
-    logger.error("Job enqueue failed", { orderId, error: String(err) });
-  }
-
-  return {
-    success: true,
-    orderId,
-    orderNumber: result.order_number as string,
-    invoiceNumber: outInvoiceNumber,
-    invoiceId,
-  };
 }
 
 export async function createOrderFromPayPal(
   input: PayPalOrderCreationInput,
 ): Promise<OrderCreationResult> {
-  const { supabase, queue } = getContainer();
+  const { supabase } = getContainer();
 
-  logger.info("Creating order from PayPal", { paypalOrderId: input.paypalOrderId });
+  logger.info("Creating order from PayPal", {
+    paypalOrderId: input.paypalOrderId,
+  });
 
-  const { data: existingOrder } = await (supabase
-    .from("orders") as any)
+  logger.info("Payment Verified", { paymentMethod: "paypal", paypalOrderId: input.paypalOrderId });
+
+  const { data: existingOrder } = await (supabase.from("orders") as any)
     .select("id, order_number, status")
     .eq("paypal_order_id", input.paypalOrderId)
     .maybeSingle();
 
   if (existingOrder) {
-    logger.info("Existing order found for PayPal", { orderId: existingOrder.id });
-    const { data: invoiceRecord } = await (supabase
-      .from("invoices") as any)
+    logger.info("Existing order found for PayPal", {
+      orderId: existingOrder.id,
+    });
+    const { data: invoiceRecord } = await (supabase.from("invoices") as any)
       .select("id, invoice_number")
       .eq("order_id", existingOrder.id)
       .maybeSingle();
@@ -799,180 +769,15 @@ export async function createOrderFromPayPal(
     };
   }
 
-  const orderNumber = await nextOrderNumber();
-  const invoiceNumber = await nextInvoiceNumber();
-  const total = input.total;
-
-  const orderItems = input.items.map((item) => {
-    const attrs: Record<string, string> = {};
-    if (item.size) attrs.size = item.size;
-    return {
-      product_id: item.productId,
-      variant_id: item.variantId ?? null,
-      name: item.productName,
-      price: item.unitPrice,
-      quantity: item.quantity,
-      image_url: item.imageUrl ?? null,
-      attributes: JSON.stringify(attrs),
-    };
-  });
-
-  const shippingAddressJson = JSON.stringify(input.shippingAddress);
-  const billingAddressJson = JSON.stringify(input.billingAddress);
-
-  const { data: rpcResult, error: rpcError } = await (supabase.rpc as any)("create_order_from_payment", {
-    p_user_id: input.userId || null,
-    p_order_number: orderNumber,
-    p_subtotal: total,
-    p_total: total,
-    p_shipping_address: shippingAddressJson,
-    p_billing_address: billingAddressJson,
-    p_stripe_session_id: "",
-    p_stripe_payment_intent_id: `paypal_${input.paypalOrderId}`,
-    p_payment_method: input.paymentMethod,
-    p_currency: "usd",
-    p_amount: total,
-    p_invoice_number: invoiceNumber,
-    p_items: JSON.stringify(orderItems),
-    p_checkout_request_id: null,
-    p_email: input.email || null,
-  });
-
-  if (rpcError) {
-    logger.error("RPC create_order_from_payment failed for PayPal", { error: rpcError.message });
-    return { success: false, error: `Database error: ${rpcError.message}` };
-  }
-
-  const result = rpcResult as Record<string, unknown>;
-  if (!result?.success) {
-    logger.error("RPC returned failure for PayPal", { error: result?.error });
-    return {
-      success: false,
-      error: (result?.error as string) ?? "Failed to create order",
-    };
-  }
-
-  const orderId = result.order_id as string;
-  const outInvoiceNumber = (result.invoice_number as string) ?? invoiceNumber;
-  const invoiceId = (result.invoice_id as string) ?? "";
-
-  logger.info("Order created via PayPal", { orderId, orderNumber, invoiceId });
-
-  try {
-    await (supabase.from("orders") as any).update({ paypal_order_id: input.paypalOrderId }).eq("id", orderId);
-  } catch {
-    // paypal_order_id reference is non-critical
-  }
-
-  // Fetch actual order details to get final subtotal, discount, total, shipping, etc.
-  let subtotal = total;
-  let shippingCost = 0;
-  let discountVal = 0;
-  let grandTotal = total;
-  let shippingMethodName = "Standard Delivery";
-
-  try {
-    const { data: orderDetails } = await (supabase
-      .from("orders") as any)
-      .select("subtotal, shipping_cost, discount, total, shipping_method")
-      .eq("id", orderId)
-      .maybeSingle();
-
-    if (orderDetails) {
-      subtotal = Number(orderDetails.subtotal);
-      shippingCost = Number(orderDetails.shipping_cost);
-      discountVal = Number(orderDetails.discount);
-      grandTotal = Number(orderDetails.total);
-      if (orderDetails.shipping_method === "express") {
-        shippingMethodName = "Express Delivery";
-      } else if (shippingCost === 0) {
-        shippingMethodName = "Complimentary Shipping";
-      }
-    }
-  } catch (err) {
-    logger.warn("Failed to query order details for confirmation email", { error: String(err) });
-  }
-
-  const shippingAddr = input.shippingAddress;
-  const billingAddr = input.billingAddress;
-
-  let customerProfile: { firstName?: string | null; lastName?: string | null; displayName?: string | null } | null = null;
-  if (input.userId) {
-    try {
-      const { data: profile } = await (supabase
-        .from("profiles") as any)
-        .select("first_name, last_name, email, metadata")
-        .eq("id", input.userId)
-        .maybeSingle();
-      if (profile) {
-        customerProfile = {
-          firstName: profile.first_name,
-          lastName: profile.last_name,
-          displayName: (profile.metadata as Record<string, any>)?.displayName || "",
-        };
-      }
-    } catch (err) {
-      logger.warn("Failed to fetch customer profile for order email", { error: String(err) });
-    }
-  }
-
-  let trackingId = "";
-  try {
-    const { data: orderData } = await (supabase
-      .from("orders") as any)
-      .select("tracking_id")
-      .eq("id", orderId)
-      .maybeSingle();
-    if (orderData?.tracking_id) {
-      trackingId = orderData.tracking_id;
-    }
-  } catch (err) {
-    logger.warn("Failed to fetch tracking_id for confirmation email", { error: String(err) });
-  }
-
-  const orderDate = new Date().toISOString();
-  const emailPayload = buildEmailPayload({
-    orderId,
-    invoiceId,
-    customerEmail: input.email,
-    customerProfile,
-    phone: shippingAddr.phone ?? "",
-    orderNumber,
-    invoiceNumber: outInvoiceNumber,
-    orderDate,
-    billingAddress: billingAddr,
-    shippingAddress: shippingAddr,
-    items: input.items.map((i) => ({
-      name: i.productName,
-      imageUrl: i.imageUrl,
-      size: i.size,
-      quantity: i.quantity,
-      unitPrice: i.unitPrice,
-      color: i.color,
-      variant: i.variantName,
-    })),
-    subtotal: subtotal,
-    shipping: shippingCost,
-    tax: 0,
-    total: grandTotal,
+  return await runCheckoutPipeline({
+    userId: input.userId,
+    email: input.email,
+    phone: input.shippingAddress?.phone ?? "",
+    items: input.items,
+    shippingAddress: input.shippingAddress,
+    billingAddress: input.billingAddress,
+    total: input.total,
     paymentMethod: input.paymentMethod,
-    paymentStatus: "completed",
-    trackingId,
-    discount: discountVal,
-    shippingMethodName,
+    paypalOrderId: input.paypalOrderId,
   });
-
-  try {
-    await queue.enqueue(orderId, emailPayload);
-  } catch (err) {
-    logger.error("Job enqueue failed for PayPal", { orderId, error: String(err) });
-  }
-
-  return {
-    success: true,
-    orderId,
-    orderNumber: result.order_number as string,
-    invoiceNumber: outInvoiceNumber,
-    invoiceId,
-  };
 }
