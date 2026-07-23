@@ -1,15 +1,14 @@
 import { createError, defineEventHandler, getHeader, readRawBody } from "h3";
 import { createOrderFromPayPal } from "../../../lib/order-lifecycle";
 import { env } from "../../../config/env";
-import { getContainer } from "../../../container";
+import { initContainer } from "../../../container";
 import { logger } from "../../../lib/logger";
 
 async function acquireWebhookEvent(
+  supabase: any,
   eventId: string,
   eventType: string,
 ): Promise<{ status: "new" | "retry" | "duplicate"; orderId?: string }> {
-  const { supabase } = getContainer();
-
   const { data: existing } = await (supabase
     .from("webhook_events") as any)
     .select("status, order_id")
@@ -53,12 +52,12 @@ async function acquireWebhookEvent(
 }
 
 async function finalizeWebhookEvent(
+  supabase: any,
   eventId: string,
   status: "completed" | "failed",
   orderId?: string,
   errorMessage?: string,
 ): Promise<void> {
-  const { supabase } = getContainer();
   const update: Record<string, unknown> = {
     status,
     processed_at: new Date().toISOString(),
@@ -153,12 +152,33 @@ async function verifyPayPalWebhook(
 }
 
 export default defineEventHandler(async (event) => {
+  logger.info("PayPal Webhook: Event received");
+
+  // Gracefully initialize ServerContainer
+  let container;
+  try {
+    container = await initContainer();
+  } catch (err: any) {
+    logger.error("PayPal Webhook: Failed to initialize ServerContainer", { error: err.message });
+    throw createError({
+      statusCode: 500,
+      statusMessage: `Internal server configuration error: ${err.message}`,
+    });
+  }
+
+  const { supabase } = container;
+  if (!supabase) {
+    logger.error("PayPal Webhook: Required services are missing from container");
+    throw createError({
+      statusCode: 500,
+      statusMessage: "Internal server initialization error",
+    });
+  }
+
   const rawBody = await readRawBody(event, "utf8");
   if (!rawBody) {
     throw createError({ statusCode: 400, statusMessage: "Missing request body" });
   }
-
-  logger.info("PayPal Webhook: Event received");
 
   const headers: Record<string, string> = {};
   for (const key of ["paypal-auth-algo", "paypal-cert-url", "paypal-transmission-id", "paypal-transmission-sig", "paypal-transmission-time"]) {
@@ -187,7 +207,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "Invalid webhook payload" });
   }
 
-  const acquisition = await acquireWebhookEvent(parsed.id, parsed.event_type);
+  const acquisition = await acquireWebhookEvent(supabase, parsed.id, parsed.event_type);
   if (acquisition.status === "duplicate") {
     logger.info("PayPal Webhook: Duplicate event detected", {
       eventId: parsed.id,
@@ -209,7 +229,7 @@ export default defineEventHandler(async (event) => {
         logger.info("PayPal Webhook: Capture completed without custom_id (skipping order creation fallback)", {
           resourceId: resource.id,
         });
-        await finalizeWebhookEvent(parsed.id, "completed");
+        await finalizeWebhookEvent(supabase, parsed.id, "completed");
         logger.info("PayPal Webhook: Database event finalized", { eventId: parsed.id, status: "completed" });
         return { received: true, skipped: true, reason: "no_custom_id" };
       }
@@ -222,7 +242,7 @@ export default defineEventHandler(async (event) => {
       });
 
       // Handled synchronously client-side via capture callback; webhook finalized as completed
-      await finalizeWebhookEvent(parsed.id, "completed");
+      await finalizeWebhookEvent(supabase, parsed.id, "completed");
       logger.info("PayPal Webhook: Database event finalized", {
         eventId: parsed.id,
         status: "completed",
@@ -239,7 +259,7 @@ export default defineEventHandler(async (event) => {
         reason: resource?.status_details,
       });
 
-      await finalizeWebhookEvent(parsed.id, "completed");
+      await finalizeWebhookEvent(supabase, parsed.id, "completed");
       logger.info("PayPal Webhook: Database event finalized", { eventId: parsed.id, status: "completed" });
       return { received: true, status: "denied" };
     }
@@ -252,13 +272,13 @@ export default defineEventHandler(async (event) => {
         amount: resource?.amount,
       });
 
-      await finalizeWebhookEvent(parsed.id, "completed");
+      await finalizeWebhookEvent(supabase, parsed.id, "completed");
       logger.info("PayPal Webhook: Database event finalized", { eventId: parsed.id, status: "completed" });
       return { received: true, status: "refunded" };
     }
 
     // Default fallback for other events
-    await finalizeWebhookEvent(parsed.id, "completed");
+    await finalizeWebhookEvent(supabase, parsed.id, "completed");
     logger.info("PayPal Webhook: Database event finalized", {
       eventId: parsed.id,
       status: "completed",
@@ -266,7 +286,7 @@ export default defineEventHandler(async (event) => {
     return { received: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    await finalizeWebhookEvent(parsed.id, "failed", undefined, message);
+    await finalizeWebhookEvent(supabase, parsed.id, "failed", undefined, message);
     logger.error("PayPal Webhook processing failed", {
       eventType: parsed.event_type,
       error: message,

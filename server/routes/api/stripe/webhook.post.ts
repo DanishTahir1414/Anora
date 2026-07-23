@@ -1,15 +1,14 @@
 import { createError, defineEventHandler, getHeader, readRawBody } from "h3";
 import { createOrderFromPayment, createOrderFromPaymentIntent } from "../../../lib/order-lifecycle";
-import { getContainer } from "../../../container";
+import { initContainer } from "../../../container";
 import { env } from "../../../config/env";
 import { logger } from "../../../lib/logger";
 
 async function acquireWebhookEvent(
+  supabase: any,
   eventId: string,
   eventType: string,
 ): Promise<{ status: "new" | "retry" | "duplicate"; orderId?: string }> {
-  const { supabase } = getContainer();
-
   const { data: existing } = await (supabase
     .from("webhook_events") as any)
     .select("status, order_id")
@@ -53,12 +52,12 @@ async function acquireWebhookEvent(
 }
 
 async function finalizeWebhookEvent(
+  supabase: any,
   eventId: string,
   status: "completed" | "failed",
   orderId?: string,
   errorMessage?: string,
 ): Promise<void> {
-  const { supabase } = getContainer();
   const update: Record<string, unknown> = {
     status,
     processed_at: new Date().toISOString(),
@@ -69,9 +68,6 @@ async function finalizeWebhookEvent(
 }
 
 export default defineEventHandler(async (event) => {
-  const rawBody = await readRawBody(event, "utf8");
-  const signature = getHeader(event, "stripe-signature");
-
   logger.info("Stripe Webhook: Event received");
 
   // Validate server configuration
@@ -84,14 +80,29 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const { stripe } = getContainer();
-  if (!stripe) {
-    logger.error("Stripe Webhook: Stripe client not initialized inside ServerContainer");
+  // Gracefully initialize ServerContainer
+  let container;
+  try {
+    container = await initContainer();
+  } catch (err: any) {
+    logger.error("Stripe Webhook: Failed to initialize ServerContainer", { error: err.message });
     throw createError({
       statusCode: 500,
-      statusMessage: "Stripe client not initialized",
+      statusMessage: `Internal server configuration error: ${err.message}`,
     });
   }
+
+  const { stripe, supabase } = container;
+  if (!stripe || !supabase) {
+    logger.error("Stripe Webhook: Required services are missing from container");
+    throw createError({
+      statusCode: 500,
+      statusMessage: "Internal server initialization error",
+    });
+  }
+
+  const rawBody = await readRawBody(event, "utf8");
+  const signature = getHeader(event, "stripe-signature");
 
   if (!rawBody || !signature) {
     logger.warn("Stripe Webhook: Missing request body or signature header");
@@ -116,7 +127,7 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const acquisition = await acquireWebhookEvent(stripeEvent.id, stripeEvent.type);
+  const acquisition = await acquireWebhookEvent(supabase, stripeEvent.id, stripeEvent.type);
   if (acquisition.status === "duplicate") {
     logger.info("Stripe Webhook: Duplicate event detected", {
       eventId: stripeEvent.id,
@@ -144,7 +155,7 @@ export default defineEventHandler(async (event) => {
         throw new Error(`Order creation failed: ${result.error}`);
       }
 
-      await finalizeWebhookEvent(stripeEvent.id, "completed", result.orderId);
+      await finalizeWebhookEvent(supabase, stripeEvent.id, "completed", result.orderId);
       logger.info("Stripe Webhook: Database event finalized", {
         eventId: stripeEvent.id,
         status: "completed",
@@ -221,7 +232,7 @@ export default defineEventHandler(async (event) => {
         throw new Error(`Order creation failed: ${result.error}`);
       }
 
-      await finalizeWebhookEvent(stripeEvent.id, "completed", result.orderId);
+      await finalizeWebhookEvent(supabase, stripeEvent.id, "completed", result.orderId);
       logger.info("Stripe Webhook: Database event finalized", {
         eventId: stripeEvent.id,
         status: "completed",
@@ -239,7 +250,7 @@ export default defineEventHandler(async (event) => {
         error: paymentIntent.last_payment_error,
       });
 
-      await finalizeWebhookEvent(stripeEvent.id, "completed");
+      await finalizeWebhookEvent(supabase, stripeEvent.id, "completed");
       return { received: true, status: "payment_failed" };
     }
 
@@ -251,12 +262,12 @@ export default defineEventHandler(async (event) => {
         paymentIntentId: charge.payment_intent,
       });
 
-      await finalizeWebhookEvent(stripeEvent.id, "completed");
+      await finalizeWebhookEvent(supabase, stripeEvent.id, "completed");
       return { received: true, status: "refunded" };
     }
 
     // Default fallback for unhandled event types
-    await finalizeWebhookEvent(stripeEvent.id, "completed");
+    await finalizeWebhookEvent(supabase, stripeEvent.id, "completed");
     logger.info("Stripe Webhook: Database event finalized", {
       eventId: stripeEvent.id,
       status: "completed",
@@ -264,7 +275,7 @@ export default defineEventHandler(async (event) => {
     return { received: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    await finalizeWebhookEvent(stripeEvent.id, "failed", undefined, message);
+    await finalizeWebhookEvent(supabase, stripeEvent.id, "failed", undefined, message);
     logger.error("Stripe Webhook processing failed", {
       eventType: stripeEvent.type,
       error: message,
