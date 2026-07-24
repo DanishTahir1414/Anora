@@ -26,7 +26,7 @@ export function ProductCard({ product }: { product: Product }) {
   return (
     <>
       <div className="group">
-        <div className="relative overflow-hidden bg-neutral aspect-[3/4]">
+        <div className="relative overflow-hidden bg-neutral aspect-[2/3] sm:aspect-[3/4]">
           <Link to="/product/$slug" params={{ slug: product.slug }}>
             <img
               src={product.images[0]}
@@ -79,7 +79,7 @@ export function ProductCard({ product }: { product: Product }) {
           </button>
 
           {!isOOS && (
-            <div className="absolute inset-x-3 bottom-3 flex gap-2 transition-all duration-500 opacity-100 translate-y-0 lg:opacity-0 lg:translate-y-2 lg:group-hover:opacity-100 lg:group-hover:translate-y-0 z-20">
+            <div className="absolute inset-x-3 bottom-3 hidden sm:flex gap-2 transition-all duration-500 opacity-100 translate-y-0 lg:opacity-0 lg:translate-y-2 lg:group-hover:opacity-100 lg:group-hover:translate-y-0 z-20">
               <button
                 onClick={() => {
                   const chosen = size ?? product.sizes[0];
@@ -144,7 +144,7 @@ export function ProductCard({ product }: { product: Product }) {
                   if (disabled) return;
                   setSize(s);
                 }}
-                className={`text-[11px] tracking-wider min-w-8 h-7 px-2 border transition-all duration-300 ${
+                className={`text-[10px] sm:text-[11px] tracking-wider min-w-6 h-6 px-1.5 sm:min-w-8 sm:h-7 sm:px-2 border transition-all duration-300 ${
                   size === s && !disabled
                     ? "border-foreground text-foreground"
                     : disabled
@@ -157,6 +157,29 @@ export function ProductCard({ product }: { product: Product }) {
             );
           })}
         </div>
+
+        {!isOOS && (
+          <button
+            onClick={() => {
+              const chosen = size ?? product.sizes[0];
+              const validation = validateStockBeforeCheckout(product, {
+                productId: product.id,
+                size: chosen,
+                quantity: 1,
+                color: availability.color,
+               });
+              if (!validation.ok) {
+                toast.error(validation.reason ?? "This size is out of stock");
+                return;
+              }
+              cart.add(product.id, chosen, 1);
+              toast.success("Added to bag", { description: `${product.name} · ${chosen}` });
+            }}
+            className="sm:hidden mt-3 w-full bg-foreground text-background py-3 text-[11px] tracking-[0.32em] uppercase hover:bg-gold hover:text-ink transition-all duration-300"
+          >
+            Add to Cart
+          </button>
+        )}
       </div>
 
       {/* ─── Quick View Modal ─── */}
