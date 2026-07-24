@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useRouterState } from "@tanstack/react-router";
+import { useRouterState, useLocation } from "@tanstack/react-router";
 import { useIsFetching } from "@tanstack/react-query";
 import { BRAND_NAME } from "@/lib/brand";
 
@@ -8,8 +8,28 @@ interface BrandLoaderProps {
 }
 
 export function BrandLoader({ isLoading }: BrandLoaderProps) {
+  const { pathname } = useLocation();
   const routerStatus = useRouterState({ select: (s) => s.status });
   const isRouterPending = routerStatus === "pending";
+
+  const [isBridging, setIsBridging] = useState(false);
+  const [initialPageLoaded, setInitialPageLoaded] = useState(false);
+  const [prevPath, setPrevPath] = useState(pathname);
+
+  // Reset the initial page loaded state synchronously when pathname changes
+  if (pathname !== prevPath) {
+    setPrevPath(pathname);
+    setInitialPageLoaded(false);
+  }
+
+  useEffect(() => {
+    if (isRouterPending) {
+      setIsBridging(true);
+    } else {
+      const t = setTimeout(() => setIsBridging(false), 150);
+      return () => clearTimeout(t);
+    }
+  }, [isRouterPending]);
   
   // Checks if any primary queries are fetching in the background
   const activeQueriesCount = useIsFetching({
@@ -31,21 +51,31 @@ export function BrandLoader({ isLoading }: BrandLoaderProps) {
     }
   });
 
-  const show = isLoading || isRouterPending || activeQueriesCount > 0;
-  
-  const [visible, setVisible] = useState(false);
-  const [shouldRender, setShouldRender] = useState(false);
+  // Loader shows if router transitions are pending, bridging holds, or initial query loads are incomplete.
+  const show = isRouterPending || 
+               isBridging || 
+               (!initialPageLoaded && (activeQueriesCount > 0 || isLoading || false));
 
-  useEffect(() => {
+  const [shouldRender, setShouldRender] = useState(show);
+  const [visible, setVisible] = useState(show);
+  const [prevShow, setPrevShow] = useState(show);
+
+  // Sync state synchronously during the render phase if show becomes true
+  if (show !== prevShow) {
+    setPrevShow(show);
     if (show) {
       setShouldRender(true);
-      // Wait a micro-tick to mount and trigger the opacity fade-in transition
-      const t = setTimeout(() => setVisible(true), 10);
-      return () => clearTimeout(t);
-    } else {
+      setVisible(true);
+    }
+  }
+
+  useEffect(() => {
+    if (!show) {
       setVisible(false);
-      // Wait for fade-out transition before unmounting (match duration-500)
-      const t = setTimeout(() => setShouldRender(false), 500);
+      const t = setTimeout(() => {
+        setShouldRender(false);
+        setInitialPageLoaded(true);
+      }, 500);
       return () => clearTimeout(t);
     }
   }, [show]);

@@ -1,16 +1,8 @@
 import { createFileRoute, notFound, Outlet } from "@tanstack/react-router";
-import { getCategoryBySlug } from "@/lib/categories";
 
 const VALID_PARENT_SLUGS = ["clothing", "jewellery"];
 
 export const Route = createFileRoute("/shop/$category")({
-  loader: async ({ params }) => {
-    const cat = await getCategoryBySlug(params.category);
-    if (!cat || !VALID_PARENT_SLUGS.includes(params.category)) {
-      throw notFound();
-    }
-    return { category: params.category, dbCategory: cat };
-  },
   component: ShopCategoryLayout,
   notFoundComponent: () => (
     <div className="py-32 text-center">
@@ -21,5 +13,9 @@ export const Route = createFileRoute("/shop/$category")({
 });
 
 function ShopCategoryLayout() {
+  const { category } = Route.useParams();
+  if (!VALID_PARENT_SLUGS.includes(category)) {
+    throw notFound();
+  }
   return <Outlet />;
 }
