@@ -44,6 +44,7 @@ import { Route as AdminFinanceRouteImport } from './routes/admin.finance'
 import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
 import { Route as AdminCouponsRouteImport } from './routes/admin.coupons'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
+import { Route as AdminBlogsRouteImport } from './routes/admin.blogs'
 import { Route as AdminActivityRouteImport } from './routes/admin.activity'
 import { Route as AdminAbandonedCartsRouteImport } from './routes/admin.abandoned-carts'
 import { Route as ShopCategoryIndexRouteImport } from './routes/shop.$category.index'
@@ -227,6 +228,11 @@ const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminBlogsRoute = AdminBlogsRouteImport.update({
+  id: '/blogs',
+  path: '/blogs',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminActivityRoute = AdminActivityRouteImport.update({
   id: '/activity',
   path: '/activity',
@@ -285,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/wishlist': typeof WishlistRoute
   '/admin/abandoned-carts': typeof AdminAbandonedCartsRoute
   '/admin/activity': typeof AdminActivityRoute
+  '/admin/blogs': typeof AdminBlogsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/coupons': typeof AdminCouponsRoute
   '/admin/customers': typeof AdminCustomersRoute
@@ -328,6 +335,7 @@ export interface FileRoutesByTo {
   '/wishlist': typeof WishlistRoute
   '/admin/abandoned-carts': typeof AdminAbandonedCartsRoute
   '/admin/activity': typeof AdminActivityRoute
+  '/admin/blogs': typeof AdminBlogsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/coupons': typeof AdminCouponsRoute
   '/admin/customers': typeof AdminCustomersRoute
@@ -372,6 +380,7 @@ export interface FileRoutesById {
   '/wishlist': typeof WishlistRoute
   '/admin/abandoned-carts': typeof AdminAbandonedCartsRoute
   '/admin/activity': typeof AdminActivityRoute
+  '/admin/blogs': typeof AdminBlogsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/coupons': typeof AdminCouponsRoute
   '/admin/customers': typeof AdminCustomersRoute
@@ -418,6 +427,7 @@ export interface FileRouteTypes {
     | '/wishlist'
     | '/admin/abandoned-carts'
     | '/admin/activity'
+    | '/admin/blogs'
     | '/admin/categories'
     | '/admin/coupons'
     | '/admin/customers'
@@ -461,6 +471,7 @@ export interface FileRouteTypes {
     | '/wishlist'
     | '/admin/abandoned-carts'
     | '/admin/activity'
+    | '/admin/blogs'
     | '/admin/categories'
     | '/admin/coupons'
     | '/admin/customers'
@@ -504,6 +515,7 @@ export interface FileRouteTypes {
     | '/wishlist'
     | '/admin/abandoned-carts'
     | '/admin/activity'
+    | '/admin/blogs'
     | '/admin/categories'
     | '/admin/coupons'
     | '/admin/customers'
@@ -799,6 +811,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCategoriesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/blogs': {
+      id: '/admin/blogs'
+      path: '/blogs'
+      fullPath: '/admin/blogs'
+      preLoaderRoute: typeof AdminBlogsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/activity': {
       id: '/admin/activity'
       path: '/activity'
@@ -878,6 +897,7 @@ const AdminSecurityRouteWithChildren = AdminSecurityRoute._addFileChildren(
 interface AdminRouteChildren {
   AdminAbandonedCartsRoute: typeof AdminAbandonedCartsRoute
   AdminActivityRoute: typeof AdminActivityRoute
+  AdminBlogsRoute: typeof AdminBlogsRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCouponsRoute: typeof AdminCouponsRoute
   AdminCustomersRoute: typeof AdminCustomersRoute
@@ -894,6 +914,7 @@ interface AdminRouteChildren {
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAbandonedCartsRoute: AdminAbandonedCartsRoute,
   AdminActivityRoute: AdminActivityRoute,
+  AdminBlogsRoute: AdminBlogsRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCouponsRoute: AdminCouponsRoute,
   AdminCustomersRoute: AdminCustomersRoute,

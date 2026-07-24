@@ -70,6 +70,7 @@ export function Footer() {
           <FLink to="/privacy">Privacy Policy</FLink>
           <FLink to="/terms">Terms & Conditions</FLink>
           <FLink to="/contact">Contact Us</FLink>
+          <FLink to="/blogs">Blogs</FLink>
         </FooterCol>
 
         <div>

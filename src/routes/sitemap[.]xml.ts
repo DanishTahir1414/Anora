@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 
+import { supabase } from "@/lib/supabase";
+
 interface SitemapEntry {
   path: string;
   changefreq?: "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
@@ -24,6 +26,22 @@ export const Route = createFileRoute("/sitemap.xml")({
           { path: "/terms", changefreq: "monthly", priority: "0.5" },
           { path: "/contact", changefreq: "monthly", priority: "0.6" },
         ];
+
+        // Fetch dynamic blog posts from Supabase database
+        const { data: posts } = await (supabase
+          .from("blogs") as any)
+          .select("slug")
+          .eq("status", "published");
+
+        if (posts) {
+          posts.forEach((p: { slug: string }) => {
+            entries.push({
+              path: `/blogs/${p.slug}`,
+              changefreq: "weekly",
+              priority: "0.6",
+            });
+          });
+        }
 
         const urls = entries.map(
           (e) =>

@@ -19,6 +19,7 @@ import {
   Shield,
   ShoppingCart,
   X,
+  BookOpen,
 } from "lucide-react";
 
 interface SidebarItem {
@@ -46,6 +47,11 @@ const ITEMS: SidebarItem[] = [
     label: "Abandoned Carts",
     to: "/admin/abandoned-carts",
     icon: <ShoppingCart className="h-4 w-4" />,
+  },
+  {
+    label: "Blog Posts",
+    to: "/admin/blogs",
+    icon: <BookOpen className="h-4 w-4" />,
   },
 ];
 
