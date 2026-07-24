@@ -1,5 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth-context";
+import { BRAND_NAME } from "@/lib/brand";
 import {
   LayoutDashboard,
   PackagePlus,
@@ -97,7 +98,7 @@ export function AdminSidebar({ onClose, className }: AdminSidebarProps) {
       <div className="px-5 py-5 border-b border-border/40 shrink-0 flex items-center justify-between">
         <div>
           <Link to="/admin" className="font-serif text-lg tracking-wide" onClick={onClose}>
-            ANORA
+            {BRAND_NAME}
           </Link>
           <p className="text-[9px] tracking-[0.4em] uppercase text-muted-foreground/60 mt-0.5">
             Admin Panel

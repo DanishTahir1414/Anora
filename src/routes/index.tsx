@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import hero from "@/assets/hero.jpg";
 import catClothing from "@/assets/cat-clothing.jpg";
@@ -11,7 +11,7 @@ import p4 from "@/assets/p4.jpg";
 import p5 from "@/assets/p5.jpg";
 import p6 from "@/assets/p6.jpg";
 import { ProductCard } from "@/components/site/ProductCard";
-import { supabase } from "@/lib/supabase";
+import { useProductsCatalog, useParentCategories } from "@/lib/products-query";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -29,115 +29,6 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
-  loader: async () => {
-    // 1. Fetch active parent categories
-    const { data: dbCategories, error: catError } = await supabase
-      .from("categories")
-      .select("id, name, slug, description, image_url")
-      .is("parent_id", null)
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true });
-
-    if (catError) {
-      console.error("Failed to load categories for homepage", catError);
-    }
-
-    // 2. Fetch active published products
-    const { data: rows, error: prodError } = await supabase
-      .from("products")
-      .select(`
-        id, slug, name, price, compare_price, stock, size_stock, sizes, sku, colors, fabric, material, is_new, is_best_seller, featured, status, is_active, sale_active, discount_percent, description, category_id, popularity_score, total_sales, created_at,
-        product_images (image_url, sort_order)
-      `)
-      .eq("is_active", true)
-      .eq("status", "active");
-
-    if (prodError) {
-      console.error("Failed to load products for homepage", prodError);
-    }
-
-    // 3. Map database categories
-    const categoriesList = (dbCategories || []).map((cat) => ({
-      id: cat.id,
-      name: cat.name,
-      slug: cat.slug,
-      description: cat.description || "",
-      image_url: cat.image_url || "",
-    }));
-
-    // 4. Map products to UI Product format
-    const mappedProducts = (rows || []).map((row: any) => {
-      const sortedImages = (row.product_images || [])
-        .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
-        .map((img: any) => img.image_url)
-        .filter(Boolean);
-
-      return {
-        id: row.id,
-        slug: row.slug,
-        name: row.name,
-        price: Number(row.price),
-        compare_price: row.compare_price ? Number(row.compare_price) : null,
-        category: "clothing" as const,
-        subcategory: "",
-        description: row.description || "",
-        fabric: row.fabric || undefined,
-        material: row.material || undefined,
-        color: (row.colors as any)?.[0]?.name || "Ivory",
-        sizes: (row.sizes as string[]) || [],
-        sku: row.sku || "",
-        stock: row.stock || 0,
-        sizeStock: (row.size_stock as Record<string, number>) || {},
-        images: sortedImages,
-        badge: row.is_new ? "New" : row.is_best_seller ? "Best Seller" : undefined,
-        sale_active: row.sale_active || false,
-        discount_percent: row.discount_percent || 0,
-        featured: row.featured || false,
-        is_new: row.is_new || false,
-        is_best_seller: row.is_best_seller || false,
-        popularity_score: Number(row.popularity_score || 0),
-        total_sales: Number(row.total_sales || 0),
-        created_at: row.created_at,
-      };
-    });
-
-    // 5. Partition products into sections
-    // Featured
-    const featuredProducts = mappedProducts.filter((p) => p.featured === true).slice(0, 3);
-
-    // New Arrivals
-    const newArrivals = mappedProducts.filter((p) => p.is_new === true || p.badge === "New").slice(0, 3);
-    const fallbackNew = newArrivals.length >= 3 ? newArrivals : [...newArrivals, ...mappedProducts.filter((p) => !p.badge).slice(0, 3 - newArrivals.length)].slice(0, 3);
-
-    // Best Sellers
-    const bestSellers = mappedProducts.filter((p) => p.is_best_seller === true || p.badge === "Best Seller").slice(0, 3);
-    const fallbackBest = bestSellers.length >= 3 ? bestSellers : [...bestSellers, ...mappedProducts.filter((p) => !p.badge).slice(3 - bestSellers.length, 6 - bestSellers.length)].slice(0, 3);
-
-    // Trending (sorted by popularity_score DESC)
-    const trendingProducts = [...mappedProducts]
-      .sort((a, b) => b.popularity_score - a.popularity_score)
-      .slice(0, 3);
-
-    // Recommended (curated from featured/on-sale products)
-    const recommendedProducts = mappedProducts
-      .filter((p) => p.sale_active === true || p.featured === true)
-      .slice(0, 3);
-
-    // Recently Added (sorted by created_at DESC)
-    const recentlyAddedProducts = [...mappedProducts]
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 3);
-
-    return {
-      categories: categoriesList,
-      featuredProducts,
-      newArrivals: fallbackNew,
-      bestSellers: fallbackBest,
-      trendingProducts,
-      recommendedProducts,
-      recentlyAddedProducts,
-    };
-  },
   component: Home,
 });
 
@@ -152,15 +43,39 @@ const instagramPosts = [
 
 function Home() {
   const [newsletterEmail, setNewsletterEmail] = useState("");
-  const {
-    categories,
-    featuredProducts,
-    newArrivals,
-    bestSellers,
-    trendingProducts,
-    recommendedProducts,
-    recentlyAddedProducts,
-  } = Route.useLoaderData();
+  const { data: products = [] } = useProductsCatalog();
+  const { data: categories = [] } = useParentCategories();
+
+  // Group products into sections dynamically
+  const featuredProducts = useMemo(() => products.filter((p) => p.featured === true).slice(0, 3), [products]);
+
+  const newArrivals = useMemo(() => {
+    const list = products.filter((p) => p.is_new === true || p.badge === "New").slice(0, 3);
+    return list.length >= 3 ? list : [...list, ...products.filter((p) => !p.badge).slice(0, 3 - list.length)].slice(0, 3);
+  }, [products]);
+
+  const bestSellers = useMemo(() => {
+    const list = products.filter((p) => p.is_best_seller === true || p.badge === "Best Seller").slice(0, 3);
+    return list.length >= 3 ? list : [...list, ...products.filter((p) => !p.badge).slice(3 - list.length, 6 - list.length)].slice(0, 3);
+  }, [products]);
+
+  const trendingProducts = useMemo(() => {
+    return [...products]
+      .sort((a, b) => b.popularity_score - a.popularity_score)
+      .slice(0, 3);
+  }, [products]);
+
+  const recommendedProducts = useMemo(() => {
+    return products
+      .filter((p) => p.sale_active === true || p.featured === true)
+      .slice(0, 3);
+  }, [products]);
+
+  const recentlyAddedProducts = useMemo(() => {
+    return [...products]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 3);
+  }, [products]);
 
   return (
     <>

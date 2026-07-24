@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { products } from "@/lib/products";
 import { ProductCard } from "@/components/site/ProductCard";
 import { useActiveCategories } from "@/lib/categories";
+import { useProductsCatalog } from "@/lib/products-query";
 
 export const Route = createFileRoute("/shop/")({
   head: () => ({
@@ -15,6 +15,7 @@ export const Route = createFileRoute("/shop/")({
 
 function ShopAll() {
   const { data: categories = [] } = useActiveCategories();
+  const { data: products = [] } = useProductsCatalog();
 
   const totalProducts = products.length;
   const subCount = categories.reduce((sum, c) => sum + c.children.length, 0);

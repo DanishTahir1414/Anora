@@ -1,9 +1,7 @@
-import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { ChevronDown, Heart, Minus, Plus, Share2, Truck, X } from "lucide-react";
-import { getProductPriceInfo, products } from "@/lib/products";
-import { getProductBySlug } from "@/lib/products-db";
-import { mapDbProductToStatic } from "@/lib/product-mapper";
+import { getProductPriceInfo } from "@/lib/products";
 import { useCart, useWishlist } from "@/lib/store";
 import { registerProduct } from "@/lib/customer-services";
 import { getProductAvailability, validateStockBeforeCheckout } from "@/lib/inventory";
@@ -11,6 +9,7 @@ import { ProductCard } from "@/components/site/ProductCard";
 import { ProductPrice } from "@/components/site/ProductPrice";
 import { toast } from "sonner";
 import type { Product } from "@/lib/products";
+import { useProductDetailQuery, useProductsCatalog } from "@/lib/products-query";
 
 interface ProductSearch {
   color?: string;
@@ -22,45 +21,16 @@ export const Route = createFileRoute("/product/$slug")({
       color: typeof search.color === "string" ? search.color : undefined,
     };
   },
-  loader: async ({ params }) => {
-    const dbResult = await getProductBySlug(params.slug);
-    if (!dbResult || !dbResult.product) throw notFound();
-    const parentSlug = dbResult.parent_category?.slug ?? "clothing";
-    const subName = dbResult.category?.name ?? "";
-    const product = mapDbProductToStatic(dbResult.product, dbResult.images, parentSlug, subName, dbResult.variants);
-    return { product, related: getRelatedProducts(product) };
-  },
-  head: ({ loaderData }) => {
-    const p = loaderData?.product;
-    return {
-      meta: [
-        { title: p ? `${p.name} — ANORA` : "ANORA" },
-        { name: "description", content: p?.description ?? "" },
-        { property: "og:title", content: p ? `${p.name} — ANORA` : "ANORA" },
-        { property: "og:description", content: p?.description ?? "" },
-        { property: "og:image", content: p?.images[0] ?? "" },
-      ],
-    };
-  },
+  head: () => ({
+    meta: [
+      { title: "ANORA" },
+      { name: "description", content: "ANORA atelier piece" },
+    ],
+  }),
   component: ProductPage,
-  notFoundComponent: () => (
-    <div className="py-32 text-center">
-      <h1 className="font-serif text-4xl">Piece not found</h1>
-      <Link
-        to="/shop"
-        className="inline-block mt-6 text-[11px] tracking-[0.32em] uppercase hover-underline"
-      >
-        Return to shop
-      </Link>
-    </div>
-  ),
 });
 
-function getRelatedProducts(product: Product): Product[] {
-  return products.filter((p) => p.id !== product.id && p.category === product.category).slice(0, 3);
-}
-
-function getActiveState(product: (typeof products)[number], color: string) {
+function getActiveState(product: Product, color: string) {
   const availability = getProductAvailability(product, color);
   const variant = availability.selectedVariant;
   if (!variant) {
@@ -90,11 +60,44 @@ function getActiveState(product: (typeof products)[number], color: string) {
 }
 
 function ProductPage() {
-  const { product, related } = Route.useLoaderData();
+  const { slug } = Route.useParams();
   const searchParams = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const cart = useCart();
   const wish = useWishlist();
+
+  const { data: product, isLoading, error } = useProductDetailQuery(slug);
+  const { data: catalog = [] } = useProductsCatalog();
+
+  const related = useMemo(() => {
+    if (!product) return [];
+    return catalog.filter((p) => p.id !== product.id && p.category === product.category).slice(0, 3);
+  }, [catalog, product]);
+
+  // Update page title dynamically once details load
+  useEffect(() => {
+    if (product) {
+      document.title = `${product.name} — ANORA`;
+    }
+  }, [product]);
+
+  if (isLoading) {
+    return <div className="min-h-screen bg-background" />;
+  }
+
+  if (error || !product) {
+    return (
+      <div className="py-32 text-center">
+        <h1 className="font-serif text-4xl">Piece not found</h1>
+        <Link
+          to="/shop"
+          className="inline-block mt-6 text-[11px] tracking-[0.32em] uppercase hover-underline"
+        >
+          Return to shop
+        </Link>
+      </div>
+    );
+  }
 
   registerProduct(product);
 

@@ -19,6 +19,7 @@ import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { WhatsAppButton } from "@/components/site/WhatsAppButton";
 import { Toaster } from "@/components/ui/sonner";
+import { BrandLoader } from "@/components/common/BrandLoader";
 
 function SafeShellWrapper({ children }: { children: ReactNode }) {
   const pathname = typeof window !== "undefined" ? window.location.pathname : "";
@@ -205,6 +206,7 @@ function RootComponent() {
             </main>
             {!isAdmin && <Footer />}
             <Toaster />
+            <BrandLoader />
           </div>
         </StoreProvider>
       </AuthProvider>

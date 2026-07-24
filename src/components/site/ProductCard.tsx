@@ -115,8 +115,8 @@ export function ProductCard({ product }: { product: Product }) {
           )}
         </div>
 
-        <div className="pt-4 flex items-start justify-between gap-3">
-          <div>
+        <div className="pt-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
+          <div className="min-w-0">
             <Link
               to="/product/$slug"
               params={{ slug: product.slug }}
@@ -128,7 +128,7 @@ export function ProductCard({ product }: { product: Product }) {
               {product.subcategory}
             </p>
           </div>
-          <div className="flex flex-col items-end shrink-0">
+          <div className="flex flex-row sm:flex-col items-baseline sm:items-end gap-2 sm:gap-0 shrink-0 mt-1 sm:mt-0 flex-wrap">
             <ProductPrice product={product} size="md" />
           </div>
         </div>

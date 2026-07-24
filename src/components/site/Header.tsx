@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { MenuDrawer } from "./MenuDrawer";
 import { SearchDialog } from "./SearchDialog";
 import { AccountDropdown } from "./AccountDropdown";
+import { BRAND_NAME } from "@/lib/brand";
 
 export function Header() {
   const [scrolled, setScrolled] = useState(false);
@@ -69,7 +70,7 @@ export function Header() {
             to="/"
             className="justify-self-center font-serif text-2xl lg:text-3xl tracking-[0.35em] text-foreground hover:text-gold transition-colors duration-300"
           >
-            ANORA
+            {BRAND_NAME}
           </Link>
           <div className="flex items-center justify-end gap-4 lg:gap-5 text-foreground">
             <button
@@ -144,7 +145,7 @@ export function Header() {
               to="/"
               className="font-serif text-xl tracking-[0.3em] text-foreground hover:text-gold transition-colors duration-300"
             >
-              ANORA
+              {BRAND_NAME}
             </Link>
           </div>
 

@@ -1,18 +1,10 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { ProductCard } from "@/components/site/ProductCard";
-import { getActiveCategories, useSubcategoryProducts, toProductProps } from "@/lib/categories";
+import { useActiveCategories, useSubcategoryProducts, toProductProps } from "@/lib/categories";
 
 const VALID_PARENT_SLUGS = ["clothing", "jewellery"];
 
 export const Route = createFileRoute("/shop/$category/$subcategory")({
-  loader: async ({ params }) => {
-    if (!VALID_PARENT_SLUGS.includes(params.category)) throw notFound();
-    const allCats = await getActiveCategories();
-    const parent = allCats.find((c) => c.slug === params.category);
-    const child = parent?.children.find((c) => c.slug === params.subcategory);
-    if (!child) throw notFound();
-    return { category: params.category, subcategory: params.subcategory, childName: child.name };
-  },
   head: ({ params }) => {
     const name = params.subcategory.charAt(0).toUpperCase() + params.subcategory.slice(1);
     return {
@@ -23,21 +15,33 @@ export const Route = createFileRoute("/shop/$category/$subcategory")({
     };
   },
   component: ShopSubcategory,
-  notFoundComponent: () => (
-    <div className="py-32 text-center">
-      <p className="eyebrow">Not found</p>
-      <h1 className="font-serif text-4xl mt-4">This category doesn't exist</h1>
-    </div>
-  ),
 });
 
 function ShopSubcategory() {
-  const { category, subcategory, childName } = Route.useLoaderData() as {
-    category: string;
-    subcategory: string;
-    childName: string;
-  };
+  const { category, subcategory } = Route.useParams();
+  const { data: allCats = [], isLoading: isCatLoading } = useActiveCategories();
   const { data: dbProducts = [] } = useSubcategoryProducts(category, subcategory);
+
+  const parent = allCats.find((c) => c.slug === category);
+  const child = parent?.children.find((c) => c.slug === subcategory);
+
+  // If loading is complete but subcategory is invalid, show not found view
+  if (!isCatLoading && (!VALID_PARENT_SLUGS.includes(category) || !child)) {
+    return (
+      <div className="py-32 text-center">
+        <p className="eyebrow">Not found</p>
+        <h1 className="font-serif text-4xl mt-4">This category doesn't exist</h1>
+        <Link
+          to="/shop"
+          className="inline-block mt-6 text-[11px] tracking-[0.32em] uppercase hover-underline"
+        >
+          Return to shop
+        </Link>
+      </div>
+    );
+  }
+
+  const childName = child?.name ?? "";
 
   return (
     <div className="pt-16 pb-24">
@@ -62,3 +66,4 @@ function ShopSubcategory() {
     </div>
   );
 }
+

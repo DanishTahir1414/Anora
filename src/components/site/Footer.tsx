@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Instagram, Facebook, MessageCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { BRAND_NAME } from "@/lib/brand";
 
 export function Footer() {
   const [email, setEmail] = useState("");
@@ -13,7 +14,7 @@ export function Footer() {
             to="/"
             className="font-serif text-3xl tracking-[0.3em] text-foreground hover:text-gold transition-colors duration-300 inline-block"
           >
-            ANORA
+            {BRAND_NAME}
           </Link>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
             Luxury clothing and jewellery, crafted with timeless elegance from our atelier to your
@@ -107,7 +108,7 @@ export function Footer() {
 
       <div className="border-t border-border/60">
         <div className="mx-auto max-w-7xl px-6 lg:px-10 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground/70 tracking-wide">
-          <span>© ANORA. All Rights Reserved.</span>
+          <span>© {BRAND_NAME}. All Rights Reserved.</span>
           <span>Elegance Crafted For Every Moment</span>
         </div>
       </div>

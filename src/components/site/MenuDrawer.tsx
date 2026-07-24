@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { useEffect } from "react";
+import { BRAND_NAME } from "@/lib/brand";
 import { subcategories } from "@/lib/products";
 import { useActiveCategories, type CategoryNode } from "@/lib/categories";
 import { useAuth } from "@/lib/auth-context";
@@ -44,7 +45,7 @@ export function MenuDrawer({ open, onClose }: Props) {
             onClick={onClose}
             className="font-serif text-2xl tracking-[0.3em] hover:text-gold transition-colors"
           >
-            ANORA
+            {BRAND_NAME}
           </Link>
           <button
             onClick={onClose}
