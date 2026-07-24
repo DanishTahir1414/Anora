@@ -10,8 +10,8 @@ import p3 from "@/assets/p3.jpg";
 import p4 from "@/assets/p4.jpg";
 import p5 from "@/assets/p5.jpg";
 import p6 from "@/assets/p6.jpg";
-import { products } from "@/lib/products";
 import { ProductCard } from "@/components/site/ProductCard";
+import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -29,22 +29,117 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
+  loader: async () => {
+    // 1. Fetch active parent categories
+    const { data: dbCategories, error: catError } = await supabase
+      .from("categories")
+      .select("id, name, slug, description, image_url")
+      .is("parent_id", null)
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true });
+
+    if (catError) {
+      console.error("Failed to load categories for homepage", catError);
+    }
+
+    // 2. Fetch active published products
+    const { data: rows, error: prodError } = await supabase
+      .from("products")
+      .select(`
+        id, slug, name, price, compare_price, stock, size_stock, sizes, sku, colors, fabric, material, is_new, is_best_seller, featured, status, is_active, sale_active, discount_percent, description, category_id, popularity_score, total_sales, created_at,
+        product_images (image_url, sort_order)
+      `)
+      .eq("is_active", true)
+      .eq("status", "active");
+
+    if (prodError) {
+      console.error("Failed to load products for homepage", prodError);
+    }
+
+    // 3. Map database categories
+    const categoriesList = (dbCategories || []).map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+      slug: cat.slug,
+      description: cat.description || "",
+      image_url: cat.image_url || "",
+    }));
+
+    // 4. Map products to UI Product format
+    const mappedProducts = (rows || []).map((row: any) => {
+      const sortedImages = (row.product_images || [])
+        .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+        .map((img: any) => img.image_url)
+        .filter(Boolean);
+
+      return {
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        price: Number(row.price),
+        compare_price: row.compare_price ? Number(row.compare_price) : null,
+        category: "clothing" as const,
+        subcategory: "",
+        description: row.description || "",
+        fabric: row.fabric || undefined,
+        material: row.material || undefined,
+        color: (row.colors as any)?.[0]?.name || "Ivory",
+        sizes: (row.sizes as string[]) || [],
+        sku: row.sku || "",
+        stock: row.stock || 0,
+        sizeStock: (row.size_stock as Record<string, number>) || {},
+        images: sortedImages,
+        badge: row.is_new ? "New" : row.is_best_seller ? "Best Seller" : undefined,
+        sale_active: row.sale_active || false,
+        discount_percent: row.discount_percent || 0,
+        featured: row.featured || false,
+        is_new: row.is_new || false,
+        is_best_seller: row.is_best_seller || false,
+        popularity_score: Number(row.popularity_score || 0),
+        total_sales: Number(row.total_sales || 0),
+        created_at: row.created_at,
+      };
+    });
+
+    // 5. Partition products into sections
+    // Featured
+    const featuredProducts = mappedProducts.filter((p) => p.featured === true).slice(0, 3);
+
+    // New Arrivals
+    const newArrivals = mappedProducts.filter((p) => p.is_new === true || p.badge === "New").slice(0, 3);
+    const fallbackNew = newArrivals.length >= 3 ? newArrivals : [...newArrivals, ...mappedProducts.filter((p) => !p.badge).slice(0, 3 - newArrivals.length)].slice(0, 3);
+
+    // Best Sellers
+    const bestSellers = mappedProducts.filter((p) => p.is_best_seller === true || p.badge === "Best Seller").slice(0, 3);
+    const fallbackBest = bestSellers.length >= 3 ? bestSellers : [...bestSellers, ...mappedProducts.filter((p) => !p.badge).slice(3 - bestSellers.length, 6 - bestSellers.length)].slice(0, 3);
+
+    // Trending (sorted by popularity_score DESC)
+    const trendingProducts = [...mappedProducts]
+      .sort((a, b) => b.popularity_score - a.popularity_score)
+      .slice(0, 3);
+
+    // Recommended (curated from featured/on-sale products)
+    const recommendedProducts = mappedProducts
+      .filter((p) => p.sale_active === true || p.featured === true)
+      .slice(0, 3);
+
+    // Recently Added (sorted by created_at DESC)
+    const recentlyAddedProducts = [...mappedProducts]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 3);
+
+    return {
+      categories: categoriesList,
+      featuredProducts,
+      newArrivals: fallbackNew,
+      bestSellers: fallbackBest,
+      trendingProducts,
+      recommendedProducts,
+      recentlyAddedProducts,
+    };
+  },
   component: Home,
 });
-
-const newItems = products.filter((p) => p.badge === "New");
-const bestItems = products.filter((p) => p.badge === "Best Seller");
-const unbadged = products.filter((p) => !p.badge);
-
-const displayNew =
-  newItems.length >= 3
-    ? newItems
-    : [...newItems, ...unbadged.slice(0, 3 - newItems.length)].slice(0, 3);
-
-const displayBest =
-  bestItems.length >= 3
-    ? bestItems
-    : [...bestItems, ...unbadged.slice(3 - bestItems.length, 6 - bestItems.length)].slice(0, 3);
 
 const instagramPosts = [
   { img: p1, alt: "Soft Bloom silk dress" },
@@ -57,6 +152,15 @@ const instagramPosts = [
 
 function Home() {
   const [newsletterEmail, setNewsletterEmail] = useState("");
+  const {
+    categories,
+    featuredProducts,
+    newArrivals,
+    bestSellers,
+    trendingProducts,
+    recommendedProducts,
+    recentlyAddedProducts,
+  } = Route.useLoaderData();
 
   return (
     <>
@@ -117,88 +221,216 @@ function Home() {
         </div>
       </div>
 
-      {/* ─── Featured Categories ─── */}
-      <section className="px-5 lg:px-10 py-24 lg:py-32">
-        <div className="text-center max-w-xl mx-auto mb-16">
-          <span className="eyebrow">The Houses</span>
-          <h2 className="mt-4 font-serif text-4xl md:text-5xl">Two atelier traditions</h2>
-        </div>
-        <div className="grid md:grid-cols-2 gap-6 max-w-7xl mx-auto">
-          <CategoryCard
-            title="Clothing"
-            subtitle="Silks, cashmere & ceremonial dress"
-            img={catClothing}
-            to="/shop/$category"
-            params={{ category: "clothing" }}
-          />
-          <CategoryCard
-            title="Jewellery"
-            subtitle="Recycled 18k gold, fine stones"
-            img={catJewellery}
-            to="/shop/$category"
-            params={{ category: "jewellery" }}
-          />
-        </div>
-      </section>
+      {/* ─── Featured Categories (Collections) ─── */}
+      {categories.length > 0 && (
+        <section className="px-5 lg:px-10 py-24 lg:py-32">
+          <div className="text-center max-w-xl mx-auto mb-16">
+            <span className="eyebrow">The Houses</span>
+            <h2 className="mt-4 font-serif text-4xl md:text-5xl">Two atelier traditions</h2>
+          </div>
+          <div className="grid md:grid-cols-2 gap-6 max-w-7xl mx-auto">
+            {categories.map((cat) => {
+              const fallbackImages: Record<string, string> = {
+                clothing: catClothing,
+                jewellery: catJewellery,
+              };
+              return (
+                <CategoryCard
+                  key={cat.id}
+                  title={cat.name}
+                  subtitle={cat.description || "Atelier tradition"}
+                  img={cat.image_url || fallbackImages[cat.slug] || catClothing}
+                  to="/shop/$category"
+                  params={{ category: cat.slug }}
+                />
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* ─── Featured Products ─── */}
+      {featuredProducts.length > 0 && (
+        <section className="px-5 lg:px-10 py-24 lg:py-32 bg-neutral/30 border-y border-border/20">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-end justify-between mb-14">
+              <div>
+                <span className="eyebrow">Featured</span>
+                <h2 className="mt-3 font-serif text-4xl md:text-5xl">Featured Pieces</h2>
+              </div>
+              <Link
+                to="/shop"
+                className="hidden sm:inline text-[11px] tracking-[0.32em] uppercase hover-underline"
+              >
+                View All
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-6 sm:gap-y-14">
+              {featuredProducts.map((p) => (
+                <ProductCard key={p.id} product={p as any} />
+              ))}
+            </div>
+            <div className="mt-12 text-center sm:hidden">
+              <Link to="/shop" className="text-[11px] tracking-[0.32em] uppercase hover-underline">
+                View All
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ─── New Arrivals ─── */}
-      <section className="px-5 lg:px-10 py-24 lg:py-32 bg-neutral/30">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-end justify-between mb-14">
-            <div>
-              <span className="eyebrow">New Arrivals</span>
-              <h2 className="mt-3 font-serif text-4xl md:text-5xl">The Spring Edit</h2>
+      {newArrivals.length > 0 && (
+        <section className="px-5 lg:px-10 py-24 lg:py-32 bg-neutral/10">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-end justify-between mb-14">
+              <div>
+                <span className="eyebrow">New Arrivals</span>
+                <h2 className="mt-3 font-serif text-4xl md:text-5xl">The Spring Edit</h2>
+              </div>
+              <Link
+                to="/shop"
+                className="hidden sm:inline text-[11px] tracking-[0.32em] uppercase hover-underline"
+              >
+                View All
+              </Link>
             </div>
-            <Link
-              to="/shop"
-              className="hidden sm:inline text-[11px] tracking-[0.32em] uppercase hover-underline"
-            >
-              View All
-            </Link>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-6 sm:gap-y-14">
+              {newArrivals.map((p) => (
+                <ProductCard key={p.id} product={p as any} />
+              ))}
+            </div>
+            <div className="mt-12 text-center sm:hidden">
+              <Link to="/shop" className="text-[11px] tracking-[0.32em] uppercase hover-underline">
+                View All
+              </Link>
+            </div>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-6 sm:gap-y-14">
-            {displayNew.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
-          <div className="mt-12 text-center sm:hidden">
-            <Link to="/shop" className="text-[11px] tracking-[0.32em] uppercase hover-underline">
-              View All
-            </Link>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ─── Best Sellers ─── */}
-      <section className="px-5 lg:px-10 py-24 lg:py-32">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-end justify-between mb-14">
-            <div>
-              <span className="eyebrow">Best Sellers</span>
-              <h2 className="mt-3 font-serif text-4xl md:text-5xl">Most cherished pieces</h2>
+      {bestSellers.length > 0 && (
+        <section className="px-5 lg:px-10 py-24 lg:py-32 border-t border-border/20">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-end justify-between mb-14">
+              <div>
+                <span className="eyebrow">Best Sellers</span>
+                <h2 className="mt-3 font-serif text-4xl md:text-5xl">Most cherished pieces</h2>
+              </div>
+              <Link
+                to="/shop"
+                className="hidden sm:inline text-[11px] tracking-[0.32em] uppercase hover-underline"
+              >
+                View All
+              </Link>
             </div>
-            <Link
-              to="/shop"
-              className="hidden sm:inline text-[11px] tracking-[0.32em] uppercase hover-underline"
-            >
-              View All
-            </Link>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-6 sm:gap-y-14">
+              {bestSellers.map((p) => (
+                <ProductCard key={p.id} product={p as any} />
+              ))}
+            </div>
+            <div className="mt-12 text-center sm:hidden">
+              <Link to="/shop" className="text-[11px] tracking-[0.32em] uppercase hover-underline">
+                View All
+              </Link>
+            </div>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-6 sm:gap-y-14">
-            {displayBest.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
+        </section>
+      )}
+
+      {/* ─── Trending ─── */}
+      {trendingProducts.length > 0 && (
+        <section className="px-5 lg:px-10 py-24 lg:py-32 bg-neutral/30 border-y border-border/20">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-end justify-between mb-14">
+              <div>
+                <span className="eyebrow">Trending</span>
+                <h2 className="mt-3 font-serif text-4xl md:text-5xl">Atelier Favorites</h2>
+              </div>
+              <Link
+                to="/shop"
+                className="hidden sm:inline text-[11px] tracking-[0.32em] uppercase hover-underline"
+              >
+                View All
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-6 sm:gap-y-14">
+              {trendingProducts.map((p) => (
+                <ProductCard key={p.id} product={p as any} />
+              ))}
+            </div>
+            <div className="mt-12 text-center sm:hidden">
+              <Link to="/shop" className="text-[11px] tracking-[0.32em] uppercase hover-underline">
+                View All
+              </Link>
+            </div>
           </div>
-          <div className="mt-12 text-center sm:hidden">
-            <Link to="/shop" className="text-[11px] tracking-[0.32em] uppercase hover-underline">
-              View All
-            </Link>
+        </section>
+      )}
+
+      {/* ─── Recommended ─── */}
+      {recommendedProducts.length > 0 && (
+        <section className="px-5 lg:px-10 py-24 lg:py-32">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-end justify-between mb-14">
+              <div>
+                <span className="eyebrow">Recommended</span>
+                <h2 className="mt-3 font-serif text-4xl md:text-5xl">Curated For You</h2>
+              </div>
+              <Link
+                to="/shop"
+                className="hidden sm:inline text-[11px] tracking-[0.32em] uppercase hover-underline"
+              >
+                View All
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-6 sm:gap-y-14">
+              {recommendedProducts.map((p) => (
+                <ProductCard key={p.id} product={p as any} />
+              ))}
+            </div>
+            <div className="mt-12 text-center sm:hidden">
+              <Link to="/shop" className="text-[11px] tracking-[0.32em] uppercase hover-underline">
+                View All
+              </Link>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
+
+      {/* ─── Recently Added ─── */}
+      {recentlyAddedProducts.length > 0 && (
+        <section className="px-5 lg:px-10 py-24 lg:py-32 bg-neutral/10 border-t border-border/20">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-end justify-between mb-14">
+              <div>
+                <span className="eyebrow">Recently Added</span>
+                <h2 className="mt-3 font-serif text-4xl md:text-5xl">Fresh from the atelier</h2>
+              </div>
+              <Link
+                to="/shop"
+                className="hidden sm:inline text-[11px] tracking-[0.32em] uppercase hover-underline"
+              >
+                View All
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-6 sm:gap-y-14">
+              {recentlyAddedProducts.map((p) => (
+                <ProductCard key={p.id} product={p as any} />
+              ))}
+            </div>
+            <div className="mt-12 text-center sm:hidden">
+              <Link to="/shop" className="text-[11px] tracking-[0.32em] uppercase hover-underline">
+                View All
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ─── Instagram ─── */}
-      <section className="bg-neutral/30 py-24 lg:py-32">
+      <section className="bg-neutral/30 py-24 lg:py-32 border-t border-border/25">
         <div className="text-center px-5 mb-14">
           <span className="eyebrow">Follow Us</span>
           <h2 className="mt-4 font-serif text-4xl md:text-5xl">@ANORA</h2>
@@ -230,7 +462,7 @@ function Home() {
                 >
                   <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
                   <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+                  <line x1="17.5" y1="6.5" transform="rotate(45 17.5 6.5)" />
                 </svg>
               </div>
             </a>
