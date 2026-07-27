@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useSiteSettings, DEFAULT_SITE_SETTINGS } from "@/lib/site-settings";
 
 export const Route = createFileRoute("/returns")({
   head: () => ({
@@ -10,10 +11,11 @@ export const Route = createFileRoute("/returns")({
       },
     ],
   }),
-  component: Returns,
+  component: ExchangeReturns,
 });
 
-function Returns() {
+function ExchangeReturns() {
+  const { data: settings } = useSiteSettings();
   return (
     <div className="px-5 lg:px-10 py-16 max-w-3xl mx-auto">
       <div className="text-center mb-12">
@@ -35,7 +37,7 @@ function Returns() {
         </Section>
         <Section title="How to Request an Exchange">
           Request an exchange from My Orders, or email{" "}
-          <span className="text-gold">care@anora.com</span> with your order number. We will arrange
+          <span className="text-gold">{settings?.email || DEFAULT_SITE_SETTINGS.email}</span> with your order number. We will arrange
           complimentary collection and dispatch your new piece the moment your original is received.
         </Section>
       </div>

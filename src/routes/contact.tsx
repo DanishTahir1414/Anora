@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { toast } from "sonner";
+import { useSiteSettings, DEFAULT_SITE_SETTINGS } from "@/lib/site-settings";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
@@ -16,6 +17,7 @@ export const Route = createFileRoute("/contact")({
 });
 
 function Contact() {
+  const { data: settings } = useSiteSettings();
   return (
     <div className="px-5 lg:px-10 py-16 max-w-6xl mx-auto">
       <div className="text-center mb-14">
@@ -59,25 +61,25 @@ function Contact() {
           <Info
             icon={<MessageCircle className="h-4 w-4" />}
             label="WhatsApp"
-            value="+1 (347) 325-6525"
-            href="https://wa.me/15555555555"
+            value={settings?.phone || DEFAULT_SITE_SETTINGS.phone || "+1 (347) 325-6525"}
+            href={settings?.whatsapp_url || DEFAULT_SITE_SETTINGS.whatsapp_url || "https://wa.me/15555555555"}
           />
           <Info
             icon={<Mail className="h-4 w-4" />}
             label="Email"
-            value="care@anora.com"
-            href="mailto:care@anora.com"
+            value={settings?.email || DEFAULT_SITE_SETTINGS.email}
+            href={settings?.email ? `mailto:${settings.email}` : `mailto:${DEFAULT_SITE_SETTINGS.email}`}
           />
           <Info
             icon={<Phone className="h-4 w-4" />}
             label="Phone"
-            value="+1 (212) 555-0199"
-            href="tel:+12125550199"
+            value={settings?.phone || DEFAULT_SITE_SETTINGS.phone}
+            href={settings?.phone ? `tel:${settings.phone.replace(/[^+\d]/g, "")}` : `tel:${DEFAULT_SITE_SETTINGS.phone?.replace(/[^+\d]/g, "")}`}
           />
           <Info
             icon={<MapPin className="h-4 w-4" />}
             label="Atelier"
-            value="12 Atelier Lane, SoHo, New York, NY 10012"
+            value={settings?.address || DEFAULT_SITE_SETTINGS.address}
           />
 
           <div className="overflow-hidden">

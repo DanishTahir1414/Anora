@@ -8,8 +8,10 @@ import { MenuDrawer } from "./MenuDrawer";
 import { SearchDialog } from "./SearchDialog";
 import { AccountDropdown } from "./AccountDropdown";
 import { BRAND_NAME } from "@/lib/brand";
+import { useSiteSettings, DEFAULT_SITE_SETTINGS } from "@/lib/site-settings";
 
 export function Header() {
+  const { data: settings } = useSiteSettings();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -47,9 +49,19 @@ export function Header() {
 
   return (
     <>
-      <div className="bg-ink text-background/90 text-[11px] tracking-[0.32em] uppercase py-2.5 text-center border-b border-gold/10">
-        Complimentary Express Shipping Worldwide
-      </div>
+      {settings?.announcement_enabled !== false && (
+        <div className="bg-ink text-background/90 text-[11px] tracking-[0.32em] uppercase py-2.5 text-center border-b border-gold/10 flex items-center justify-center gap-2 flex-wrap px-4">
+          <span>{settings?.announcement_text || DEFAULT_SITE_SETTINGS.announcement_text}</span>
+          {settings?.announcement_button_text && settings?.announcement_button_link && (
+            <Link
+              to={settings.announcement_button_link}
+              className="underline text-gold hover:text-gold-light ml-1 font-medium transition-colors"
+            >
+              {settings.announcement_button_text}
+            </Link>
+          )}
+        </div>
+      )}
       <header
         className={`sticky top-0 z-40 w-full bg-background transition-all duration-500 ${
           scrolled ? "border-b border-border/60 shadow-luxe bg-background/90 backdrop-blur-md" : ""
@@ -68,9 +80,15 @@ export function Header() {
           </div>
           <Link
             to="/"
-            className="justify-self-center font-serif text-2xl lg:text-3xl tracking-[0.35em] text-foreground hover:text-gold transition-colors duration-300"
+            className="justify-self-center hover:opacity-85 transition-opacity"
           >
-            {BRAND_NAME}
+            {settings?.logo ? (
+              <img src={settings.logo} alt={BRAND_NAME} className="h-8 lg:h-9 w-auto object-contain" />
+            ) : (
+              <span className="font-serif text-2xl lg:text-3xl tracking-[0.35em] text-foreground hover:text-gold transition-colors duration-300">
+                {BRAND_NAME}
+              </span>
+            )}
           </Link>
           <div className="flex items-center justify-end gap-4 lg:gap-5 text-foreground">
             <button
@@ -143,9 +161,15 @@ export function Header() {
             </button>
             <Link
               to="/"
-              className="font-serif text-xl tracking-[0.3em] text-foreground hover:text-gold transition-colors duration-300"
+              className="hover:opacity-85 transition-opacity"
             >
-              {BRAND_NAME}
+              {settings?.logo ? (
+                <img src={settings.logo} alt={BRAND_NAME} className="h-6 w-auto object-contain" />
+              ) : (
+                <span className="font-serif text-xl tracking-[0.3em] text-foreground hover:text-gold transition-colors duration-300">
+                  {BRAND_NAME}
+                </span>
+              )}
             </Link>
           </div>
 

@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import hero from "@/assets/hero.jpg";
+import { useSiteSettings, DEFAULT_SITE_SETTINGS } from "@/lib/site-settings";
 import catClothing from "@/assets/cat-clothing.jpg";
 import catJewellery from "@/assets/cat-jewellery.jpg";
 import p1 from "@/assets/p1.jpg";
@@ -45,6 +46,7 @@ function Home() {
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const { data: products = [] } = useProductsCatalog();
   const { data: categories = [] } = useParentCategories();
+  const { data: settings } = useSiteSettings();
 
   // Group products into sections dynamically
   const featuredProducts = useMemo(() => products.filter((p) => p.featured === true).slice(0, 3), [products]);
@@ -82,7 +84,7 @@ function Home() {
       {/* ─── Hero ─── */}
       <section className="relative h-[90vh] min-h-[640px] overflow-hidden bg-neutral">
         <img
-          src={hero}
+          src={settings?.hero_image || hero}
           alt="ANORA atelier"
           width={1600}
           height={1100}
@@ -91,27 +93,29 @@ function Home() {
         <div className="absolute inset-0 bg-gradient-to-b from-ink/10 via-transparent to-ink/35" />
         <div className="relative h-full flex flex-col items-center justify-center text-center px-6 text-background animate-fade-up">
           <h1 className="font-serif text-[clamp(3.5rem,10vw,8rem)] leading-[0.92] tracking-[0.06em]">
-            ANORA
+            {settings?.hero_heading || DEFAULT_SITE_SETTINGS.hero_heading}
           </h1>
           <div className="mt-4 h-px w-16 bg-gold/60" />
           <p className="mt-6 max-w-md text-sm md:text-base text-background/85 italic font-serif">
-            Elegance Crafted For Every Moment.
+            {settings?.hero_sub_heading || DEFAULT_SITE_SETTINGS.hero_sub_heading}
           </p>
-          <div className="mt-10 flex flex-col sm:flex-row gap-4">
-            <Link
-              to="/shop/$category"
-              params={{ category: "clothing" }}
-              className="bg-background text-foreground px-10 py-4 text-[11px] tracking-[0.32em] uppercase hover:bg-gold hover:text-ink transition-all duration-300"
-            >
-              Shop Clothing
-            </Link>
-            <Link
-              to="/shop/$category"
-              params={{ category: "jewellery" }}
-              className="border border-background text-background px-10 py-4 text-[11px] tracking-[0.32em] uppercase hover:bg-background hover:text-foreground transition-all duration-300"
-            >
-              Shop Jewellery
-            </Link>
+          <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
+            {(settings?.hero_button_1_text || DEFAULT_SITE_SETTINGS.hero_button_1_text) && (
+              <Link
+                to={(settings?.hero_button_1_link || DEFAULT_SITE_SETTINGS.hero_button_1_link || "/shop") as any}
+                className="bg-background text-foreground px-10 py-4 text-[11px] tracking-[0.32em] uppercase hover:bg-gold hover:text-ink transition-all duration-300 text-center"
+              >
+                {settings?.hero_button_1_text || DEFAULT_SITE_SETTINGS.hero_button_1_text}
+              </Link>
+            )}
+            {(settings?.hero_button_2_text || DEFAULT_SITE_SETTINGS.hero_button_2_text) && (
+              <Link
+                to={(settings?.hero_button_2_link || DEFAULT_SITE_SETTINGS.hero_button_2_link || "/shop") as any}
+                className="border border-background text-background px-10 py-4 text-[11px] tracking-[0.32em] uppercase hover:bg-background hover:text-foreground transition-all duration-300 text-center"
+              >
+                {settings?.hero_button_2_text || DEFAULT_SITE_SETTINGS.hero_button_2_text}
+              </Link>
+            )}
           </div>
         </div>
       </section>

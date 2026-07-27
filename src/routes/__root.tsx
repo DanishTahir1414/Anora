@@ -186,6 +186,23 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+import { useSiteSettings } from "@/lib/site-settings";
+
+function FaviconUpdater() {
+  const { data: settings } = useSiteSettings();
+
+  useEffect(() => {
+    if (settings?.favicon) {
+      const link = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+      if (link) {
+        link.href = settings.favicon;
+      }
+    }
+  }, [settings?.favicon]);
+
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const location = useLocation();
@@ -193,6 +210,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <FaviconUpdater />
       <AuthProvider>
         <StoreProvider>
           <div className="flex min-h-screen flex-col bg-background text-foreground">

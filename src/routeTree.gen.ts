@@ -33,6 +33,7 @@ import { Route as ShopCategoryRouteImport } from './routes/shop.$category'
 import { Route as ProductSlugRouteImport } from './routes/product.$slug'
 import { Route as OrderSuccessRouteImport } from './routes/order.success'
 import { Route as BlogsSlugRouteImport } from './routes/blogs.$slug'
+import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminSecurityRouteImport } from './routes/admin.security'
 import { Route as AdminReviewsRouteImport } from './routes/admin.reviews'
 import { Route as AdminReportsRouteImport } from './routes/admin.reports'
@@ -173,6 +174,11 @@ const BlogsSlugRoute = BlogsSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => BlogsRoute,
 } as any)
+const AdminSettingsRoute = AdminSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminSecurityRoute = AdminSecurityRouteImport.update({
   id: '/security',
   path: '/security',
@@ -303,6 +309,7 @@ export interface FileRoutesByFullPath {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/reviews': typeof AdminReviewsRoute
   '/admin/security': typeof AdminSecurityRouteWithChildren
+  '/admin/settings': typeof AdminSettingsRoute
   '/blogs/$slug': typeof BlogsSlugRoute
   '/order/success': typeof OrderSuccessRoute
   '/product/$slug': typeof ProductSlugRoute
@@ -347,6 +354,7 @@ export interface FileRoutesByTo {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/reviews': typeof AdminReviewsRoute
   '/admin/security': typeof AdminSecurityRouteWithChildren
+  '/admin/settings': typeof AdminSettingsRoute
   '/blogs/$slug': typeof BlogsSlugRoute
   '/order/success': typeof OrderSuccessRoute
   '/product/$slug': typeof ProductSlugRoute
@@ -392,6 +400,7 @@ export interface FileRoutesById {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/reviews': typeof AdminReviewsRoute
   '/admin/security': typeof AdminSecurityRouteWithChildren
+  '/admin/settings': typeof AdminSettingsRoute
   '/blogs/$slug': typeof BlogsSlugRoute
   '/order/success': typeof OrderSuccessRoute
   '/product/$slug': typeof ProductSlugRoute
@@ -439,6 +448,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/reviews'
     | '/admin/security'
+    | '/admin/settings'
     | '/blogs/$slug'
     | '/order/success'
     | '/product/$slug'
@@ -483,6 +493,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/reviews'
     | '/admin/security'
+    | '/admin/settings'
     | '/blogs/$slug'
     | '/order/success'
     | '/product/$slug'
@@ -527,6 +538,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/reviews'
     | '/admin/security'
+    | '/admin/settings'
     | '/blogs/$slug'
     | '/order/success'
     | '/product/$slug'
@@ -734,6 +746,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BlogsSlugRouteImport
       parentRoute: typeof BlogsRoute
     }
+    '/admin/settings': {
+      id: '/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/security': {
       id: '/admin/security'
       path: '/security'
@@ -909,6 +928,7 @@ interface AdminRouteChildren {
   AdminReportsRoute: typeof AdminReportsRoute
   AdminReviewsRoute: typeof AdminReviewsRoute
   AdminSecurityRoute: typeof AdminSecurityRouteWithChildren
+  AdminSettingsRoute: typeof AdminSettingsRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
@@ -926,6 +946,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminReportsRoute: AdminReportsRoute,
   AdminReviewsRoute: AdminReviewsRoute,
   AdminSecurityRoute: AdminSecurityRouteWithChildren,
+  AdminSettingsRoute: AdminSettingsRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)

@@ -21,6 +21,7 @@ import {
   ShoppingCart,
   X,
   BookOpen,
+  Settings,
 } from "lucide-react";
 
 interface SidebarItem {
@@ -53,6 +54,11 @@ const ITEMS: SidebarItem[] = [
     label: "Blog Posts",
     to: "/admin/blogs",
     icon: <BookOpen className="h-4 w-4" />,
+  },
+  {
+    label: "Website Settings",
+    to: "/admin/settings",
+    icon: <Settings className="h-4 w-4" />,
   },
 ];
 
