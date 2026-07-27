@@ -81,78 +81,49 @@ function ProductPage() {
     }
   }, [product]);
 
-  if (isLoading) {
-    return <div className="min-h-screen bg-background" />;
-  }
-
-  if (error || !product) {
-    return (
-      <div className="py-32 text-center">
-        <h1 className="font-serif text-4xl">Piece not found</h1>
-        <Link
-          to="/shop"
-          className="inline-block mt-6 text-[11px] tracking-[0.32em] uppercase hover-underline"
-        >
-          Return to shop
-        </Link>
-      </div>
-    );
-  }
-
-  registerProduct(product);
-
-  const colors = product.colorVariants?.map((v) => ({
-    name: v.color,
-    hex: v.color_hex || (v.color === "Ivory" ? "#f5f0e8" : v.color === "Blush" ? "#f5d6d6" : "#ccc"),
-    stock: v.stock,
-  })) ?? [
-    {
-      name: product.color,
-      hex: "#f5f0e8",
-      stock: product.stock,
-    }
-  ];
-
-  const defaultColor = product.colorVariants?.[0]?.color ?? product.color;
+  // Safe intermediate state variables for loading state
+  const defaultColor = product ? (product.colorVariants?.[0]?.color ?? product.color) : "";
   const activeColor = searchParams.color || defaultColor;
-  const active = getActiveState(product, activeColor);
-  const priceInfo = getProductPriceInfo(product, activeColor);
+  const active = product ? getActiveState(product, activeColor) : null;
+  const priceInfo = product ? getProductPriceInfo(product, activeColor) : null;
 
-  const [size, setSize] = useState(active.sizes[0]);
+  // Hooks moved above early returns
+  const [size, setSize] = useState(active?.sizes?.[0] ?? "");
 
   useEffect(() => {
+    if (!active) return;
     // Find the first size that is in stock for the current variant
     const inStockSize = active.sizes.find((s) => (active.sizeStock?.[s] ?? 0) > 0);
     // If current selected size is out of stock or not in variant's sizes, update it
     if (active.sizes.length > 0) {
       if (!active.sizes.includes(size) || (active.sizeStock && active.sizeStock[size] === 0)) {
-        setSize(inStockSize || active.sizes[0]);
+        const targetSize = inStockSize || active.sizes[0];
+        if (size !== targetSize) {
+          setSize(targetSize);
+        }
       }
     }
-  }, [activeColor, active.sizes, active.sizeStock, size]);
+  }, [activeColor, active?.sizes, active?.sizeStock, size]);
 
   useEffect(() => {
-    setImgIdx(0);
-  }, [activeColor]);
+    if (!product) return;
+    setImgIdx((prev) => (prev !== 0 ? 0 : prev));
+  }, [activeColor, product]);
 
   const [qty, setQty] = useState(1);
   const [imgIdx, setImgIdx] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
 
-  const hasSizeStock = active.sizeStock && Object.keys(active.sizeStock).length > 0;
-  const allOOS = hasSizeStock && active.sizes.every((s) => (active.sizeStock![s] ?? 0) === 0);
-  const selectedSizeStock = active.sizeStock?.[size] ?? 0;
-  const isSizeOOS = hasSizeStock && selectedSizeStock === 0;
-  const isOOS = !active.isAvailable || active.stock === 0 || allOOS || isSizeOOS;
-
   // ─── Color switch ───
   const switchColor = useCallback(
     (c: string) => {
+      if (!product) return;
       void navigate({ search: (old) => ({ ...old, color: c }) });
       const next = getActiveState(product, c);
-      setSize(next.sizes[0]);
-      setImgIdx(0);
+      const targetSize = next.sizes[0];
+      setSize((prev) => (prev !== targetSize ? targetSize : prev));
+      setImgIdx((prev) => (prev !== 0 ? 0 : prev));
     },
     [product, navigate],
   );
@@ -172,13 +143,64 @@ function ProductPage() {
 
   // ─── Mobile swipe ───
   const touchStart = useRef<number>(0);
+
+  // Conditional early returns
+  if (isLoading) {
+    return <div className="min-h-screen bg-background" />;
+  }
+
+  if (error || !product || !active || !priceInfo) {
+    return (
+      <div className="py-32 text-center">
+        <h1 className="font-serif text-4xl">Piece not found</h1>
+        <Link
+          to="/shop"
+          className="inline-block mt-6 text-[11px] tracking-[0.32em] uppercase hover-underline"
+        >
+          Return to shop
+        </Link>
+      </div>
+    );
+  }
+
+  // Once product and active are guaranteed, register product and compute layout variables
+  registerProduct(product);
+
+  const colors = product.colorVariants?.map((v) => ({
+    name: v.color,
+    hex: v.color_hex || (v.color === "Ivory" ? "#f5f0e8" : v.color === "Blush" ? "#f5d6d6" : "#ccc"),
+    stock: v.stock,
+  })) ?? [
+    {
+      name: product.color,
+      hex: "#f5f0e8",
+      stock: product.stock,
+    }
+  ];
+
+  const activeSizes = active.sizes;
+  const activeSizeStock = active.sizeStock;
+  const activeStock = active.stock;
+  const activeIsAvailable = active.isAvailable;
+  const activeImages = active.images;
+  const activeSku = active.sku;
+  const activeColorValue = active.color;
+  const activeId = active.id;
+
+  const hasSizeStock = activeSizeStock && Object.keys(activeSizeStock).length > 0;
+  const allOOS = hasSizeStock && activeSizes.every((s) => (activeSizeStock[s] ?? 0) === 0);
+  const selectedSizeStock = activeSizeStock?.[size] ?? 0;
+  const isSizeOOS = hasSizeStock && selectedSizeStock === 0;
+  const isOOS = !activeIsAvailable || activeStock === 0 || allOOS || isSizeOOS;
+
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStart.current = e.touches[0].clientX;
   };
   const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!activeImages) return;
     const diff = touchStart.current - e.changedTouches[0].clientX;
     if (Math.abs(diff) > 50) {
-      if (diff > 0) setImgIdx((i) => Math.min(active.images.length - 1, i + 1));
+      if (diff > 0) setImgIdx((i) => Math.min(activeImages.length - 1, i + 1));
       else setImgIdx((i) => Math.max(0, i - 1));
     }
   };
@@ -207,7 +229,7 @@ function ProductPage() {
         <div className="grid grid-cols-1 md:grid-cols-[64px_1fr] gap-4">
           {/* Thumbnails */}
           <div className="hidden md:flex flex-col gap-3">
-            {active.images.map((img, i) => (
+            {activeImages.map((img, i) => (
               <button
                 key={i}
                 onClick={() => setImgIdx(i)}
@@ -233,7 +255,7 @@ function ProductPage() {
             className="md:col-start-2 overflow-hidden aspect-[3/4] bg-neutral cursor-crosshair relative"
           >
             <img
-              src={active.images[imgIdx]}
+              src={activeImages[imgIdx]}
               alt={product.name}
               className={`h-full w-full object-cover transition-opacity duration-500 ${zoom ? "opacity-0" : "opacity-100"
                 }`}
@@ -245,7 +267,7 @@ function ProductPage() {
             )}
             {zoom && (
               <img
-                src={active.images[imgIdx]}
+                src={activeImages[imgIdx]}
                 alt=""
                 className="absolute inset-0 h-[200%] w-[200%] max-w-none pointer-events-none"
                 style={{
@@ -268,7 +290,7 @@ function ProductPage() {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setImgIdx((i) => Math.min(active.images.length - 1, i + 1));
+                setImgIdx((i) => Math.min(activeImages.length - 1, i + 1));
               }}
               className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 bg-background/80 grid place-items-center hover:text-gold transition-colors"
             >
@@ -278,7 +300,7 @@ function ProductPage() {
 
           {/* Mobile thumbnails */}
           <div className="md:hidden flex gap-2 mt-3 overflow-x-auto col-span-2">
-            {active.images.map((img, i) => (
+            {activeImages.map((img, i) => (
               <button
                 key={i}
                 onClick={() => setImgIdx(i)}
@@ -302,7 +324,7 @@ function ProductPage() {
             </span>
             <span className="text-muted-foreground">·</span>
             <span className="text-[11px] tracking-[0.28em] uppercase text-muted-foreground">
-              SKU {active.sku}
+              SKU {activeSku}
             </span>
           </div>
 
@@ -397,8 +419,8 @@ function ProductPage() {
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
-              {active.sizes.map((s) => {
-                const qty = active.sizeStock?.[s];
+              {activeSizes.map((s) => {
+                const qty = activeSizeStock?.[s];
                 const disabled = hasSizeStock && qty !== undefined && qty === 0;
                 return (
                   <button
@@ -441,14 +463,14 @@ function ProductPage() {
             </div>
             <button
               onClick={() => {
-                const wasWishlisted = wish.has(product.id, active.id);
-                wish.toggle(product.id, active.id);
+                const wasWishlisted = wish.has(product.id, activeId);
+                wish.toggle(product.id, activeId);
                 toast(wasWishlisted ? "Removed from Wishlist" : "Added to Wishlist");
               }}
               className="h-11 w-11 grid place-items-center border border-border hover:border-foreground transition-all duration-300 hover:scale-105"
               aria-label="wishlist"
             >
-              <Heart className={`h-4 w-4 ${wish.has(product.id, active.id) ? "fill-gold text-gold" : ""}`} />
+              <Heart className={`h-4 w-4 ${wish.has(product.id, activeId) ? "fill-gold text-gold" : ""}`} />
             </button>
             <button
               onClick={() => {
@@ -475,7 +497,7 @@ function ProductPage() {
                 if (isOOS) return;
                 const validation = validateStockBeforeCheckout(product, {
                   productId: product.id,
-                  variantId: active.id,
+                  variantId: activeId,
                   size,
                   quantity: qty,
                   color: activeColor,
@@ -484,7 +506,7 @@ function ProductPage() {
                   toast.error(validation.reason ?? "Selected option is unavailable");
                   return;
                 }
-                cart.add(product.id, size, qty, active.id);
+                cart.add(product.id, size, qty, activeId);
                 toast.success("Added to bag", {
                   description: `${product.name} · ${size} · Qty ${qty}`,
                 });
@@ -500,7 +522,7 @@ function ProductPage() {
             {!isOOS && (
               <Link
                 to="/checkout"
-                onClick={() => cart.add(product.id, size, qty, active.id)}
+                onClick={() => cart.add(product.id, size, qty, activeId)}
                 className="text-center border border-foreground py-4 text-[11px] tracking-[0.32em] uppercase hover:bg-foreground hover:text-background transition-all duration-300"
               >
                 Buy Now
@@ -518,7 +540,7 @@ function ProductPage() {
           <div className="mt-10 divide-y divide-border/60 border-t border-b border-border/60">
             <Detail title="Composition">
               <p>{product.fabric ?? product.material ?? "Premium quality"}</p>
-              <p>Colour — {active.color}</p>
+              <p>Colour — {activeColorValue}</p>
             </Detail>
             <Detail title="Care">
               <p>
@@ -560,7 +582,7 @@ function ProductPage() {
           </button>
           <div className="max-w-2xl max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
             <img
-              src={active.images[imgIdx]}
+              src={activeImages[imgIdx]}
               alt={product.name}
               className="w-full h-full object-contain max-h-[85vh]"
             />
@@ -577,7 +599,7 @@ function ProductPage() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setImgIdx((i) => Math.min(active.images.length - 1, i + 1));
+              setImgIdx((i) => Math.min(activeImages.length - 1, i + 1));
             }}
             className="absolute right-6 top-1/2 -translate-y-1/2 text-background/70 hover:text-gold text-3xl transition-colors"
           >

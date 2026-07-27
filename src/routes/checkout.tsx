@@ -34,6 +34,11 @@ const emptyAddress: CheckoutAddress = {
   postalCode: "", country: "US", phone: "",
 };
 
+// Module-level cache for reusing valid PaymentIntents
+let cachedClientSecret: string | null = null;
+let cachedCartHash: string | null = null;
+let cachedCheckoutRequestId: string | null = null;
+
 function getFormValue(form: HTMLFormElement, name: string): string {
   return (form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? "";
 }
@@ -90,12 +95,23 @@ export function CheckoutForm() {
     setIsMounted(true);
   }, []);
 
+  const cartHash = useMemo(() => {
+    return cart.items.map((i) => `${i.productId}:${i.variantId || ""}:${i.size}:${i.quantity}`).join(",");
+  }, [cart.items]);
+
   const [submitting, setSubmitting] = useState(false);
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [checkoutStep, setCheckoutStep] = useState<string>("");
+  const [clientSecret, setClientSecret] = useState<string | null>(() => {
+    return cachedCartHash === cartHash ? cachedClientSecret : null;
+  });
   const [stripeLoadFailed, setStripeLoadFailed] = useState(false);
   const [orderCreating, setOrderCreating] = useState(false);
   const orderAttempted = useRef(false);
-  const checkoutRequestId = useRef(crypto.randomUUID());
+  const checkoutRequestId = useRef(
+    cachedCartHash === cartHash && cachedCheckoutRequestId
+      ? cachedCheckoutRequestId
+      : crypto.randomUUID()
+  );
   const formRef = useRef<HTMLFormElement | null>(null);
 
   const [confirmHandler, setConfirmHandler] = useState<
@@ -145,7 +161,7 @@ export function CheckoutForm() {
     }
   }, [success, payment_intent, navigate]);
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => user?.email ?? "");
 
   // Sync email with logged in user
   useEffect(() => {
@@ -154,13 +170,14 @@ export function CheckoutForm() {
     }
   }, [user?.email]);
 
-  const cartHash = useMemo(() => {
-    return cart.items.map((i) => `${i.productId}:${i.variantId || ""}:${i.size}:${i.quantity}`).join(",");
-  }, [cart.items]);
-
   // Reset clientSecret if cart items change, to force recreation of PaymentIntent with new amount/items
   useEffect(() => {
-    setClientSecret(null);
+    if (cachedCartHash !== cartHash) {
+      setClientSecret(null);
+      cachedClientSecret = null;
+      cachedCartHash = null;
+      cachedCheckoutRequestId = null;
+    }
   }, [cartHash]);
 
   // Auto-initialize Stripe PaymentIntent on page load or when valid email is entered
@@ -201,6 +218,9 @@ export function CheckoutForm() {
           },
         });
         setClientSecret(result.clientSecret);
+        cachedClientSecret = result.clientSecret;
+        cachedCartHash = cartHash;
+        cachedCheckoutRequestId = checkoutRequestId.current;
       } catch (err) {
         console.error("PaymentIntent initialization failed:", err);
         setStripeLoadFailed(true);
@@ -221,6 +241,7 @@ export function CheckoutForm() {
       return;
     }
     setSubmitting(true);
+    setCheckoutStep("Preparing Order...");
 
     try {
       if (!formRef.current) throw new Error("Form not found");
@@ -230,6 +251,7 @@ export function CheckoutForm() {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token || undefined;
 
+      setCheckoutStep("Verifying Cart...");
       const piId = clientSecret.split("_secret_")[0];
       await updatePaymentIntent({
         data: {
@@ -241,29 +263,39 @@ export function CheckoutForm() {
         },
       });
 
+      setCheckoutStep("Initializing Secure Payment...");
       const returnUrl = `${window.location.origin}/checkout?success=1`;
+      setCheckoutStep("Verifying Payment...");
       const confirmResult = await confirmHandler(clientSecret, returnUrl);
 
       if (confirmResult.error) {
         toast.error(confirmResult.error.message ?? "Payment could not be processed.");
         setSubmitting(false);
+        setCheckoutStep("");
       } else if (confirmResult.paymentIntent) {
         setOrderCreating(true);
+        setCheckoutStep("Creating Order...");
         const order = await createOrder({
           data: { paymentIntentId: confirmResult.paymentIntent.id, accessToken },
         });
         if (order.success) {
+          setCheckoutStep("Order Confirmed");
+          cachedClientSecret = null;
+          cachedCartHash = null;
+          cachedCheckoutRequestId = null;
           cart.clear();
           navigate({ to: "/order/success", search: { orderNumber: order.orderNumber ?? "", invoiceNumber: order.invoiceNumber ?? "", orderId: order.orderId ?? "" } });
         } else {
           toast.error(order.error ?? "Order could not be created. Please contact support.");
           setSubmitting(false);
           setOrderCreating(false);
+          setCheckoutStep("");
         }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Unable to complete payment. Please try again.");
       setSubmitting(false);
+      setCheckoutStep("");
     }
   };
 
@@ -398,24 +430,14 @@ export function CheckoutForm() {
             ) : (
               <>
                 <div>
-                  {clientSecret ? (
-                    <StripeErrorBoundary onError={() => setStripeLoadFailed(true)}>
-                      <StripePaymentForm
-                        stripeKey={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || ""}
-                        clientSecret={clientSecret}
-                        onConfirmReady={handleConfirmReady}
-                      />
-                    </StripeErrorBoundary>
-                  ) : (
-                    <div className="space-y-3 animate-pulse">
-                      <div className="h-11 bg-neutral rounded-md" />
-                      <div className="h-11 bg-neutral rounded-md" />
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="h-11 bg-neutral rounded-md" />
-                        <div className="h-11 bg-neutral rounded-md" />
-                      </div>
-                    </div>
-                  )}
+                  <StripeErrorBoundary onError={() => setStripeLoadFailed(true)}>
+                    <StripePaymentForm
+                      stripeKey={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || ""}
+                      total={total}
+                      clientSecret={clientSecret}
+                      onConfirmReady={handleConfirmReady}
+                    />
+                  </StripeErrorBoundary>
                 </div>
 
                 <div className="my-8 border-t border-border" />
@@ -477,7 +499,7 @@ export function CheckoutForm() {
               disabled={submitting}
               className="mt-6 w-full bg-foreground text-background py-4 text-[11px] tracking-[0.32em] uppercase hover:bg-gold hover:text-ink transition-colors disabled:opacity-60"
             >
-              {submitting ? "Processing Payment..." : "Place Order"}
+              {submitting ? checkoutStep || "Processing..." : "Place Order"}
             </button>
           </div>
         </aside>

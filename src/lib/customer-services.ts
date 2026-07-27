@@ -59,7 +59,8 @@ async function loadDbCatalog() {
         .from("products")
         .select(`
           id, slug, name, price, compare_price, stock, size_stock, sizes, sku, colors, fabric, material, is_new, is_best_seller, featured, status, is_active, sale_active, discount_percent, description, category_id,
-          product_images (image_url, sort_order)
+          product_images (image_url, sort_order, variant_id),
+          product_variants (id, name, sku, price, compare_price, stock, sizes, size_stock, color_hex, is_active)
         `)
         .eq("is_active", true)
         .eq("status", "active");
@@ -72,6 +73,29 @@ async function loadDbCatalog() {
             .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
             .map((img: any) => img.image_url)
             .filter(Boolean);
+
+          const activeVariants = (row.product_variants || [])
+            .filter((v: any) => v.is_active)
+            .map((v: any) => {
+              const varImages = (row.product_images || [])
+                .filter((img: any) => img.variant_id === v.id)
+                .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+                .map((img: any) => img.image_url)
+                .filter(Boolean);
+
+              return {
+                id: v.id,
+                color: v.name,
+                color_hex: v.color_hex || undefined,
+                images: varImages.length > 0 ? varImages : sortedImages,
+                sizes: v.sizes || row.sizes || [],
+                sizeStock: v.size_stock || {},
+                stock: v.stock || 0,
+                sku: v.sku || row.sku || "",
+                priceOverride: v.price ? Number(v.price) : undefined,
+                comparePriceOverride: v.compare_price ? Number(v.compare_price) : undefined,
+              };
+            });
 
           return {
             id: row.id,
@@ -93,6 +117,7 @@ async function loadDbCatalog() {
             badge: row.is_new ? "New" : row.is_best_seller ? "Best Seller" : undefined,
             sale_active: row.sale_active || false,
             discount_percent: row.discount_percent || 0,
+            colorVariants: activeVariants.length > 0 ? activeVariants : undefined,
           };
         });
         dbCatalogLoaded = true;
@@ -451,11 +476,11 @@ export async function addToCart(productId: string, variantId?: string | null, si
   const product = getProduct(productId);
   const validation = product
     ? validateStockBeforeCheckout(product, {
-        productId,
-        variantId: variantId ?? undefined,
-        size,
-        quantity: qty,
-      })
+      productId,
+      variantId: variantId ?? undefined,
+      size,
+      quantity: qty,
+    })
     : null;
   if (validation && !validation.ok) {
     const isStockIssue = validation.code ? isStockOnlyError(validation.code) : false;
@@ -653,11 +678,11 @@ export async function mergeGuestCartToUser(userId: string) {
       const product = getProduct(item.productId);
       const validation = product
         ? validateStockBeforeCheckout(product, {
-            productId: item.productId,
-            variantId: item.variantId ?? undefined,
-            size: item.size,
-            quantity: maxQty,
-          })
+          productId: item.productId,
+          variantId: item.variantId ?? undefined,
+          size: item.size,
+          quantity: maxQty,
+        })
         : null;
       merged.set(key, {
         ...existing,
@@ -705,13 +730,13 @@ export async function removeFromWishlist(productId: string, variantId?: string |
   rebuildSnapshots();
   notify();
   if (!currentUserId) return;
-  
+
   const query = supabase
     .from("wishlists")
     .delete()
     .eq("user_id", currentUserId)
     .eq("product_id", productId);
-    
+
   if (variantId) {
     void query.eq("variant_id", variantId);
   } else {
@@ -737,7 +762,7 @@ export async function syncWishlistOnLogin(userId: string) {
     .select("product_id, variant_id")
     .eq("user_id", userId);
   if (error) return wishIds;
-  const dbKeys = ((data ?? []) as any[]).map((row) => 
+  const dbKeys = ((data ?? []) as any[]).map((row) =>
     row.variant_id ? `${row.product_id}|${row.variant_id}` : row.product_id
   );
   const merged = new Set([

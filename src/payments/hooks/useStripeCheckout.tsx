@@ -1,4 +1,4 @@
-import { useRef, useEffect, memo } from "react";
+import { useRef, useEffect, memo, useMemo } from "react";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import {
   Elements,
@@ -8,21 +8,24 @@ import {
 } from "@stripe/react-stripe-js";
 import { getStripePublishableKey } from "@/lib/payments";
 
-// ── Stripe SDK — loaded once at module evaluation time ────────────────────
-// The promise is cached so the Elements provider reuses it with zero extra
-// network requests, regardless of how many times this module is imported.
-const stripePromiseCache = new Map<string, Promise<Stripe | null>>();
+// ── Stripe SDK — loaded once for the lifetime of the application ──────────
+let stripePromiseInstance: Promise<Stripe | null> | null = null;
 
 export function getStripePromise(key: string): Promise<Stripe | null> {
-  if (!stripePromiseCache.has(key)) {
-    stripePromiseCache.set(key, loadStripe(key));
+  if (typeof window === "undefined") {
+    return Promise.resolve(null);
   }
-  return stripePromiseCache.get(key)!;
+  if (!stripePromiseInstance) {
+    stripePromiseInstance = loadStripe(key);
+  }
+  return stripePromiseInstance;
 }
 
 // Eagerly start downloading stripe.js as soon as this chunk is imported.
-const STRIPE_KEY = getStripePublishableKey();
-if (STRIPE_KEY) getStripePromise(STRIPE_KEY);
+if (typeof window !== "undefined") {
+  const STRIPE_KEY = getStripePublishableKey();
+  if (STRIPE_KEY) getStripePromise(STRIPE_KEY);
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────
 export type ConfirmFn = (
@@ -37,28 +40,45 @@ export type ConfirmFn = (
 // Registers the confirm handler once stripe + elements are ready.
 // Memoised so it never remounts due to parent re-renders.
 const StripeInnerForm = memo(function StripeInnerForm({
+  clientSecret,
   onConfirmReady,
 }: {
+  clientSecret: string | null;
   onConfirmReady: (fn: ConfirmFn) => void;
 }) {
   const stripe = useStripe();
   const elements = useElements();
-  const registered = useRef(false);
+  const onConfirmReadyRef = useRef(onConfirmReady);
+  const clientSecretRef = useRef(clientSecret);
 
   useEffect(() => {
-    if (!stripe || !elements || registered.current) return;
-    registered.current = true;
-    onConfirmReady(async (clientSecret, returnUrl) => {
+    onConfirmReadyRef.current = onConfirmReady;
+  }, [onConfirmReady]);
+
+  useEffect(() => {
+    clientSecretRef.current = clientSecret;
+  }, [clientSecret]);
+
+  useEffect(() => {
+    if (!stripe || !elements) return;
+
+    onConfirmReadyRef.current(async (passedSecret, returnUrl) => {
+      const targetSecret = passedSecret || clientSecretRef.current;
+      if (!targetSecret) {
+        return { error: { message: "Secure payment setup is finishing. Please try again in a moment." } };
+      }
+
       const { error: submitError } = await elements.submit();
       if (submitError) return { error: submitError };
+
       return stripe.confirmPayment({
         elements,
-        clientSecret,
+        clientSecret: targetSecret,
         confirmParams: { return_url: returnUrl },
         redirect: "if_required",
       });
     });
-  }, [stripe, elements, onConfirmReady]);
+  }, [stripe, elements]);
 
   return (
     <PaymentElement options={{ layout: { type: "accordion" } }} />
@@ -66,23 +86,36 @@ const StripeInnerForm = memo(function StripeInnerForm({
 });
 
 // ── Public component ──────────────────────────────────────────────────────
-// Mounts the Elements provider with the given clientSecret.
-// Memoised — only remounts when clientSecret changes.
+// Mounts the Elements provider using Stripe Deferred Elements mode.
+// Warm-loads the elements iframe immediately in parallel with API calls.
 export const StripePaymentForm = memo(function StripePaymentForm({
   stripeKey,
+  total,
   clientSecret,
   onConfirmReady,
 }: {
   stripeKey: string;
-  clientSecret: string;
+  total: number;
+  clientSecret: string | null;
   onConfirmReady: (fn: ConfirmFn) => void;
 }) {
+  const options = useMemo(() => {
+    return {
+      mode: "payment" as const,
+      amount: Math.max(1, Math.round(total * 100)),
+      currency: "usd",
+      appearance: { theme: "stripe" },
+    };
+  }, [total]);
+
+  const stripePromise = useMemo(() => getStripePromise(stripeKey), [stripeKey]);
+
   return (
     <Elements
-      stripe={getStripePromise(stripeKey)}
-      options={{ clientSecret, appearance: { theme: "stripe" } }}
+      stripe={stripePromise}
+      options={options}
     >
-      <StripeInnerForm onConfirmReady={onConfirmReady} />
+      <StripeInnerForm clientSecret={clientSecret} onConfirmReady={onConfirmReady} />
     </Elements>
   );
 });

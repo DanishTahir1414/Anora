@@ -56,31 +56,28 @@ export function BrandLoader({ isLoading }: BrandLoaderProps) {
                isBridging || 
                (!initialPageLoaded && (activeQueriesCount > 0 || isLoading || false));
 
-  const [shouldRender, setShouldRender] = useState(show);
-  const [visible, setVisible] = useState(show);
+  const isAdmin = pathname.startsWith("/admin");
+  const initialShow = isAdmin ? false : true;
+  const [visible, setVisible] = useState(initialShow);
   const [prevShow, setPrevShow] = useState(show);
 
   // Sync state synchronously during the render phase if show becomes true
   if (show !== prevShow) {
     setPrevShow(show);
-    if (show) {
-      setShouldRender(true);
+    if (show && !isAdmin) {
       setVisible(true);
     }
   }
 
   useEffect(() => {
-    if (!show) {
-      setVisible(false);
+    if (!show || isAdmin) {
       const t = setTimeout(() => {
-        setShouldRender(false);
+        setVisible(false);
         setInitialPageLoaded(true);
-      }, 500);
+      }, 150);
       return () => clearTimeout(t);
     }
-  }, [show]);
-
-  if (!shouldRender) return null;
+  }, [show, isAdmin]);
 
   return (
     <div

@@ -86,7 +86,7 @@ function Home() {
           alt="ANORA atelier"
           width={1600}
           height={1100}
-          className="absolute inset-0 h-full w-full object-cover animate-zoom-in"
+          className="absolute inset-0 h-full w-full object-cover lg:object-top animate-zoom-in"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-ink/10 via-transparent to-ink/35" />
         <div className="relative h-full flex flex-col items-center justify-center text-center px-6 text-background animate-fade-up">

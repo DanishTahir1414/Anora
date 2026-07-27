@@ -12,6 +12,29 @@ export function mapDbProduct(row: any): Product & { featured: boolean; is_new: b
     .map((img: any) => img.image_url)
     .filter(Boolean);
 
+  const activeVariants = (row.product_variants || [])
+    .filter((v: any) => v.is_active)
+    .map((v: any) => {
+      const varImages = (row.product_images || [])
+        .filter((img: any) => img.variant_id === v.id)
+        .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+        .map((img: any) => img.image_url)
+        .filter(Boolean);
+
+      return {
+        id: v.id,
+        color: v.name,
+        color_hex: v.color_hex || undefined,
+        images: varImages.length > 0 ? varImages : sortedImages,
+        sizes: v.sizes || row.sizes || [],
+        sizeStock: v.size_stock || {},
+        stock: v.stock || 0,
+        sku: v.sku || row.sku || "",
+        priceOverride: v.price ? Number(v.price) : undefined,
+        comparePriceOverride: v.compare_price ? Number(v.compare_price) : undefined,
+      };
+    });
+
   return {
     id: row.id,
     slug: row.slug,
@@ -37,6 +60,7 @@ export function mapDbProduct(row: any): Product & { featured: boolean; is_new: b
     is_best_seller: row.is_best_seller || false,
     popularity_score: Number(row.popularity_score || 0),
     created_at: row.created_at,
+    colorVariants: activeVariants.length > 0 ? activeVariants : undefined,
   };
 }
 
@@ -48,7 +72,8 @@ export function useProductsCatalog() {
         .from("products")
         .select(`
           id, slug, name, price, compare_price, stock, size_stock, sizes, sku, colors, fabric, material, is_new, is_best_seller, featured, status, is_active, sale_active, discount_percent, description, category_id, popularity_score, created_at,
-          product_images (image_url, sort_order)
+          product_images (image_url, sort_order, variant_id),
+          product_variants (id, name, sku, price, compare_price, stock, sizes, size_stock, color_hex, is_active)
         `)
         .eq("is_active", true)
         .eq("status", "active");

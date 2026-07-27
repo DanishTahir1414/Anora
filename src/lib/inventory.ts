@@ -169,7 +169,14 @@ export function validateStockBeforeCheckout(
   product: Product,
   line: CheckoutLine,
 ): StockValidationResult {
-  const availability = getProductAvailability(product, line.color);
+  let color = line.color;
+  if (!color && line.variantId) {
+    const variant = product.colorVariants?.find((v) => v.id === line.variantId);
+    if (variant) {
+      color = variant.color;
+    }
+  }
+  const availability = getProductAvailability(product, color);
   const { quantity: availableQuantity, error: stockError } = getAvailableStock(
     { stock: availability.stock, size_stock: availability.sizeStock },
     line.size,

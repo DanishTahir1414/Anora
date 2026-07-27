@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Heart, Eye, X, Minus, Plus } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { getProductPriceInfo, type Product } from "@/lib/products";
 import { ProductPrice } from "./ProductPrice";
 import { useCart, useWishlist } from "@/lib/store";
@@ -11,17 +11,41 @@ export function ProductCard({ product }: { product: Product }) {
   const priceInfo = getProductPriceInfo(product);
   const wish = useWishlist();
   const cart = useCart();
-  const [size, setSize] = useState<string | null>(null);
-  const [quickOpen, setQuickOpen] = useState(false);
-  const [quickSize, setQuickSize] = useState(product.sizes[0]);
-  const [quickQty, setQuickQty] = useState(1);
   const second = product.images[1] ?? product.images[0];
 
-  const availability = getProductAvailability(product);
+  const activeColor = useMemo(() => {
+    if (!product.colorVariants || product.colorVariants.length === 0) return product.color;
+    const baseAvailability = getProductAvailability(product);
+    const availableVariant = baseAvailability.colorVariants.find((v) => v.isAvailable);
+    return availableVariant?.color ?? product.colorVariants[0]?.color ?? product.color;
+  }, [product.color, product.colorVariants]);
+
+  const availability = useMemo(() => {
+    return getProductAvailability(product, activeColor);
+  }, [product, activeColor]);
+
   const sizeStock = availability.sizeStock ?? {};
   const hasSizeStock = Object.keys(sizeStock).length > 0;
   const allOOS = hasSizeStock && availability.sizes.every((s) => (sizeStock[s] ?? 1) === 0);
   const isOOS = !availability.isAvailable || availability.stock === 0 || allOOS;
+
+  const firstAvailableSize = useMemo(() => {
+    if (isOOS) return null;
+    return availability.sizes.find((s) => {
+      const qty = sizeStock[s];
+      const disabled = hasSizeStock && qty !== undefined && qty === 0;
+      return !disabled;
+    }) ?? null;
+  }, [availability.sizes, sizeStock, hasSizeStock, isOOS]);
+
+  const [size, setSize] = useState<string | null>(firstAvailableSize);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [quickSize, setQuickSize] = useState(firstAvailableSize ?? product.sizes[0]);
+  const [quickQty, setQuickQty] = useState(1);
+
+  const activeVariantId = useMemo(() => {
+    return availability.selectedVariant?.id ?? product.colorVariants?.[0]?.id;
+  }, [availability.selectedVariant, product.colorVariants]);
 
   return (
     <>
@@ -73,16 +97,26 @@ export function ProductCard({ product }: { product: Product }) {
               wish.toggle(product.id);
               toast(wasWishlisted ? "Removed from Wishlist" : "Added to Wishlist");
             }}
-            className="absolute top-3 right-3 h-9 w-9 grid place-items-center bg-background/90 backdrop-blur transition-all duration-300 hover:text-gold hover:scale-105"
+            className="absolute top-3 right-3 h-9 w-9 grid place-items-center transition-colors duration-300 hover:text-gold text-foreground z-10 group/wishlist"
           >
-            <Heart className={`h-4 w-4 ${wish.has(product.id) ? "fill-gold text-gold" : ""}`} />
+            <Heart className={`h-[20px] w-[20px] transition-all duration-300 group-hover/wishlist:fill-gold group-hover/wishlist:text-gold ${wish.has(product.id) ? "fill-gold text-gold" : "text-foreground"}`} />
           </button>
 
           {!isOOS && (
             <div className="absolute inset-x-3 bottom-3 hidden sm:flex gap-2 transition-all duration-500 opacity-100 translate-y-0 lg:opacity-0 lg:translate-y-2 lg:group-hover:opacity-100 lg:group-hover:translate-y-0 z-20">
               <button
                 onClick={() => {
-                  const chosen = size ?? product.sizes[0];
+                  const chosen = size;
+                  if (!chosen) {
+                    toast.error("Please select a size first");
+                    return;
+                  }
+                  if (!product.sizes.includes(chosen)) {
+                    if (process.env.NODE_ENV === "development") {
+                      console.error(`Validation Failure: Selected size "${chosen}" does not exist on product.`, product);
+                    }
+                    return;
+                  }
                   const validation = validateStockBeforeCheckout(product, {
                     productId: product.id,
                     size: chosen,
@@ -93,7 +127,15 @@ export function ProductCard({ product }: { product: Product }) {
                     toast.error(validation.reason ?? "This size is out of stock");
                     return;
                   }
-                  cart.add(product.id, chosen, 1);
+                  const activeVariant = product.colorVariants?.find((v) => v.color === availability.color) ?? { sku: product.sku };
+                  const targetSku = activeVariant.sku ?? product.sku;
+                  if (!targetSku) {
+                    if (process.env.NODE_ENV === "development") {
+                      console.error("Validation Failure: Product SKU does not exist.", product);
+                    }
+                    return;
+                  }
+                  cart.add(product.id, chosen, 1, activeVariantId);
                   toast.success("Added to bag", { description: `${product.name} · ${chosen}` });
                 }}
                 className="flex-1 bg-foreground text-background py-3 text-[11px] tracking-[0.32em] uppercase hover:bg-gold hover:text-ink transition-all duration-300"
@@ -102,7 +144,7 @@ export function ProductCard({ product }: { product: Product }) {
               </button>
               <button
                 onClick={() => {
-                  setQuickSize(availability.sizes[0]);
+                  setQuickSize(firstAvailableSize ?? availability.sizes[0] ?? product.sizes[0]);
                   setQuickQty(1);
                   setQuickOpen(true);
                 }}
@@ -161,18 +203,36 @@ export function ProductCard({ product }: { product: Product }) {
         {!isOOS && (
           <button
             onClick={() => {
-              const chosen = size ?? product.sizes[0];
+              const chosen = size;
+              if (!chosen) {
+                toast.error("Please select a size first");
+                return;
+              }
+              if (!product.sizes.includes(chosen)) {
+                if (process.env.NODE_ENV === "development") {
+                  console.error(`Validation Failure: Selected size "${chosen}" does not exist on product.`, product);
+                }
+                return;
+              }
               const validation = validateStockBeforeCheckout(product, {
                 productId: product.id,
                 size: chosen,
                 quantity: 1,
                 color: availability.color,
-               });
+              });
               if (!validation.ok) {
                 toast.error(validation.reason ?? "This size is out of stock");
                 return;
               }
-              cart.add(product.id, chosen, 1);
+              const activeVariant = product.colorVariants?.find((v) => v.color === availability.color) ?? { sku: product.sku };
+              const targetSku = activeVariant.sku ?? product.sku;
+              if (!targetSku) {
+                if (process.env.NODE_ENV === "development") {
+                  console.error("Validation Failure: Product SKU does not exist.", product);
+                }
+                return;
+              }
+              cart.add(product.id, chosen, 1, activeVariantId);
               toast.success("Added to bag", { description: `${product.name} · ${chosen}` });
             }}
             className="sm:hidden mt-3 w-full bg-foreground text-background py-3 text-[11px] tracking-[0.32em] uppercase hover:bg-gold hover:text-ink transition-all duration-300"
@@ -274,9 +334,26 @@ export function ProductCard({ product }: { product: Product }) {
 
               <button
                 onClick={() => {
+                  const chosen = quickSize;
+                  if (!chosen) {
+                    toast.error("Please select a size first");
+                    return;
+                  }
+                  if (!product.sizes.includes(chosen)) {
+                    if (process.env.NODE_ENV === "development") {
+                      console.error(`Validation Failure: Selected size "${chosen}" does not exist on product.`, product);
+                    }
+                    return;
+                  }
+                  if (quickQty < 1) {
+                    if (process.env.NODE_ENV === "development") {
+                      console.error(`Validation Failure: Invalid quantity "${quickQty}".`, product);
+                    }
+                    return;
+                  }
                   const validation = validateStockBeforeCheckout(product, {
                     productId: product.id,
-                    size: quickSize,
+                    size: chosen,
                     quantity: quickQty,
                     color: availability.color,
                   });
@@ -284,9 +361,17 @@ export function ProductCard({ product }: { product: Product }) {
                     toast.error(validation.reason ?? "This size is out of stock");
                     return;
                   }
-                  cart.add(product.id, quickSize, quickQty);
+                  const activeVariant = product.colorVariants?.find((v) => v.color === availability.color) ?? { sku: product.sku };
+                  const targetSku = activeVariant.sku ?? product.sku;
+                  if (!targetSku) {
+                    if (process.env.NODE_ENV === "development") {
+                      console.error("Validation Failure: Product SKU does not exist.", product);
+                    }
+                    return;
+                  }
+                  cart.add(product.id, chosen, quickQty, activeVariantId);
                   toast.success("Added to bag", {
-                    description: `${product.name} · ${quickSize} · Qty ${quickQty}`,
+                    description: `${product.name} · ${chosen} · Qty ${quickQty}`,
                   });
                   setQuickOpen(false);
                 }}
