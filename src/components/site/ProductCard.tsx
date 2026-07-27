@@ -62,6 +62,8 @@ export function ProductCard({ product }: { product: Product }) {
               src={second}
               alt=""
               loading="lazy"
+              decoding="async"
+              fetchPriority="low"
               aria-hidden
               className="absolute inset-0 h-full w-full object-cover opacity-0 transition-all duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-100 group-hover:scale-105"
             />

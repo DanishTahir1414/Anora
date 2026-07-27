@@ -132,6 +132,8 @@ export function useActiveCategories() {
   return useQuery({
     queryKey: ["active-categories"],
     queryFn: getActiveCategories,
+    staleTime: 1000 * 60 * 5, // 5 minutes cache
+    gcTime: 1000 * 60 * 30, // 30 minutes garbage collection
   });
 }
 
@@ -140,6 +142,8 @@ export function useCategoryProducts(slug: string) {
     queryKey: ["category-products", slug],
     queryFn: () => getProductsByCategorySlug(slug),
     enabled: !!slug,
+    staleTime: 1000 * 60 * 5, // 5 minutes cache
+    gcTime: 1000 * 60 * 30, // 30 minutes garbage collection
   });
 }
 
@@ -148,6 +152,8 @@ export function useSubcategoryProducts(categorySlug: string, subcategorySlug: st
     queryKey: ["subcategory-products", categorySlug, subcategorySlug],
     queryFn: () => getProductsByCategoryAndSubcategory(categorySlug, subcategorySlug),
     enabled: !!categorySlug && !!subcategorySlug,
+    staleTime: 1000 * 60 * 5, // 5 minutes cache
+    gcTime: 1000 * 60 * 30, // 30 minutes garbage collection
   });
 }
 

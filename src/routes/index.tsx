@@ -79,17 +79,23 @@ function Home() {
       .slice(0, 3);
   }, [products]);
 
+  const heroSrc = settings ? (settings.hero_image || hero) : null;
+
   return (
     <>
       {/* ─── Hero ─── */}
       <section className="relative h-[90vh] min-h-[640px] overflow-hidden bg-neutral">
-        <img
-          src={settings?.hero_image || hero}
-          alt="ANORA atelier"
-          width={1600}
-          height={1100}
-          className="absolute inset-0 h-full w-full object-cover lg:object-top animate-zoom-in"
-        />
+        {heroSrc && (
+          <img
+            src={heroSrc}
+            alt="ANORA atelier"
+            width={1600}
+            height={1100}
+            fetchPriority="high"
+            decoding="async"
+            className="absolute inset-0 h-full w-full object-cover lg:object-top animate-zoom-in"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-b from-ink/10 via-transparent to-ink/35" />
         <div className="relative h-full flex flex-col items-center justify-center text-center px-6 text-background animate-fade-up">
           <h1 className="font-serif text-[clamp(3.5rem,10vw,8rem)] leading-[0.92] tracking-[0.06em]">

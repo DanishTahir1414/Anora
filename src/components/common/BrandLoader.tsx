@@ -14,13 +14,6 @@ export function BrandLoader({ isLoading }: BrandLoaderProps) {
 
   const [isBridging, setIsBridging] = useState(false);
   const [initialPageLoaded, setInitialPageLoaded] = useState(false);
-  const [prevPath, setPrevPath] = useState(pathname);
-
-  // Reset the initial page loaded state synchronously when pathname changes
-  if (pathname !== prevPath) {
-    setPrevPath(pathname);
-    setInitialPageLoaded(false);
-  }
 
   useEffect(() => {
     if (isRouterPending) {
@@ -52,9 +45,7 @@ export function BrandLoader({ isLoading }: BrandLoaderProps) {
   });
 
   // Loader shows if router transitions are pending, bridging holds, or initial query loads are incomplete.
-  const show = isRouterPending || 
-               isBridging || 
-               (!initialPageLoaded && (activeQueriesCount > 0 || isLoading || false));
+  const show = !initialPageLoaded && (isRouterPending || isBridging || activeQueriesCount > 0 || isLoading || false);
 
   const isAdmin = pathname.startsWith("/admin");
   const initialShow = isAdmin ? false : true;
