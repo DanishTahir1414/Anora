@@ -65,6 +65,37 @@ export async function getCategoryBySlug(slug: string): Promise<CategoryInfo | nu
 
 
 
+async function fetchAndAttachVariants(products: PublicProduct[]): Promise<PublicProduct[]> {
+  if (products.length === 0) return products;
+  const productIds = products.map((p) => p.id);
+  const { data: variants, error: varError } = await supabase
+    .from("product_variants")
+    .select("id, product_id, name, sku, price, compare_price, stock, sizes, size_stock, color_hex, is_active")
+    .in("product_id", productIds)
+    .eq("is_active", true);
+
+  if (!varError && variants) {
+    for (const p of products) {
+      const pVars = variants.filter((v) => v.product_id === p.id);
+      if (pVars.length > 0) {
+        (p as any).colorVariants = pVars.map((v) => ({
+          id: v.id,
+          color: v.name,
+          color_hex: v.color_hex || undefined,
+          images: p.images || [],
+          sizes: v.sizes || p.sizes || [],
+          sizeStock: v.size_stock || {},
+          stock: v.stock || 0,
+          sku: v.sku || p.sku || "",
+          priceOverride: v.price ? Number(v.price) : undefined,
+          comparePriceOverride: v.compare_price ? Number(v.compare_price) : undefined,
+        }));
+      }
+    }
+  }
+  return products;
+}
+
 export async function getProductsByCategorySlug(
   slug: string,
   page = 1,
@@ -76,7 +107,7 @@ export async function getProductsByCategorySlug(
     p_page_size: pageSize,
   });
   if (error) throw error;
-  return (data ?? []) as PublicProduct[];
+  return fetchAndAttachVariants((data ?? []) as PublicProduct[]);
 }
 
 export async function getProductsByCategoryAndSubcategory(
@@ -92,7 +123,7 @@ export async function getProductsByCategoryAndSubcategory(
     p_page_size: pageSize,
   });
   if (error) throw error;
-  return (data ?? []) as PublicProduct[];
+  return fetchAndAttachVariants((data ?? []) as PublicProduct[]);
 }
 
 // ─── TanStack Query hooks ──────────────────────────────────────────────
@@ -139,6 +170,7 @@ export function toProductProps(p: PublicProduct): Product {
     badge: p.badge ?? undefined,
     sale_active: p.sale_active,
     discount_percent: p.discount_percent,
+    colorVariants: (p as any).colorVariants,
   };
   registerProduct(product);
   return product;
