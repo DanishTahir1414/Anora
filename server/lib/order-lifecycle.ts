@@ -415,7 +415,7 @@ export async function runCheckoutPipeline(
   const { supabase, queue } = getContainer();
 
   logger.info("Transaction Started", {
-    userId: params.userId,
+    userId: params.userId ?? undefined,
     paymentMethod: params.paymentMethod,
     stripePaymentIntentId: params.stripePaymentIntentId,
     paypalOrderId: params.paypalOrderId,
@@ -467,6 +467,37 @@ export async function runCheckoutPipeline(
     );
 
     if (rpcError) {
+      const isDuplicatePaymentIntent =
+        rpcError.code === "23505" &&
+        (rpcError.message?.includes("idx_orders_stripe_payment_intent_id") ||
+         rpcError.details?.includes("idx_orders_stripe_payment_intent_id"));
+
+      if (isDuplicatePaymentIntent) {
+        logger.info("Concurrency race recovery: order already created by another thread", {
+          stripePaymentIntentId,
+        });
+
+        const { data: existingOrder } = await (supabase.from("orders") as any)
+          .select("id, order_number")
+          .eq("stripe_payment_intent_id", stripePaymentIntentId)
+          .maybeSingle();
+
+        if (existingOrder) {
+          const { data: invoiceRecord } = await (supabase.from("invoices") as any)
+            .select("id, invoice_number")
+            .eq("order_id", existingOrder.id)
+            .maybeSingle();
+
+          return {
+            success: true,
+            orderId: existingOrder.id,
+            orderNumber: existingOrder.order_number ?? undefined,
+            invoiceNumber: invoiceRecord?.invoice_number ?? undefined,
+            invoiceId: invoiceRecord?.id ?? undefined,
+          };
+        }
+      }
+
       logger.warn("Rollback", { error: rpcError.message });
       return { success: false, error: `Database error: ${rpcError.message}` };
     }
@@ -671,7 +702,7 @@ export async function createOrderFromPaymentIntent(
 
   return await runCheckoutPipeline({
     userId: verification.userId,
-    email: verification.email,
+    email: verification.email ?? "",
     phone: verification.shippingAddress?.phone ?? "",
     items: (verification.items ?? []).map((i) => ({
       productId: i.productId,
