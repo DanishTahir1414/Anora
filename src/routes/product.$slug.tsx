@@ -71,7 +71,7 @@ function ProductPage() {
 
   const related = useMemo(() => {
     if (!product) return [];
-    return catalog.filter((p) => p.id !== product.id && p.category === product.category).slice(0, 3);
+    return catalog.filter((p) => p.id !== product.id && p.category === product.category).slice(0, 4);
   }, [catalog, product]);
 
   // Update page title dynamically once details load
@@ -561,7 +561,7 @@ function ProductPage() {
       {/* Related */}
       <section className="px-5 lg:px-10 mt-24 max-w-7xl mx-auto">
         <h2 className="font-serif text-3xl md:text-4xl mb-10">You may also like</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-5 sm:gap-y-14">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14">
           {related.map((p) => (
             <ProductCard key={p.id} product={p} />
           ))}

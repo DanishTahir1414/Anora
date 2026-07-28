@@ -49,34 +49,34 @@ function Home() {
   const { data: settings } = useSiteSettings();
 
   // Group products into sections dynamically
-  const featuredProducts = useMemo(() => products.filter((p) => p.featured === true).slice(0, 3), [products]);
+  const featuredProducts = useMemo(() => products.filter((p) => p.featured === true).slice(0, 4), [products]);
 
   const newArrivals = useMemo(() => {
-    const list = products.filter((p) => p.is_new === true || p.badge === "New").slice(0, 3);
-    return list.length >= 3 ? list : [...list, ...products.filter((p) => !p.badge).slice(0, 3 - list.length)].slice(0, 3);
+    const list = products.filter((p) => p.is_new === true || p.badge === "New").slice(0, 4);
+    return list.length >= 4 ? list : [...list, ...products.filter((p) => !p.badge).slice(0, 4 - list.length)].slice(0, 4);
   }, [products]);
 
   const bestSellers = useMemo(() => {
-    const list = products.filter((p) => p.is_best_seller === true || p.badge === "Best Seller").slice(0, 3);
-    return list.length >= 3 ? list : [...list, ...products.filter((p) => !p.badge).slice(3 - list.length, 6 - list.length)].slice(0, 3);
+    const list = products.filter((p) => p.is_best_seller === true || p.badge === "Best Seller").slice(0, 4);
+    return list.length >= 4 ? list : [...list, ...products.filter((p) => !p.badge).slice(4 - list.length, 8 - list.length)].slice(0, 4);
   }, [products]);
 
   const trendingProducts = useMemo(() => {
     return [...products]
       .sort((a, b) => b.popularity_score - a.popularity_score)
-      .slice(0, 3);
+      .slice(0, 4);
   }, [products]);
 
   const recommendedProducts = useMemo(() => {
     return products
       .filter((p) => p.sale_active === true || p.featured === true)
-      .slice(0, 3);
+      .slice(0, 4);
   }, [products]);
 
   const recentlyAddedProducts = useMemo(() => {
     return [...products]
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 3);
+      .slice(0, 4);
   }, [products]);
 
   const heroSrc = settings ? (settings.hero_image || hero) : null;
@@ -190,7 +190,7 @@ function Home() {
                 View All
               </Link>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-6 sm:gap-y-14">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14">
               {featuredProducts.map((p) => (
                 <ProductCard key={p.id} product={p as any} />
               ))}
@@ -220,7 +220,7 @@ function Home() {
                 View All
               </Link>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-6 sm:gap-y-14">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14">
               {newArrivals.map((p) => (
                 <ProductCard key={p.id} product={p as any} />
               ))}
@@ -250,7 +250,7 @@ function Home() {
                 View All
               </Link>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-6 sm:gap-y-14">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14">
               {bestSellers.map((p) => (
                 <ProductCard key={p.id} product={p as any} />
               ))}
@@ -280,7 +280,7 @@ function Home() {
                 View All
               </Link>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-6 sm:gap-y-14">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14">
               {trendingProducts.map((p) => (
                 <ProductCard key={p.id} product={p as any} />
               ))}
@@ -310,7 +310,7 @@ function Home() {
                 View All
               </Link>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-6 sm:gap-y-14">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14">
               {recommendedProducts.map((p) => (
                 <ProductCard key={p.id} product={p as any} />
               ))}
@@ -340,7 +340,7 @@ function Home() {
                 View All
               </Link>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3.5 gap-y-10 sm:gap-x-6 sm:gap-y-14">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14">
               {recentlyAddedProducts.map((p) => (
                 <ProductCard key={p.id} product={p as any} />
               ))}

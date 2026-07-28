@@ -47,16 +47,50 @@ export function ProductCard({ product }: { product: Product }) {
     return availability.selectedVariant?.id ?? product.colorVariants?.[0]?.id;
   }, [availability.selectedVariant, product.colorVariants]);
 
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const hasSizes = availability.sizes && availability.sizes.length > 0;
+
+  const handleAddDirectly = (sizeValue: string) => {
+    if (sizeValue && !product.sizes.includes(sizeValue)) {
+      if (process.env.NODE_ENV === "development") {
+        console.error(`Validation Failure: Selected size "${sizeValue}" does not exist on product.`, product);
+      }
+      return;
+    }
+    const validation = validateStockBeforeCheckout(product, {
+      productId: product.id,
+      size: sizeValue,
+      quantity: 1,
+      color: availability.color,
+    });
+    if (!validation.ok) {
+      toast.error(validation.reason ?? "This size is out of stock");
+      return;
+    }
+    const activeVariant = product.colorVariants?.find((v) => v.color === availability.color) ?? { sku: product.sku };
+    const targetSku = activeVariant.sku ?? product.sku;
+    if (!targetSku) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("Validation Failure: Product SKU does not exist.", product);
+      }
+      return;
+    }
+    cart.add(product.id, sizeValue, 1, activeVariantId);
+    toast.success("Added to bag", { description: `${product.name} · ${sizeValue || 'One Size'}` });
+  };
+
   return (
     <>
-      <div className="group">
-        <div className="relative overflow-hidden bg-neutral aspect-[2/3] sm:aspect-[3/4]">
+      <div className="group flex flex-col h-full">
+        {/* PART 1: Large product image */}
+        <div className="relative overflow-hidden bg-neutral aspect-[3/4] w-full">
           <Link to="/product/$slug" params={{ slug: product.slug }}>
             <img
               src={product.images[0]}
               alt={product.name}
               loading="lazy"
-              className="absolute inset-0 h-full w-full object-cover transition-all duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-105 group-hover:opacity-0"
+              className="absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-105 group-hover:opacity-0"
             />
             <img
               src={second}
@@ -65,183 +99,146 @@ export function ProductCard({ product }: { product: Product }) {
               decoding="async"
               fetchPriority="low"
               aria-hidden
-              className="absolute inset-0 h-full w-full object-cover opacity-0 transition-all duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-100 group-hover:scale-105"
+              className="absolute inset-0 h-full w-full object-cover opacity-0 transition-[opacity,transform] duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-100 group-hover:scale-105"
             />
           </Link>
 
-          {!isOOS && (product.badge || (priceInfo.isOnSale && priceInfo.discountPercent > 0)) && (
-            <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5 z-10">
-              {product.badge && (
-                <span className="text-[10px] tracking-[0.3em] uppercase bg-background/90 px-3 py-1.5 backdrop-blur text-gold font-semibold rounded-[1px]">
-                  {product.badge}
-                </span>
-              )}
-              {priceInfo.isOnSale && priceInfo.discountPercent > 0 && (
-                <span className="text-[9px] tracking-[0.18em] uppercase border border-gold/30 text-gold bg-background/95 px-2.5 py-1.5 backdrop-blur font-semibold rounded-full shadow-sm leading-none">
-                  {priceInfo.badgeText}
-                </span>
-              )}
-            </div>
-          )}
-
+          {/* OOS Overlay */}
           {isOOS && (
-            <div className="absolute inset-0 bg-background/60 backdrop-blur-[2px] flex items-center justify-center">
+            <div className="absolute inset-0 bg-background/60 backdrop-blur-[2px] flex items-center justify-center z-10">
               <span className="text-[11px] tracking-[0.32em] uppercase text-foreground/70">
                 Out of Stock
               </span>
             </div>
           )}
 
+          {/* Floating Wishlist Button */}
           <button
             aria-label="Add to wishlist"
-            onClick={() => {
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
               const wasWishlisted = wish.has(product.id);
               wish.toggle(product.id);
               toast(wasWishlisted ? "Removed from Wishlist" : "Added to Wishlist");
             }}
-            className="absolute top-3 right-3 h-9 w-9 grid place-items-center transition-colors duration-300 hover:text-gold text-foreground z-10 group/wishlist"
+            className="absolute top-3.5 right-3.5 h-10 w-10 rounded-full flex items-center justify-center bg-white/25 backdrop-blur-md border border-white/20 shadow-lg text-foreground hover:text-gold transition-[color,transform] duration-300 active:scale-95 z-30"
           >
-            <Heart className={`h-[20px] w-[20px] transition-all duration-300 group-hover/wishlist:fill-gold group-hover/wishlist:text-gold ${wish.has(product.id) ? "fill-gold text-gold" : "text-foreground"}`} />
+            <Heart
+              className={`h-[18px] w-[18px] transition-transform duration-300 ${
+                wish.has(product.id) ? "fill-gold text-gold" : "text-foreground"
+              }`}
+            />
           </button>
 
+          {/* Floating Add to Cart Button with Size Selector */}
           {!isOOS && (
-            <div className="absolute inset-x-3 bottom-3 hidden sm:flex gap-2 transition-all duration-500 opacity-100 translate-y-0 lg:opacity-0 lg:translate-y-2 lg:group-hover:opacity-100 lg:group-hover:translate-y-0 z-20">
-              <button
-                onClick={() => {
-                  const chosen = size;
-                  if (!chosen) {
-                    toast.error("Please select a size first");
-                    return;
-                  }
-                  if (!product.sizes.includes(chosen)) {
-                    if (process.env.NODE_ENV === "development") {
-                      console.error(`Validation Failure: Selected size "${chosen}" does not exist on product.`, product);
+            <div
+              className={`absolute bottom-3.5 left-3.5 z-30 flex items-center bg-white/25 backdrop-blur-md border border-white/20 shadow-lg transition-[width,max-width,padding,transform] duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] rounded-full overflow-hidden ${
+                isExpanded ? "px-3 py-1.5 max-w-[280px] h-10" : "w-10 h-10 justify-center"
+              }`}
+              onMouseEnter={() => {
+                if (hasSizes) setIsExpanded(true);
+              }}
+              onMouseLeave={() => {
+                if (hasSizes) setIsExpanded(false);
+              }}
+            >
+              {!isExpanded ? (
+                <button
+                  aria-label="Add to bag"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (hasSizes) {
+                      setIsExpanded(true);
+                    } else {
+                      handleAddDirectly("");
                     }
-                    return;
-                  }
-                  const validation = validateStockBeforeCheckout(product, {
-                    productId: product.id,
-                    size: chosen,
-                    quantity: 1,
-                    color: availability.color,
-                  });
-                  if (!validation.ok) {
-                    toast.error(validation.reason ?? "This size is out of stock");
-                    return;
-                  }
-                  const activeVariant = product.colorVariants?.find((v) => v.color === availability.color) ?? { sku: product.sku };
-                  const targetSku = activeVariant.sku ?? product.sku;
-                  if (!targetSku) {
-                    if (process.env.NODE_ENV === "development") {
-                      console.error("Validation Failure: Product SKU does not exist.", product);
-                    }
-                    return;
-                  }
-                  cart.add(product.id, chosen, 1, activeVariantId);
-                  toast.success("Added to bag", { description: `${product.name} · ${chosen}` });
-                }}
-                className="flex-1 bg-foreground text-background py-3 text-[11px] tracking-[0.32em] uppercase hover:bg-gold hover:text-ink transition-all duration-300"
-              >
-                Quick Add
-              </button>
-              <button
-                onClick={() => {
-                  setQuickSize(firstAvailableSize ?? availability.sizes[0] ?? product.sizes[0]);
-                  setQuickQty(1);
-                  setQuickOpen(true);
-                }}
-                aria-label="Quick view"
-                className="w-11 bg-background/90 backdrop-blur grid place-items-center hover:text-gold transition-all duration-300 hover:scale-105"
-              >
-                <Eye className="h-4 w-4" />
-              </button>
+                  }}
+                  className="w-10 h-10 flex items-center justify-center text-foreground hover:text-gold transition-colors duration-300 shrink-0"
+                >
+                  <Plus className="h-5 w-5" />
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5 animate-fade shrink-0">
+                  {availability.sizes.map((s) => {
+                    const qty = sizeStock[s];
+                    const disabled = hasSizeStock && qty !== undefined && qty === 0;
+                    return (
+                      <button
+                        key={s}
+                        disabled={disabled}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleAddDirectly(s);
+                          setIsExpanded(false);
+                        }}
+                        className={`w-7 h-7 flex items-center justify-center rounded-full text-[10px] font-medium border transition-colors duration-300 ${
+                          disabled
+                            ? "border-black/5 text-black/20 line-through cursor-not-allowed"
+                            : "border-black/10 hover:border-foreground hover:bg-foreground hover:text-background text-foreground"
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        <div className="pt-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
-          <div className="min-w-0">
-            <Link
-              to="/product/$slug"
-              params={{ slug: product.slug }}
-              className="font-serif text-lg leading-tight hover:text-gold transition-colors duration-300"
-            >
-              {product.name}
-            </Link>
-            <p className="text-[11px] tracking-[0.24em] uppercase text-muted-foreground mt-1">
-              {product.subcategory}
-            </p>
-          </div>
-          <div className="flex flex-row sm:flex-col items-baseline sm:items-end gap-2 sm:gap-0 shrink-0 mt-1 sm:mt-0 flex-wrap">
-            <ProductPrice product={product} size="md" />
-          </div>
-        </div>
+        {/* PART 2: Compact Product Information Section (Left Aligned) */}
+        <div className="pt-3 flex flex-col items-start gap-1">
+          {/* Category */}
+          <span className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
+            {product.category || "clothing"}
+          </span>
 
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {availability.sizes.map((s) => {
-            const qty = sizeStock[s];
-            const disabled = hasSizeStock && qty !== undefined && qty === 0;
-            return (
-              <button
-                key={s}
-                onClick={() => {
-                  if (disabled) return;
-                  setSize(s);
-                }}
-                className={`text-[10px] sm:text-[11px] tracking-wider min-w-6 h-6 px-1.5 sm:min-w-8 sm:h-7 sm:px-2 border transition-all duration-300 ${
-                  size === s && !disabled
-                    ? "border-foreground text-foreground"
-                    : disabled
-                      ? "border-border/40 text-border/50 line-through diagonal-strike cursor-not-allowed"
-                      : "border-border text-muted-foreground hover:border-foreground hover:text-foreground"
-                }`}
-              >
-                {s}
-              </button>
-            );
-          })}
-        </div>
-
-        {!isOOS && (
-          <button
-            onClick={() => {
-              const chosen = size;
-              if (!chosen) {
-                toast.error("Please select a size first");
-                return;
-              }
-              if (!product.sizes.includes(chosen)) {
-                if (process.env.NODE_ENV === "development") {
-                  console.error(`Validation Failure: Selected size "${chosen}" does not exist on product.`, product);
-                }
-                return;
-              }
-              const validation = validateStockBeforeCheckout(product, {
-                productId: product.id,
-                size: chosen,
-                quantity: 1,
-                color: availability.color,
-              });
-              if (!validation.ok) {
-                toast.error(validation.reason ?? "This size is out of stock");
-                return;
-              }
-              const activeVariant = product.colorVariants?.find((v) => v.color === availability.color) ?? { sku: product.sku };
-              const targetSku = activeVariant.sku ?? product.sku;
-              if (!targetSku) {
-                if (process.env.NODE_ENV === "development") {
-                  console.error("Validation Failure: Product SKU does not exist.", product);
-                }
-                return;
-              }
-              cart.add(product.id, chosen, 1, activeVariantId);
-              toast.success("Added to bag", { description: `${product.name} · ${chosen}` });
-            }}
-            className="sm:hidden mt-3 w-full bg-foreground text-background py-3 text-[11px] tracking-[0.32em] uppercase hover:bg-gold hover:text-ink transition-all duration-300"
+          {/* Name */}
+          <Link
+            to="/product/$slug"
+            params={{ slug: product.slug }}
+            className="font-serif text-base leading-tight hover:text-gold transition-colors duration-300 mt-0.5 block text-left"
           >
-            Add to Cart
-          </button>
-        )}
+            {product.name}
+          </Link>
+
+          {/* Prices (Old Price first, then Current Price) */}
+          <div className="flex items-baseline gap-2 mt-1 flex-wrap">
+            {priceInfo.isOnSale ? (
+              <>
+                <span className="text-[11px] text-muted-foreground line-through tracking-wider">
+                  USD {priceInfo.originalPrice}
+                </span>
+                <span className="text-xs font-semibold text-gold tracking-wider">
+                  USD {priceInfo.salePrice}
+                </span>
+              </>
+            ) : (
+              <span className="text-xs text-foreground tracking-wider">
+                USD {priceInfo.originalPrice}
+              </span>
+            )}
+          </div>
+
+          {/* Sale Percentage (Rounded pill, soft background, placed directly below price) */}
+          {priceInfo.isOnSale && priceInfo.discountPercent > 0 && (
+            <span className="inline-block text-[9px] tracking-widest uppercase border border-gold/25 text-gold bg-gold/5 px-2.5 py-0.5 rounded-full mt-0.5 leading-none">
+              {priceInfo.discountPercent}% OFF
+            </span>
+          )}
+
+          {/* Product Tags (placed below the sale badge, small pills, soft background) */}
+          {product.badge && (
+            <span className="inline-block text-[9px] tracking-widest uppercase border border-border/40 text-muted-foreground bg-neutral/10 px-2.5 py-0.5 rounded-full mt-1 leading-none">
+              {product.badge}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ─── Quick View Modal ─── */}
@@ -294,8 +291,8 @@ export function ProductCard({ product }: { product: Product }) {
                     return (
                       <button
                         key={s}
+                        disabled={disabled}
                         onClick={() => {
-                          if (disabled) return;
                           setQuickSize(s);
                         }}
                         className={`min-w-10 h-10 px-3 text-sm border transition-all duration-300 ${
