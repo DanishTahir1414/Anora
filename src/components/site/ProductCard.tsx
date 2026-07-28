@@ -135,7 +135,7 @@ export function ProductCard({ product }: { product: Product }) {
           {!isOOS && (
             <div
               className={`absolute bottom-3.5 left-3.5 z-30 flex items-center bg-white/25 backdrop-blur-md border border-white/20 shadow-lg transition-[width,max-width,padding,transform] duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] rounded-full overflow-hidden ${
-                isExpanded ? "px-3 py-1.5 max-w-[280px] h-10" : "w-10 h-10 justify-center"
+                isExpanded ? "px-3 py-1.5 max-w-[calc(100%-1.75rem)] h-10 w-full" : "w-10 h-10 justify-center"
               }`}
               onMouseEnter={() => {
                 if (hasSizes) setIsExpanded(true);
@@ -144,6 +144,11 @@ export function ProductCard({ product }: { product: Product }) {
                 if (hasSizes) setIsExpanded(false);
               }}
             >
+              <style>{`
+                .scrollbar-none::-webkit-scrollbar {
+                  display: none !important;
+                }
+              `}</style>
               {!isExpanded ? (
                 <button
                   aria-label="Add to bag"
@@ -161,7 +166,10 @@ export function ProductCard({ product }: { product: Product }) {
                   <Plus className="h-5 w-5" />
                 </button>
               ) : (
-                <div className="flex items-center gap-1.5 animate-fade shrink-0">
+                <div
+                  className="flex items-center gap-1.5 overflow-x-auto scrollbar-none touch-pan-x w-full select-none py-0.5"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                >
                   {availability.sizes.map((s) => {
                     const qty = sizeStock[s];
                     const disabled = hasSizeStock && qty !== undefined && qty === 0;
@@ -175,7 +183,7 @@ export function ProductCard({ product }: { product: Product }) {
                           handleAddDirectly(s);
                           setIsExpanded(false);
                         }}
-                        className={`w-7 h-7 flex items-center justify-center rounded-full text-[10px] font-medium border transition-colors duration-300 ${
+                        className={`w-7 h-7 flex items-center justify-center rounded-full text-[10px] font-medium border shrink-0 transition-colors duration-300 ${
                           disabled
                             ? "border-black/5 text-black/20 line-through cursor-not-allowed"
                             : "border-black/10 hover:border-foreground hover:bg-foreground hover:text-background text-foreground"
