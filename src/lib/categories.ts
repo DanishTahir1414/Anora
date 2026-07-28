@@ -51,10 +51,70 @@ export interface PublicProduct {
   discount_percent?: number;
 }
 
+export function buildCategoryTree(flatList: any[]): CategoryNode[] {
+  const nodeMap = new Map<string, CategoryNode>();
+  
+  for (const item of flatList) {
+    nodeMap.set(item.id, {
+      id: item.id,
+      name: item.name,
+      slug: item.slug,
+      description: item.description ?? null,
+      image_url: item.image_url ?? null,
+      sort_order: item.sort_order ?? 0,
+      parent_id: item.parent_id ?? null,
+      product_count: item.product_count ?? 0,
+      children: []
+    });
+  }
+  
+  const rootNodes: CategoryNode[] = [];
+  
+  for (const item of flatList) {
+    const node = nodeMap.get(item.id);
+    if (node) {
+      if (node.parent_id) {
+        const parent = nodeMap.get(node.parent_id);
+        if (parent) {
+          parent.children.push(node);
+        } else {
+          rootNodes.push(node);
+        }
+      } else {
+        rootNodes.push(node);
+      }
+    }
+  }
+  
+  const sortNodeChildren = (node: CategoryNode) => {
+    node.children.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+    node.children.forEach(sortNodeChildren);
+  };
+  
+  rootNodes.forEach(sortNodeChildren);
+  rootNodes.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+  
+  return rootNodes;
+}
+
+export function calculateProductCounts(node: CategoryNode): number {
+  let count = node.product_count;
+  for (const child of node.children) {
+    count += calculateProductCounts(child);
+  }
+  node.product_count = count;
+  return count;
+}
+
 export async function getActiveCategories(): Promise<CategoryNode[]> {
   const { data, error } = await supabase.rpc("get_active_categories");
   if (error) throw error;
-  return (data ?? []) as CategoryNode[];
+  
+  const tree = buildCategoryTree(data ?? []);
+  for (const root of tree) {
+    calculateProductCounts(root);
+  }
+  return tree;
 }
 
 export async function getCategoryBySlug(slug: string): Promise<CategoryInfo | null> {

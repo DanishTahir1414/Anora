@@ -30,6 +30,7 @@ import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ShopIndexRouteImport } from './routes/shop.index'
 import { Route as ShopCategoryRouteImport } from './routes/shop.$category'
+import { Route as ShopSplatRouteImport } from './routes/shop.$'
 import { Route as ProductSlugRouteImport } from './routes/product.$slug'
 import { Route as OrderSuccessRouteImport } from './routes/order.success'
 import { Route as BlogsSlugRouteImport } from './routes/blogs.$slug'
@@ -48,8 +49,6 @@ import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminBlogsRouteImport } from './routes/admin.blogs'
 import { Route as AdminActivityRouteImport } from './routes/admin.activity'
 import { Route as AdminAbandonedCartsRouteImport } from './routes/admin.abandoned-carts'
-import { Route as ShopCategoryIndexRouteImport } from './routes/shop.$category.index'
-import { Route as ShopCategorySubcategoryRouteImport } from './routes/shop.$category.$subcategory'
 import { Route as AdminSecurityAuditLogsRouteImport } from './routes/admin.security.audit-logs'
 import { Route as AdminFinanceInvoicesRouteImport } from './routes/admin.finance.invoices'
 import { Route as ApiAdminProductsUploadRouteImport } from './routes/api.admin.products.upload'
@@ -159,6 +158,11 @@ const ShopCategoryRoute = ShopCategoryRouteImport.update({
   path: '/$category',
   getParentRoute: () => ShopRoute,
 } as any)
+const ShopSplatRoute = ShopSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => ShopRoute,
+} as any)
 const ProductSlugRoute = ProductSlugRouteImport.update({
   id: '/product/$slug',
   path: '/product/$slug',
@@ -249,16 +253,6 @@ const AdminAbandonedCartsRoute = AdminAbandonedCartsRouteImport.update({
   path: '/abandoned-carts',
   getParentRoute: () => AdminRoute,
 } as any)
-const ShopCategoryIndexRoute = ShopCategoryIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => ShopCategoryRoute,
-} as any)
-const ShopCategorySubcategoryRoute = ShopCategorySubcategoryRouteImport.update({
-  id: '/$subcategory',
-  path: '/$subcategory',
-  getParentRoute: () => ShopCategoryRoute,
-} as any)
 const AdminSecurityAuditLogsRoute = AdminSecurityAuditLogsRouteImport.update({
   id: '/audit-logs',
   path: '/audit-logs',
@@ -313,12 +307,11 @@ export interface FileRoutesByFullPath {
   '/blogs/$slug': typeof BlogsSlugRoute
   '/order/success': typeof OrderSuccessRoute
   '/product/$slug': typeof ProductSlugRoute
-  '/shop/$category': typeof ShopCategoryRouteWithChildren
+  '/shop/$': typeof ShopSplatRoute
+  '/shop/$category': typeof ShopCategoryRoute
   '/shop/': typeof ShopIndexRoute
   '/admin/finance/invoices': typeof AdminFinanceInvoicesRoute
   '/admin/security/audit-logs': typeof AdminSecurityAuditLogsRoute
-  '/shop/$category/$subcategory': typeof ShopCategorySubcategoryRoute
-  '/shop/$category/': typeof ShopCategoryIndexRoute
   '/api/admin/products/upload': typeof ApiAdminProductsUploadRoute
 }
 export interface FileRoutesByTo {
@@ -358,11 +351,11 @@ export interface FileRoutesByTo {
   '/blogs/$slug': typeof BlogsSlugRoute
   '/order/success': typeof OrderSuccessRoute
   '/product/$slug': typeof ProductSlugRoute
+  '/shop/$': typeof ShopSplatRoute
+  '/shop/$category': typeof ShopCategoryRoute
   '/shop': typeof ShopIndexRoute
   '/admin/finance/invoices': typeof AdminFinanceInvoicesRoute
   '/admin/security/audit-logs': typeof AdminSecurityAuditLogsRoute
-  '/shop/$category/$subcategory': typeof ShopCategorySubcategoryRoute
-  '/shop/$category': typeof ShopCategoryIndexRoute
   '/api/admin/products/upload': typeof ApiAdminProductsUploadRoute
 }
 export interface FileRoutesById {
@@ -404,12 +397,11 @@ export interface FileRoutesById {
   '/blogs/$slug': typeof BlogsSlugRoute
   '/order/success': typeof OrderSuccessRoute
   '/product/$slug': typeof ProductSlugRoute
-  '/shop/$category': typeof ShopCategoryRouteWithChildren
+  '/shop/$': typeof ShopSplatRoute
+  '/shop/$category': typeof ShopCategoryRoute
   '/shop/': typeof ShopIndexRoute
   '/admin/finance/invoices': typeof AdminFinanceInvoicesRoute
   '/admin/security/audit-logs': typeof AdminSecurityAuditLogsRoute
-  '/shop/$category/$subcategory': typeof ShopCategorySubcategoryRoute
-  '/shop/$category/': typeof ShopCategoryIndexRoute
   '/api/admin/products/upload': typeof ApiAdminProductsUploadRoute
 }
 export interface FileRouteTypes {
@@ -452,12 +444,11 @@ export interface FileRouteTypes {
     | '/blogs/$slug'
     | '/order/success'
     | '/product/$slug'
+    | '/shop/$'
     | '/shop/$category'
     | '/shop/'
     | '/admin/finance/invoices'
     | '/admin/security/audit-logs'
-    | '/shop/$category/$subcategory'
-    | '/shop/$category/'
     | '/api/admin/products/upload'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -497,11 +488,11 @@ export interface FileRouteTypes {
     | '/blogs/$slug'
     | '/order/success'
     | '/product/$slug'
+    | '/shop/$'
+    | '/shop/$category'
     | '/shop'
     | '/admin/finance/invoices'
     | '/admin/security/audit-logs'
-    | '/shop/$category/$subcategory'
-    | '/shop/$category'
     | '/api/admin/products/upload'
   id:
     | '__root__'
@@ -542,12 +533,11 @@ export interface FileRouteTypes {
     | '/blogs/$slug'
     | '/order/success'
     | '/product/$slug'
+    | '/shop/$'
     | '/shop/$category'
     | '/shop/'
     | '/admin/finance/invoices'
     | '/admin/security/audit-logs'
-    | '/shop/$category/$subcategory'
-    | '/shop/$category/'
     | '/api/admin/products/upload'
   fileRoutesById: FileRoutesById
 }
@@ -725,6 +715,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShopCategoryRouteImport
       parentRoute: typeof ShopRoute
     }
+    '/shop/$': {
+      id: '/shop/$'
+      path: '/$'
+      fullPath: '/shop/$'
+      preLoaderRoute: typeof ShopSplatRouteImport
+      parentRoute: typeof ShopRoute
+    }
     '/product/$slug': {
       id: '/product/$slug'
       path: '/product/$slug'
@@ -851,20 +848,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAbandonedCartsRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/shop/$category/': {
-      id: '/shop/$category/'
-      path: '/'
-      fullPath: '/shop/$category/'
-      preLoaderRoute: typeof ShopCategoryIndexRouteImport
-      parentRoute: typeof ShopCategoryRoute
-    }
-    '/shop/$category/$subcategory': {
-      id: '/shop/$category/$subcategory'
-      path: '/$subcategory'
-      fullPath: '/shop/$category/$subcategory'
-      preLoaderRoute: typeof ShopCategorySubcategoryRouteImport
-      parentRoute: typeof ShopCategoryRoute
-    }
     '/admin/security/audit-logs': {
       id: '/admin/security/audit-logs'
       path: '/audit-logs'
@@ -961,27 +944,15 @@ const BlogsRouteChildren: BlogsRouteChildren = {
 
 const BlogsRouteWithChildren = BlogsRoute._addFileChildren(BlogsRouteChildren)
 
-interface ShopCategoryRouteChildren {
-  ShopCategorySubcategoryRoute: typeof ShopCategorySubcategoryRoute
-  ShopCategoryIndexRoute: typeof ShopCategoryIndexRoute
-}
-
-const ShopCategoryRouteChildren: ShopCategoryRouteChildren = {
-  ShopCategorySubcategoryRoute: ShopCategorySubcategoryRoute,
-  ShopCategoryIndexRoute: ShopCategoryIndexRoute,
-}
-
-const ShopCategoryRouteWithChildren = ShopCategoryRoute._addFileChildren(
-  ShopCategoryRouteChildren,
-)
-
 interface ShopRouteChildren {
-  ShopCategoryRoute: typeof ShopCategoryRouteWithChildren
+  ShopSplatRoute: typeof ShopSplatRoute
+  ShopCategoryRoute: typeof ShopCategoryRoute
   ShopIndexRoute: typeof ShopIndexRoute
 }
 
 const ShopRouteChildren: ShopRouteChildren = {
-  ShopCategoryRoute: ShopCategoryRouteWithChildren,
+  ShopSplatRoute: ShopSplatRoute,
+  ShopCategoryRoute: ShopCategoryRoute,
   ShopIndexRoute: ShopIndexRoute,
 }
 

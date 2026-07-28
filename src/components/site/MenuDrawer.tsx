@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { X } from "lucide-react";
-import { useEffect } from "react";
+import { X, ChevronDown, ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
 import { BRAND_NAME } from "@/lib/brand";
 import { subcategories } from "@/lib/products";
 import { useActiveCategories, type CategoryNode } from "@/lib/categories";
@@ -56,17 +56,18 @@ export function MenuDrawer({ open, onClose }: Props) {
           </button>
         </div>
 
-        <div className="h-[calc(100%-5rem)] overflow-y-auto px-7 py-10 space-y-10">
+        <div className="h-[calc(100%-5rem)] overflow-y-auto px-7 py-10 space-y-8">
           {categories.length > 0 ? (
-            categories.map((cat) => (
-              <Section
-                key={cat.id}
-                title={cat.name}
-                items={cat.children.map((c) => ({ name: c.name, slug: c.slug }))}
-                base={`/shop/${cat.slug}`}
-                onNav={onClose}
-              />
-            ))
+            <div className="space-y-6">
+              {categories.map((cat) => (
+                <SidebarCategoryNode
+                  key={cat.id}
+                  node={cat}
+                  basePath="/shop"
+                  onNav={onClose}
+                />
+              ))}
+            </div>
           ) : (
             <>
               <Section
@@ -135,6 +136,72 @@ export function MenuDrawer({ open, onClose }: Props) {
         </div>
       </aside>
     </>
+  );
+}
+
+function SidebarCategoryNode({
+  node,
+  basePath,
+  depth = 0,
+  onNav,
+}: {
+  node: CategoryNode;
+  basePath: string;
+  depth?: number;
+  onNav: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const hasChildren = node.children && node.children.length > 0;
+  const currentPath = `${basePath}/${node.slug}`;
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between py-1 hover:text-gold transition-colors duration-300">
+        <Link
+          to={currentPath as any}
+          onClick={onNav}
+          className={`hover:text-gold transition-colors duration-300 ${
+            depth === 0
+              ? "font-serif text-2xl tracking-wide block mb-1 text-foreground"
+              : "text-[13px] text-muted-foreground hover:text-foreground tracking-wide inline-block hover:translate-x-1"
+          }`}
+          style={{ paddingLeft: `${depth * 16}px` }}
+        >
+          {node.name}
+        </Link>
+        {hasChildren && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsOpen(!isOpen);
+            }}
+            aria-label={`Toggle ${node.name} subcategories`}
+            className="p-1.5 hover:bg-neutral/10 rounded transition-colors text-muted-foreground hover:text-foreground"
+          >
+            {isOpen ? (
+              <ChevronDown className="h-4 w-4 transition-transform duration-200" />
+            ) : (
+              <ChevronRight className="h-4 w-4 transition-transform duration-200" />
+            )}
+          </button>
+        )}
+      </div>
+
+      {hasChildren && isOpen && (
+        <div className="space-y-1 mt-1">
+          {node.children.map((child) => (
+            <SidebarCategoryNode
+              key={child.id}
+              node={child}
+              basePath={currentPath}
+              depth={depth + 1}
+              onNav={onNav}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
