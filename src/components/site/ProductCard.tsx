@@ -84,7 +84,7 @@ export function ProductCard({ product }: { product: Product }) {
     <>
       <div className="group flex flex-col h-full">
         {/* PART 1: Large product image */}
-        <div className="relative overflow-hidden bg-neutral aspect-[3/4] w-full">
+        <div className="relative overflow-hidden bg-neutral aspect-[2/3] sm:aspect-[3/4] w-full">
           <Link to="/product/$slug" params={{ slug: product.slug }}>
             <img
               src={product.images[0]}
