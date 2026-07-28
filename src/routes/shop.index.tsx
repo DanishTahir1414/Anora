@@ -42,8 +42,7 @@ function ShopAll() {
         {categories.map((cat) => (
           <Link
             key={cat.id}
-            to="/shop/$category"
-            params={{ category: cat.slug }}
+            to={`/shop/${cat.slug}` as any}
             className="text-[11px] tracking-[0.32em] uppercase px-5 py-2.5 border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
           >
             {cat.name}

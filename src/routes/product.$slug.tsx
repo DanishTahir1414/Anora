@@ -214,8 +214,7 @@ function ProductPage() {
         </Link>
         <span className="mx-2">/</span>
         <Link
-          to="/shop/$category"
-          params={{ category: product.category as string }}
+          to={`/shop/${(product as any).category_slug || (product.category as string).toLowerCase()}` as any}
           className="hover:text-foreground transition-colors"
         >
           {product.category}

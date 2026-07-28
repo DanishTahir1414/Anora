@@ -13,7 +13,7 @@ import {
 
 export const Route = createFileRoute("/shop/$")({
   head: ({ params }) => {
-    const splat = params._splat;
+    const splat = params._splat || "";
     const segments = splat.split("/").filter(Boolean);
     const categorySlug = segments[segments.length - 1] ?? "clothing";
     const name = categorySlug.charAt(0).toUpperCase() + categorySlug.slice(1).replace(/-/g, " ");
@@ -39,6 +39,30 @@ function findNodeBySlug(nodes: CategoryNode[], slug: string): CategoryNode | nul
   return null;
 }
 
+function collectDescendants(node: CategoryNode): CategoryNode[] {
+  let list: CategoryNode[] = [];
+  if (node.children) {
+    for (const child of node.children) {
+      list.push(child);
+      list.push(...collectDescendants(child));
+    }
+  }
+  return list;
+}
+
+function getCategoryPath(nodes: CategoryNode[], targetId: string, currentPath: string[] = []): string[] | null {
+  for (const node of nodes) {
+    if (node.id === targetId) {
+      return [...currentPath, node.slug];
+    }
+    if (node.children && node.children.length > 0) {
+      const path = getCategoryPath(node.children, targetId, [...currentPath, node.slug]);
+      if (path) return path;
+    }
+  }
+  return null;
+}
+
 async function fetchCategoryInfo(slug: string): Promise<CategoryInfo | null> {
   const { data, error } = await supabase.rpc("get_category_by_slug", { p_slug: slug });
   if (error) throw error;
@@ -47,7 +71,7 @@ async function fetchCategoryInfo(slug: string): Promise<CategoryInfo | null> {
 
 function ShopNestedCategory() {
   const params = Route.useParams();
-  const splat = params._splat;
+  const splat = params._splat || "";
   const segments = useMemo(() => splat.split("/").filter(Boolean), [splat]);
   const categorySlug = useMemo(() => segments[segments.length - 1] ?? "clothing", [segments]);
 
@@ -87,6 +111,8 @@ function ShopNestedCategory() {
 
   const isLoading = isProductsLoading || isCatsLoading || isInfoLoading;
 
+  const isRootCategory = categorySlug === "clothing" || categorySlug === "jewellery";
+
   if (isLoading) {
     return (
       <div className="py-32 text-center text-muted-foreground animate-fade">
@@ -112,6 +138,86 @@ function ShopNestedCategory() {
 
   const heading = categoryInfo.name;
   const tagline = categoryInfo.description;
+
+  // Root Category configuration: behaves exactly like Shop layout
+  if (isRootCategory) {
+    const descendantCats = catNode ? collectDescendants(catNode) : [];
+    const subCount = descendantCats.length;
+    const totalProducts = dbProducts.length;
+
+    return (
+      <div className="px-5 lg:px-10 pt-16 pb-24">
+        {/* Category Header */}
+        <div className="text-center mb-14 max-w-2xl mx-auto animate-fade">
+          <span className="eyebrow">The Atelier</span>
+          <h1 className="mt-4 font-serif text-5xl md:text-6xl">{heading}</h1>
+          <p className="mt-5 text-muted-foreground">
+            {tagline || 
+              (categorySlug === "clothing" 
+                ? "Silks, cashmere and ceremonial dress — slow tailored in our atelier."
+                : "Recycled 18k gold and considered stones, finished entirely by hand.")
+            }
+          </p>
+        </div>
+
+        {/* Dynamic Category Tabs */}
+        {descendantCats.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-3 mb-14 animate-fade">
+            <Link
+              to={`/shop/${categorySlug}` as any}
+              activeOptions={{ exact: true }}
+              activeProps={{ className: "border-foreground text-foreground" }}
+              className="text-[11px] tracking-[0.32em] uppercase px-5 py-2.5 border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
+            >
+              All {heading}
+            </Link>
+            {descendantCats.map((desc) => {
+              const fullPath = getCategoryPath(allCats, desc.id);
+              const linkUrl = fullPath ? `/shop/${fullPath.join("/")}` : `/shop/${desc.slug}`;
+              return (
+                <Link
+                  key={desc.id}
+                  to={linkUrl as any}
+                  className="text-[11px] tracking-[0.32em] uppercase px-5 py-2.5 border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
+                >
+                  {desc.name}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Product listing grid or Coming Soon UI */}
+        {dbProducts.length === 0 ? (
+          <div className="py-20 text-center max-w-md mx-auto px-6">
+            <span className="eyebrow text-gold">{heading}</span>
+            <h1 className="font-serif text-4xl mt-4">Coming Soon</h1>
+            <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
+              We are preparing products for this category.
+              Please check back soon.
+            </p>
+            <Link
+              to="/shop"
+              className="inline-block mt-8 text-[11px] tracking-[0.32em] uppercase hover-underline border border-border px-6 py-3"
+            >
+              Return to Shop
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14 max-w-7xl mx-auto animate-fade">
+              {dbProducts.map((p) => (
+                <ProductCard key={p.id} product={toProductProps(p)} />
+              ))}
+            </div>
+            <p className="text-center text-xs text-muted-foreground mt-16">
+              {subCount} subcategories · {totalProducts} pieces
+            </p>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="pt-16 pb-24">
@@ -162,7 +268,7 @@ function ShopNestedCategory() {
             No pieces found matching this selection.
           </p>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14 max-w-7xl mx-auto">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14 max-w-7xl mx-auto animate-fade">
             {filtered.map((p) => (
               <ProductCard key={p.id} product={toProductProps(p)} />
             ))}

@@ -165,8 +165,7 @@ function Home() {
                   title={cat.name}
                   subtitle={cat.description || "Atelier tradition"}
                   img={cat.image_url || fallbackImages[cat.slug] || catClothing}
-                  to="/shop/$category"
-                  params={{ category: cat.slug }}
+                  to={`/shop/${cat.slug}`}
                 />
               );
             })}
