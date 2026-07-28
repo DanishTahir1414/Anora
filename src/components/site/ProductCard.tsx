@@ -48,6 +48,7 @@ export function ProductCard({ product }: { product: Product }) {
   }, [availability.selectedVariant, product.colorVariants]);
 
   const [isExpanded, setIsExpanded] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const hasSizes = availability.sizes && availability.sizes.length > 0;
 
@@ -68,14 +69,6 @@ export function ProductCard({ product }: { product: Product }) {
       toast.error(validation.reason ?? "This size is out of stock");
       return;
     }
-    const activeVariant = product.colorVariants?.find((v) => v.color === availability.color) ?? { sku: product.sku };
-    const targetSku = activeVariant.sku ?? product.sku;
-    if (!targetSku) {
-      if (process.env.NODE_ENV === "development") {
-        console.error("Validation Failure: Product SKU does not exist.", product);
-      }
-      return;
-    }
     cart.add(product.id, sizeValue, 1, activeVariantId);
     toast.success("Added to bag", { description: `${product.name} · ${sizeValue || 'One Size'}` });
   };
@@ -85,23 +78,77 @@ export function ProductCard({ product }: { product: Product }) {
       <div className="group flex flex-col h-full">
         {/* PART 1: Large product image */}
         <div className="relative overflow-hidden bg-neutral aspect-[3/5] sm:aspect-[3/4] w-full">
-          <Link to="/product/$slug" params={{ slug: product.slug }}>
-            <img
-              src={product.images[0]}
-              alt={product.name}
-              loading="lazy"
-              className="absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-105 group-hover:opacity-0"
-            />
-            <img
-              src={second}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              fetchPriority="low"
-              aria-hidden
-              className="absolute inset-0 h-full w-full object-cover opacity-0 transition-[opacity,transform] duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-100 group-hover:scale-105"
-            />
-          </Link>
+          {/* Mobile view with slider/swipe container */}
+          <div className="sm:hidden relative w-full h-full">
+            {product.images.length > 1 ? (
+              <>
+                <div
+                  className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-none touch-pan-x"
+                  onScroll={(e) => {
+                    const container = e.currentTarget;
+                    const index = Math.round(container.scrollLeft / container.clientWidth);
+                    if (index !== activeImageIndex) {
+                      setActiveImageIndex(index);
+                    }
+                  }}
+                >
+                  {product.images.map((img, idx) => (
+                    <div key={idx} className="w-full h-full shrink-0 snap-start relative">
+                      <Link to="/product/$slug" params={{ slug: product.slug }} className="block w-full h-full">
+                        <img
+                          src={img}
+                          alt={`${product.name} - image ${idx + 1}`}
+                          loading={idx === 0 ? "eager" : "lazy"}
+                          className="w-full h-full object-cover"
+                        />
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+                {/* Subtle indicator dots */}
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10 pointer-events-none">
+                  {product.images.map((_, idx) => (
+                    <span
+                      key={idx}
+                      className={`h-1 rounded-full transition-all duration-300 ${
+                        activeImageIndex === idx ? "w-2.5 bg-foreground" : "w-1 bg-foreground/30"
+                      }`}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <Link to="/product/$slug" params={{ slug: product.slug }} className="block w-full h-full">
+                <img
+                  src={product.images[0]}
+                  alt={product.name}
+                  loading="lazy"
+                  className="w-full h-full object-cover"
+                />
+              </Link>
+            )}
+          </div>
+
+          {/* Desktop view with hover effect */}
+          <div className="hidden sm:block relative w-full h-full">
+            <Link to="/product/$slug" params={{ slug: product.slug }}>
+              <img
+                src={product.images[0]}
+                alt={product.name}
+                loading="lazy"
+                className="absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-105 group-hover:opacity-0"
+              />
+              <img
+                src={second}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                fetchPriority="low"
+                aria-hidden
+                className="absolute inset-0 h-full w-full object-cover opacity-0 transition-[opacity,transform] duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-100 group-hover:scale-105"
+              />
+            </Link>
+          </div>
 
           {/* OOS Overlay */}
           {isOOS && (
