@@ -99,6 +99,32 @@ export function CheckoutForm() {
     return cart.items.map((i) => `${i.productId}:${i.variantId || ""}:${i.size}:${i.quantity}`).join(",");
   }, [cart.items]);
 
+  // Validate cart stock on checkout mount/update to prevent overselling
+  useEffect(() => {
+    if (cart.items.length > 0) {
+      const originalItemsStr = JSON.stringify(
+        cart.items.map((i) => ({
+          productId: i.productId,
+          variantId: i.variantId,
+          size: i.size,
+          quantity: i.quantity,
+        }))
+      );
+      const validated = cart.validateCartStock();
+      const validatedStr = JSON.stringify(
+        validated.map((i) => ({
+          productId: i.productId,
+          variantId: i.variantId,
+          size: i.size,
+          quantity: i.quantity,
+        }))
+      );
+      if (originalItemsStr !== validatedStr) {
+        toast.error("Some items are no longer available. Your cart has been updated automatically.");
+      }
+    }
+  }, [cartHash]);
+
   const [submitting, setSubmitting] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState<string>("");
   const [clientSecret, setClientSecret] = useState<string | null>(() => {

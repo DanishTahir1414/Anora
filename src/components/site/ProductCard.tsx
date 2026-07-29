@@ -219,7 +219,7 @@ export function ProductCard({ product }: { product: Product }) {
                 >
                   {availability.sizes.map((s) => {
                     const qty = sizeStock[s];
-                    const disabled = hasSizeStock && qty !== undefined && qty === 0;
+                    const disabled = availability.stock === 0 || (hasSizeStock && qty !== undefined && qty === 0);
                     return (
                       <button
                         key={s}

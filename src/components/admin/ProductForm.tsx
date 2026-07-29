@@ -600,12 +600,52 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
   }
 
   function toggleSize(size: string) {
-    setForm((prev) => ({
-      ...prev,
-      sizes: prev.sizes.includes(size)
+    setForm((prev) => {
+      const nextSizes = prev.sizes.includes(size)
         ? prev.sizes.filter((s) => s !== size)
-        : [...prev.sizes, size],
-    }));
+        : [...prev.sizes, size];
+
+      const nextSizeStock = { ...prev.size_stock };
+      Object.keys(nextSizeStock).forEach((k) => {
+        if (!nextSizes.includes(k)) {
+          delete nextSizeStock[k];
+        }
+      });
+      nextSizes.forEach((sz) => {
+        if (nextSizeStock[sz] === undefined) {
+          nextSizeStock[sz] = 0;
+        }
+      });
+
+      setVariants((vPrev) =>
+        vPrev.map((v) => {
+          const vSizeStock = { ...v.size_stock };
+          Object.keys(vSizeStock).forEach((k) => {
+            if (!nextSizes.includes(k)) {
+              delete vSizeStock[k];
+            }
+          });
+          nextSizes.forEach((sz) => {
+            if (vSizeStock[sz] === undefined) {
+              vSizeStock[sz] = 0;
+            }
+          });
+          const nextStock = Object.values(vSizeStock).reduce((sum, val) => sum + val, 0);
+          return {
+            ...v,
+            sizes: nextSizes,
+            size_stock: vSizeStock,
+            stock: String(nextStock),
+          };
+        })
+      );
+
+      return {
+        ...prev,
+        sizes: nextSizes,
+        size_stock: nextSizeStock,
+      };
+    });
   }
 
   function addColor() {
@@ -632,12 +672,15 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
     }));
   }
 
-  const computedStock = useMemo(() => calculateProductStock(form.size_stock), [form.size_stock]);
+  const computedProductStock = useMemo(() => {
+    if (variants.length > 0) {
+      return variants.reduce((sum, v) => sum + (parseInt(v.stock, 10) || 0), 0);
+    }
+    return calculateProductStock(form.size_stock);
+  }, [variants, form.size_stock]);
 
-  const sizeInventoryEnabled = useMemo(
-    () => isSizeInventoryEnabled(form.size_stock),
-    [form.size_stock],
-  );
+  const computedStock = computedProductStock;
+  const sizeInventoryEnabled = true;
 
   function setSizeStock(size: string, value: number) {
     setForm((prev) => ({
@@ -1330,8 +1373,8 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
                           <Input
                             type="number"
                             value={v.stock}
-                            onChange={(e) => updateVariant(idx, "stock", e.target.value)}
-                            className="h-8 text-sm"
+                            disabled
+                            className="h-8 text-sm opacity-60"
                           />
                         </div>
                       </div>

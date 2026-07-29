@@ -215,11 +215,16 @@ function ProductPage() {
   const activeColorValue = active.color;
   const activeId = active.id;
 
+  const productTotalStock = product.colorVariants && product.colorVariants.length > 0
+    ? product.colorVariants.reduce((sum, v) => sum + (v.stock ?? 0), 0)
+    : product.stock;
+  const productTotalOOS = productTotalStock === 0;
+
   const hasSizeStock = activeSizeStock && Object.keys(activeSizeStock).length > 0;
   const allOOS = hasSizeStock && activeSizes.every((s) => (activeSizeStock[s] ?? 0) === 0);
   const selectedSizeStock = activeSizeStock?.[size] ?? 0;
   const isSizeOOS = hasSizeStock && selectedSizeStock === 0;
-  const isOOS = !activeIsAvailable || activeStock === 0 || allOOS || isSizeOOS;
+  const isOOS = productTotalOOS || !activeIsAvailable || activeStock === 0 || allOOS || isSizeOOS;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStart.current = e.touches[0].clientX;
@@ -410,13 +415,13 @@ function ProductPage() {
               <div className="flex flex-wrap gap-3.5">
                 {colors.map((color) => {
                   const isSelected = activeColor.toLowerCase() === color.name.toLowerCase();
-                  const isOOS = color.stock === 0;
+                  const isColorOOS = productTotalOOS || color.stock === 0;
                   const isTexture = color.hex.startsWith("http") || color.hex.startsWith("/");
 
                   return (
                     <button
                       key={color.name}
-                      disabled={isOOS}
+                      disabled={isColorOOS}
                       onClick={() => switchColor(color.name)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
@@ -427,12 +432,12 @@ function ProductPage() {
                       className={`relative h-10 w-10 rounded-full border transition-all duration-500 flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 ${
                         isSelected
                           ? "border-gold scale-110 shadow-md ring-1 ring-gold/40"
-                          : isOOS
+                          : isColorOOS
                             ? "border-border/20 opacity-30 cursor-not-allowed"
                             : "border-border hover:border-foreground hover:scale-105"
                       }`}
-                      title={isOOS ? `${color.name} (Out of Stock)` : color.name}
-                      aria-label={`Select color ${color.name}${isOOS ? " (Out of Stock)" : ""}`}
+                      title={isColorOOS ? `${color.name} (Out of Stock)` : color.name}
+                      aria-label={`Select color ${color.name}${isColorOOS ? " (Out of Stock)" : ""}`}
                       aria-current={isSelected ? "true" : "false"}
                     >
                       <span
@@ -443,7 +448,7 @@ function ProductPage() {
                             : { backgroundColor: color.hex }
                         }
                       >
-                        {isOOS && (
+                        {isColorOOS && (
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-background/20 backdrop-blur-[0.5px]">
                             <div className="w-[140%] h-[1.5px] bg-foreground/50 rotate-45" />
                           </div>
@@ -478,7 +483,7 @@ function ProductPage() {
             <div className="flex flex-wrap gap-2.5">
               {activeSizes.map((s) => {
                 const qty = activeSizeStock?.[s];
-                const disabled = hasSizeStock && qty !== undefined && qty === 0;
+                const disabled = productTotalOOS || activeStock === 0 || (hasSizeStock && qty !== undefined && qty === 0);
                 return (
                   <button
                     key={s}

@@ -9,6 +9,21 @@ export interface InventoryProductRow {
   is_active: boolean;
   updated_at: string;
   category_name: string;
+  sizes?: string[] | null;
+  size_stock?: Record<string, number> | null;
+  colors?: any[] | null;
+  variants?: Array<{
+    id: string;
+    product_id: string;
+    name: string;
+    sku: string | null;
+    price: number | null;
+    stock: number;
+    sizes: string[] | null;
+    size_stock: Record<string, number> | null;
+    color_hex: string | null;
+    is_active: boolean;
+  }> | null;
 }
 
 export interface InventoryProductsResponse {
