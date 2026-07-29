@@ -10,6 +10,7 @@ import { ProductPrice } from "@/components/site/ProductPrice";
 import { toast } from "sonner";
 import type { Product } from "@/lib/products";
 import { useProductDetailQuery, useProductsCatalog } from "@/lib/products-query";
+import { useActiveCategories } from "@/lib/categories";
 
 interface ProductSearch {
   color?: string;
@@ -68,6 +69,33 @@ function ProductPage() {
 
   const { data: product, isLoading, error } = useProductDetailQuery(slug);
   const { data: catalog = [] } = useProductsCatalog();
+  const { data: allCategories = [] } = useActiveCategories();
+
+  const [openAccordion, setOpenAccordion] = useState<string | null>("details");
+
+  const categoryPathSlugs = useMemo(() => {
+    if (!product || !product.category_id || allCategories.length === 0) return null;
+
+    function getPath(
+      nodes: any[],
+      targetId: string,
+      current: { name: string; slug: string }[] = []
+    ): { name: string; slug: string }[] | null {
+      for (const node of nodes) {
+        const item = { name: node.name, slug: node.slug };
+        if (node.id === targetId) {
+          return [...current, item];
+        }
+        if (node.children && node.children.length > 0) {
+          const path = getPath(node.children, targetId, [...current, item]);
+          if (path) return path;
+        }
+      }
+      return null;
+    }
+
+    return getPath(allCategories, product.category_id);
+  }, [allCategories, product]);
 
   const related = useMemo(() => {
     if (!product) return [];
@@ -206,36 +234,62 @@ function ProductPage() {
   };
 
   return (
-    <div className="pt-10 lg:pt-16 pb-24">
-      {/* Breadcrumb */}
-      <div className="px-5 lg:px-10 mb-8 text-[11px] tracking-[0.28em] uppercase text-muted-foreground">
-        <Link to="/" className="hover:text-foreground transition-colors">
+    <div className="pt-8 lg:pt-12 pb-24 font-sans bg-background">
+      {/* ─── 1. Premium Breadcrumbs ─── */}
+      <div className="px-5 lg:px-10 mb-10 text-[10px] md:text-[11px] tracking-[0.24em] uppercase text-muted-foreground/80 max-w-7xl mx-auto flex flex-wrap items-center gap-y-1.5">
+        <Link to="/" className="hover:text-foreground transition-colors duration-300">
           Home
         </Link>
-        <span className="mx-2">/</span>
-        <Link
-          to={`/shop/${(product as any).category_slug || (product.category as string).toLowerCase()}` as any}
-          className="hover:text-foreground transition-colors"
-        >
-          {product.category}
-        </Link>
-        <span className="mx-2">/</span>
-        <span className="text-foreground">{product.name}</span>
+        {categoryPathSlugs ? (
+          categoryPathSlugs.map((item, index) => {
+            const pathSlugs = categoryPathSlugs.slice(0, index + 1).map((c) => c.slug);
+            const href = `/shop/${pathSlugs.join("/")}`;
+            return (
+              <span key={item.slug} className="flex items-center">
+                <span className="mx-3 text-[9px] opacity-40">&gt;</span>
+                <Link to={href as any} className="hover:text-foreground transition-colors duration-300">
+                  {item.name}
+                </Link>
+              </span>
+            );
+          })
+        ) : (
+          <>
+            <span className="mx-3 text-[9px] opacity-40">&gt;</span>
+            <Link
+              to={`/shop/${(product as any).category_slug || (product.category as string).toLowerCase()}` as any}
+              className="hover:text-foreground transition-colors duration-300"
+            >
+              {product.category}
+            </Link>
+            {product.subcategory && (
+              <span className="flex items-center">
+                <span className="mx-3 text-[9px] opacity-40">&gt;</span>
+                <span className="text-foreground">{product.subcategory}</span>
+              </span>
+            )}
+          </>
+        )}
+        <span className="mx-3 text-[9px] opacity-40">&gt;</span>
+        <span className="text-foreground font-bold">{product.name}</span>
       </div>
 
-      <div className="px-5 lg:px-10 grid lg:grid-cols-2 gap-10 lg:gap-16 max-w-7xl mx-auto">
-        {/* ─── Image Gallery ─── */}
-        <div className="grid grid-cols-1 md:grid-cols-[64px_1fr] gap-4">
-          {/* Thumbnails */}
-          <div className="hidden md:flex flex-col gap-3">
+      <div className="px-5 lg:px-10 grid lg:grid-cols-2 gap-12 lg:gap-20 max-w-7xl mx-auto">
+        {/* ─── 2. Image Gallery ─── */}
+        <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6">
+          {/* Thumbnails (Desktop) */}
+          <div className="hidden md:flex flex-col gap-4">
             {activeImages.map((img, i) => (
               <button
                 key={i}
+                type="button"
                 onClick={() => setImgIdx(i)}
-                className={`overflow-hidden aspect-[3/4] border transition-all duration-300 ${i === imgIdx
-                    ? "border-foreground"
-                    : "border-transparent opacity-60 hover:opacity-100"
-                  }`}
+                className={`overflow-hidden aspect-[3/4] border transition-all duration-500 focus:outline-none ${
+                  i === imgIdx
+                    ? "border-foreground scale-105 shadow-sm"
+                    : "border-transparent opacity-50 hover:opacity-100"
+                }`}
+                aria-label={`View image ${i + 1}`}
               >
                 <img src={img} alt="" className="h-full w-full object-cover" />
               </button>
@@ -251,16 +305,17 @@ function ProductPage() {
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
             onClick={() => setLightboxOpen(true)}
-            className="md:col-start-2 overflow-hidden aspect-[3/4] bg-neutral cursor-crosshair relative"
+            className="md:col-start-2 overflow-hidden aspect-[3/4] bg-neutral/40 cursor-crosshair relative shadow-inner border border-border/10"
           >
             <img
               src={activeImages[imgIdx]}
               alt={product.name}
-              className={`h-full w-full object-cover transition-opacity duration-500 ${zoom ? "opacity-0" : "opacity-100"
-                }`}
+              className={`h-full w-full object-cover transition-opacity duration-500 ${
+                zoom ? "opacity-0" : "opacity-100"
+              }`}
             />
             {!isOOS && priceInfo.isOnSale && priceInfo.discountPercent > 0 && (
-              <span className="absolute top-3 left-3 text-[9px] tracking-[0.18em] uppercase border border-gold/30 text-gold bg-background/95 px-2.5 py-1.5 backdrop-blur font-semibold rounded-full shadow-sm leading-none z-10">
+              <span className="absolute top-4 left-4 text-[9px] tracking-[0.2em] uppercase border border-gold/30 text-gold bg-background/95 px-3 py-1.5 backdrop-blur font-semibold rounded-full shadow-sm leading-none z-10">
                 {priceInfo.badgeText}
               </span>
             )}
@@ -276,35 +331,42 @@ function ProductPage() {
               />
             )}
 
-            {/* Touch arrows */}
+            {/* Touch arrows (Mobile) */}
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setImgIdx((i) => Math.max(0, i - 1));
               }}
-              className="md:hidden absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8 bg-background/80 grid place-items-center hover:text-gold transition-colors"
+              className="md:hidden absolute left-3 top-1/2 -translate-y-1/2 h-9 w-9 bg-background/90 rounded-full shadow-sm grid place-items-center hover:text-gold transition-colors duration-300 focus:outline-none"
+              aria-label="Previous image"
             >
-              <span className="text-sm">‹</span>
+              <span className="text-lg leading-none font-serif">‹</span>
             </button>
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setImgIdx((i) => Math.min(activeImages.length - 1, i + 1));
               }}
-              className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 bg-background/80 grid place-items-center hover:text-gold transition-colors"
+              className="md:hidden absolute right-3 top-1/2 -translate-y-1/2 h-9 w-9 bg-background/90 rounded-full shadow-sm grid place-items-center hover:text-gold transition-colors duration-300 focus:outline-none"
+              aria-label="Next image"
             >
-              <span className="text-sm">›</span>
+              <span className="text-lg leading-none font-serif">›</span>
             </button>
           </div>
 
-          {/* Mobile thumbnails */}
-          <div className="md:hidden flex gap-2 mt-3 overflow-x-auto col-span-2">
+          {/* Mobile thumbnails with swipe container */}
+          <div className="md:hidden flex gap-3 overflow-x-auto col-span-2 scrollbar-none pb-1">
             {activeImages.map((img, i) => (
               <button
                 key={i}
+                type="button"
                 onClick={() => setImgIdx(i)}
-                className={`w-14 aspect-[3/4] flex-none border transition-all duration-300 ${i === imgIdx ? "border-foreground" : "border-transparent opacity-60"
-                  }`}
+                className={`w-16 aspect-[3/4] flex-none border transition-all duration-300 focus:outline-none ${
+                  i === imgIdx ? "border-foreground scale-105" : "border-transparent opacity-50"
+                }`}
+                aria-label={`View image ${i + 1}`}
               >
                 <img src={img} alt="" className="h-full w-full object-cover" />
               </button>
@@ -312,42 +374,38 @@ function ProductPage() {
           </div>
         </div>
 
-        {/* ─── Product Info ─── */}
-        <div className="lg:pl-6 lg:sticky lg:top-24 lg:self-start">
-          {product.badge && <span className="eyebrow text-gold">{product.badge}</span>}
-          <h1 className="font-serif text-4xl md:text-5xl mt-3">{product.name}</h1>
+        {/* ─── 3. Product Information Section ─── */}
+        <div className="lg:sticky lg:top-24 lg:self-start space-y-8">
+          <div>
+            {product.badge && (
+              <span className="text-[10px] tracking-[0.3em] uppercase text-gold font-semibold">
+                {product.badge}
+              </span>
+            )}
+            <h1 className="font-serif text-3xl md:text-4xl lg:text-5xl tracking-wide mt-2 text-foreground leading-tight">
+              {product.name}
+            </h1>
 
-          <div className="mt-4 flex items-center gap-4 text-sm">
-            <span className={isOOS ? "text-red/70" : "text-emerald-600/80"}>
-              {isOOS ? "Out of Stock" : "In Stock"}
-            </span>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-[11px] tracking-[0.28em] uppercase text-muted-foreground">
-              SKU {activeSku}
-            </span>
+            <div className="mt-4 flex items-center gap-3.5 text-xs text-muted-foreground/80">
+              <span className={isOOS ? "text-red font-medium" : "text-emerald-700 font-medium"}>
+                {isOOS ? "Out of Stock" : "In Stock"}
+              </span>
+              <span className="opacity-40">|</span>
+              <span className="tracking-[0.24em] uppercase text-[10px]">
+                SKU: {activeSku}
+              </span>
+            </div>
+
+            <ProductPrice product={product} size="lg" className="mt-5" />
           </div>
 
-          <ProductPrice product={product} size="lg" className="mt-5" />
-
-          <div className="mt-7 h-px w-full bg-border/60" />
-
-          <p className="mt-7 text-[15px] leading-relaxed text-muted-foreground">
-            {product.description}
-          </p>
-
-          {/* Fabric / Material */}
-          {(product.fabric || product.material) && (
-            <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="eyebrow text-foreground/60">Fabric:</span>
-              <span>{product.fabric ?? product.material}</span>
-            </div>
-          )}
+          <div className="h-px w-full bg-border/20" />
 
           {/* Color Selection */}
           {colors.length > 1 && (
-            <div className="mt-6">
-              <span className="eyebrow text-[11px] tracking-[0.28em] uppercase text-muted-foreground block mb-3">
-                Color: <span className="text-foreground font-semibold">{activeColor}</span>
+            <div className="space-y-3">
+              <span className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground block">
+                Color: <span className="text-foreground font-semibold ml-1">{activeColor}</span>
               </span>
               <div className="flex flex-wrap gap-3.5">
                 {colors.map((color) => {
@@ -398,41 +456,43 @@ function ProductPage() {
             </div>
           )}
 
-          {/* Color (single) */}
           {colors.length <= 1 && (
-            <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="eyebrow text-foreground/60">Color:</span>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground/80">
+              <span className="text-[10px] tracking-[0.24em] uppercase text-foreground/75">Color:</span>
               <span>{activeColor}</span>
             </div>
           )}
 
           {/* Size */}
-          <div className="mt-8">
-            <div className="flex items-center justify-between mb-3">
-              <span className="eyebrow">Size</span>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground">Size</span>
               <button
+                type="button"
                 onClick={() => setGuideOpen(true)}
-                className="text-[11px] tracking-[0.28em] uppercase text-muted-foreground hover:text-foreground transition-colors"
+                className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground/75 hover:text-foreground transition-colors duration-300 focus:outline-none hover-underline"
               >
                 Size Guide
               </button>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2.5">
               {activeSizes.map((s) => {
                 const qty = activeSizeStock?.[s];
                 const disabled = hasSizeStock && qty !== undefined && qty === 0;
                 return (
                   <button
                     key={s}
+                    type="button"
                     onClick={() => {
                       if (!disabled) setSize(s);
                     }}
-                    className={`min-w-12 h-11 px-3 text-sm border transition-all duration-300 ${size === s && !disabled
-                        ? "border-foreground bg-foreground text-background"
+                    className={`min-w-12 h-11 px-3 text-xs tracking-wider border transition-all duration-300 focus:outline-none ${
+                      size === s && !disabled
+                        ? "border-foreground bg-foreground text-background font-medium"
                         : disabled
                           ? "border-border/40 text-border/50 line-through diagonal-strike cursor-not-allowed"
                           : "border-border hover:border-foreground"
-                      }`}
+                    }`}
                   >
                     {s}
                   </button>
@@ -441,57 +501,67 @@ function ProductPage() {
             </div>
           </div>
 
+          <div className="h-px w-full bg-border/10" />
+
           {/* Quantity + Actions */}
-          <div className="mt-7 flex items-center gap-4">
-            <div className="flex items-center border border-border">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center border border-border h-11">
               <button
+                type="button"
                 aria-label="decrease"
                 onClick={() => setQty((q) => Math.max(1, q - 1))}
-                className="h-11 w-11 grid place-items-center hover:bg-neutral transition-colors"
+                className="h-full w-11 grid place-items-center hover:bg-neutral/45 transition-colors focus:outline-none"
               >
-                <Minus className="h-3.5 w-3.5" />
+                <Minus className="h-3 w-3" />
               </button>
-              <span className="w-10 text-center text-sm">{qty}</span>
+              <span className="w-9 text-center text-xs font-semibold">{qty}</span>
               <button
+                type="button"
                 aria-label="increase"
                 onClick={() => setQty((q) => q + 1)}
-                className="h-11 w-11 grid place-items-center hover:bg-neutral transition-colors"
+                className="h-full w-11 grid place-items-center hover:bg-neutral/45 transition-colors focus:outline-none"
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-3 w-3" />
               </button>
             </div>
-            <button
-              onClick={() => {
-                const wasWishlisted = wish.has(product.id, activeId);
-                wish.toggle(product.id, activeId);
-                toast(wasWishlisted ? "Removed from Wishlist" : "Added to Wishlist");
-              }}
-              className="h-11 w-11 grid place-items-center border border-border hover:border-foreground transition-all duration-300 hover:scale-105"
-              aria-label="wishlist"
-            >
-              <Heart className={`h-4 w-4 ${wish.has(product.id, activeId) ? "fill-gold text-gold" : ""}`} />
-            </button>
-            <button
-              onClick={() => {
-                if (navigator.share)
-                  navigator
-                    .share({ title: product.name, url: window.location.href })
-                    .catch(() => { });
-                else {
-                  navigator.clipboard.writeText(window.location.href);
-                  toast("Link copied to clipboard");
-                }
-              }}
-              className="h-11 w-11 grid place-items-center border border-border hover:border-foreground transition-all duration-300 hover:scale-105"
-              aria-label="share"
-            >
-              <Share2 className="h-4 w-4" />
-            </button>
+
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const wasWishlisted = wish.has(product.id, activeId);
+                  wish.toggle(product.id, activeId);
+                  toast(wasWishlisted ? "Removed from Wishlist" : "Added to Wishlist");
+                }}
+                className="h-11 w-11 grid place-items-center border border-border hover:border-foreground transition-all duration-300 hover:scale-105 focus:outline-none"
+                aria-label="wishlist"
+              >
+                <Heart className={`h-4 w-4 ${wish.has(product.id, activeId) ? "fill-gold text-gold" : ""}`} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (navigator.share)
+                    navigator
+                      .share({ title: product.name, url: window.location.href })
+                      .catch(() => { });
+                  else {
+                    navigator.clipboard.writeText(window.location.href);
+                    toast("Link copied to clipboard");
+                  }
+                }}
+                className="h-11 w-11 grid place-items-center border border-border hover:border-foreground transition-all duration-300 hover:scale-105 focus:outline-none"
+                aria-label="share"
+              >
+                <Share2 className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           {/* Add to Cart / Buy Now */}
-          <div className="mt-5 grid sm:grid-cols-2 gap-3">
+          <div className="grid sm:grid-cols-2 gap-4 pt-2">
             <button
+              type="button"
               onClick={() => {
                 if (isOOS) return;
                 const validation = validateStockBeforeCheckout(product, {
@@ -511,10 +581,11 @@ function ProductPage() {
                 });
               }}
               disabled={isOOS}
-              className={`py-4 text-[11px] tracking-[0.32em] uppercase transition-all duration-300 ${isOOS
+              className={`py-4 text-[10px] md:text-[11px] tracking-[0.28em] uppercase transition-all duration-300 font-semibold focus:outline-none ${
+                isOOS
                   ? "bg-border/40 text-muted-foreground cursor-not-allowed"
-                  : "bg-foreground text-background hover:bg-gold hover:text-ink"
-                }`}
+                  : "bg-foreground text-background hover:bg-gold hover:text-ink hover:scale-[1.01]"
+              }`}
             >
               {isOOS ? "Out of Stock" : "Add to Bag"}
             </button>
@@ -522,7 +593,7 @@ function ProductPage() {
               <Link
                 to="/checkout"
                 onClick={() => cart.add(product.id, size, qty, activeId)}
-                className="text-center border border-foreground py-4 text-[11px] tracking-[0.32em] uppercase hover:bg-foreground hover:text-background transition-all duration-300"
+                className="text-center border border-foreground py-4 text-[10px] md:text-[11px] tracking-[0.28em] uppercase hover:bg-foreground hover:text-background transition-all duration-300 font-semibold hover:scale-[1.01]"
               >
                 Buy Now
               </Link>
@@ -530,42 +601,101 @@ function ProductPage() {
           </div>
 
           {/* Delivery */}
-          <div className="mt-6 flex items-center gap-2 text-xs text-muted-foreground">
-            <Truck className="h-4 w-4" />
+          <div className="flex items-center gap-2.5 text-xs text-muted-foreground/80 pt-1">
+            <Truck className="h-4 w-4 text-muted-foreground/60" />
             <span>Complimentary express shipping · arrives in 3–5 business days</span>
           </div>
 
-          {/* Details accordion */}
-          <div className="mt-10 divide-y divide-border/60 border-t border-b border-border/60">
-            <Detail title="Composition">
-              <p>{product.fabric ?? product.material ?? "Premium quality"}</p>
-              <p>Colour — {activeColorValue}</p>
-            </Detail>
-            <Detail title="Care">
-              <p>
-                Store in the pouch provided. Avoid contact with perfumes, lotions and chlorine.
-                Polish with a soft cloth.
+          {/* ─── 4. Premium Accordions ─── */}
+          <div className="border-t border-border/40 divide-y divide-border/40 pt-2">
+            <AccordionItem
+              title="Details"
+              isOpen={openAccordion === "details"}
+              onToggle={() => setOpenAccordion(openAccordion === "details" ? null : "details")}
+            >
+              <p className="whitespace-pre-line leading-relaxed">{product.description}</p>
+              {(product.fabric || product.material) && (
+                <p className="mt-3">
+                  <span className="font-semibold text-foreground">Composition:</span>{" "}
+                  {product.fabric ?? product.material}
+                </p>
+              )}
+              <p className="mt-1">
+                <span className="font-semibold text-foreground">Colour:</span>{" "}
+                {activeColorValue}
               </p>
-            </Detail>
-            <Detail title="Shipping & Returns">
+            </AccordionItem>
+
+            <AccordionItem
+              title="Care Instructions"
+              isOpen={openAccordion === "care"}
+              onToggle={() => setOpenAccordion(openAccordion === "care" ? null : "care")}
+            >
               <p>
-                Complimentary worldwide shipping. 14-day returns on unworn pieces in original
-                packaging.
+                Store in the protective pouch provided. Avoid direct contact with perfume, hairspray, makeup, and water. Polish regularly with a soft lint-free cloth to maintain its original luster.
               </p>
-            </Detail>
+            </AccordionItem>
+
+            <AccordionItem
+              title="Product Tags"
+              isOpen={openAccordion === "tags"}
+              onToggle={() => setOpenAccordion(openAccordion === "tags" ? null : "tags")}
+            >
+              <div className="flex flex-wrap gap-2 pt-1">
+                <span className="px-2.5 py-1 text-[9px] tracking-wider uppercase border border-border bg-stone-50/50 text-muted-foreground/90 font-medium">
+                  {product.category}
+                </span>
+                {product.subcategory && (
+                  <span className="px-2.5 py-1 text-[9px] tracking-wider uppercase border border-border bg-stone-50/50 text-muted-foreground/90 font-medium">
+                    {product.subcategory}
+                  </span>
+                )}
+                <span className="px-2.5 py-1 text-[9px] tracking-wider uppercase border border-border bg-stone-50/50 text-muted-foreground/90 font-medium">
+                  {activeColorValue}
+                </span>
+              </div>
+            </AccordionItem>
+
+            <AccordionItem
+              title="Shipping & Delivery"
+              isOpen={openAccordion === "shipping"}
+              onToggle={() => setOpenAccordion(openAccordion === "shipping" ? null : "shipping")}
+            >
+              <p>
+                ANORA offers complimentary express courier delivery worldwide. Orders are processed within 24 hours of placement and arrive at your doorstep in 3 to 5 business days. Real-time tracking is provided with every shipment.
+              </p>
+            </AccordionItem>
+
+            <AccordionItem
+              title="Returns & Exchange"
+              isOpen={openAccordion === "returns"}
+              onToggle={() => setOpenAccordion(openAccordion === "returns" ? null : "returns")}
+            >
+              <p>
+                We accept returns and exchanges on all unworn items within 14 days of receipt. Items must be in original condition with all tags and protective packing intact. Easy return pick-ups can be arranged through your account dashboard.
+              </p>
+            </AccordionItem>
           </div>
         </div>
       </div>
 
-      {/* Related */}
-      <section className="px-5 lg:px-10 mt-24 max-w-7xl mx-auto">
-        <h2 className="font-serif text-3xl md:text-4xl mb-10">You may also like</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14">
-          {related.map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
-      </section>
+      {/* ─── 5. Premium Divider ─── */}
+      <div className="my-20 h-px w-full bg-border/20 max-w-7xl mx-auto" />
+
+      {/* ─── 6 & 7. Related Products ("YOU MAY ALSO LIKE") Carousel ─── */}
+      {related.length > 0 && (
+        <section className="mt-8">
+          <div className="max-w-7xl mx-auto text-center mb-12">
+            <h2 className="font-serif text-2xl md:text-3xl tracking-[0.3em] uppercase text-foreground leading-none">
+              You May Also Like
+            </h2>
+            <p className="text-[10px] tracking-[0.2em] text-gold uppercase mt-3 font-semibold">
+              Curated for your style
+            </p>
+          </div>
+          <RelatedCarousel products={related} />
+        </section>
+      )}
 
       {/* ─── Lightbox ─── */}
       {lightboxOpen && (
@@ -574,8 +704,10 @@ function ProductPage() {
           className="fixed inset-0 z-[80] bg-ink/80 backdrop-blur-sm animate-fade flex items-center justify-center p-4"
         >
           <button
+            type="button"
             onClick={() => setLightboxOpen(false)}
-            className="absolute top-6 right-6 text-background hover:text-gold transition-colors"
+            className="absolute top-6 right-6 text-background hover:text-gold transition-colors focus:outline-none"
+            aria-label="Close image lightbox"
           >
             <X className="h-6 w-6" />
           </button>
@@ -587,20 +719,24 @@ function ProductPage() {
             />
           </div>
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               setImgIdx((i) => Math.max(0, i - 1));
             }}
-            className="absolute left-6 top-1/2 -translate-y-1/2 text-background/70 hover:text-gold text-3xl transition-colors"
+            className="absolute left-6 top-1/2 -translate-y-1/2 text-background/70 hover:text-gold text-3xl transition-colors focus:outline-none"
+            aria-label="Previous image"
           >
             ‹
           </button>
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               setImgIdx((i) => Math.min(activeImages.length - 1, i + 1));
             }}
-            className="absolute right-6 top-1/2 -translate-y-1/2 text-background/70 hover:text-gold text-3xl transition-colors"
+            className="absolute right-6 top-1/2 -translate-y-1/2 text-background/70 hover:text-gold text-3xl transition-colors focus:outline-none"
+            aria-label="Next image"
           >
             ›
           </button>
@@ -620,8 +756,10 @@ function ProductPage() {
             <div className="flex items-center justify-between mb-8">
               <h2 className="font-serif text-2xl">Size Guide</h2>
               <button
+                type="button"
                 onClick={() => setGuideOpen(false)}
-                className="hover:text-gold transition-colors"
+                className="hover:text-gold transition-colors focus:outline-none"
+                aria-label="Close size guide"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -652,9 +790,8 @@ function ProductPage() {
                 ))}
               </tbody>
             </table>
-            <p className="text-xs text-muted-foreground mt-6">
-              Measurements are body measurements. For the best fit, we recommend comparing with a
-              piece you already own.
+            <p className="text-xs text-muted-foreground mt-6 font-sans">
+              Measurements are body measurements. For the best fit, we recommend comparing with a piece you already own.
             </p>
           </div>
         </div>
@@ -663,24 +800,124 @@ function ProductPage() {
   );
 }
 
-function Detail({ title, children }: { title: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
+
+
+function AccordionItem({
+  title,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <div>
+    <div className="border-b border-border/40">
       <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between py-5 text-left"
+        onClick={onToggle}
+        type="button"
+        className="w-full flex items-center justify-between py-5 text-left focus:outline-none group"
       >
-        <span className="eyebrow">{title}</span>
-        <ChevronDown
-          className={`h-4 w-4 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
-        />
+        <span className="text-[11px] tracking-[0.24em] uppercase font-medium text-foreground hover:text-gold transition-colors duration-300">
+          {title}
+        </span>
+        <span className="text-muted-foreground/60 group-hover:text-foreground transition-colors duration-300 text-xs">
+          {isOpen ? "▲" : "▼"}
+        </span>
       </button>
-      {open && (
-        <div className="pb-5 text-sm text-muted-foreground leading-relaxed space-y-2 animate-fade">
+      <div
+        className={`overflow-hidden transition-all duration-500 ease-in-out ${
+          isOpen ? "max-h-[500px] opacity-100 pb-5" : "max-h-0 opacity-0"
+        }`}
+      >
+        <div className="text-[13px] text-muted-foreground leading-relaxed font-sans space-y-3">
           {children}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function RelatedCarousel({ products }: { products: Product[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [showLeft, setShowLeft] = useState(false);
+  const [showRight, setShowRight] = useState(true);
+
+  const updateButtons = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    setShowLeft(el.scrollLeft > 5);
+    setShowRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 5);
+  };
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    el.addEventListener("scroll", updateButtons, { passive: true });
+    updateButtons();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateButtons();
+    });
+    resizeObserver.observe(el);
+
+    return () => {
+      el.removeEventListener("scroll", updateButtons);
+      resizeObserver.disconnect();
+    };
+  }, [products]);
+
+  const scroll = (direction: "left" | "right") => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const cardWidth = el.clientWidth / 4;
+    const scrollAmount = direction === "left" ? -cardWidth * 2 : cardWidth * 2;
+
+    el.scrollBy({
+      left: scrollAmount,
+      behavior: "smooth",
+    });
+  };
+
+  return (
+    <div className="relative group max-w-7xl mx-auto px-5 lg:px-10">
+      {showLeft && (
+        <button
+          onClick={() => scroll("left")}
+          className="hidden md:flex absolute left-2 lg:left-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full border border-border bg-background/90 items-center justify-center hover:bg-foreground hover:text-background hover:scale-105 transition-all duration-300 shadow-luxe"
+          aria-label="Previous products"
+        >
+          <span className="text-xl">‹</span>
+        </button>
       )}
+      {showRight && (
+        <button
+          onClick={() => scroll("right")}
+          className="hidden md:flex absolute right-2 lg:right-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full border border-border bg-background/90 items-center justify-center hover:bg-foreground hover:text-background hover:scale-105 transition-all duration-300 shadow-luxe"
+          aria-label="Next products"
+        >
+          <span className="text-xl">›</span>
+        </button>
+      )}
+
+      <div
+        ref={containerRef}
+        className="flex gap-4 sm:gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory scrollbar-none pb-4"
+        style={{ scrollbarWidth: "none" }}
+      >
+        {products.map((p) => (
+          <div
+            key={p.id}
+            className="flex-none w-[calc(50%-8px)] sm:w-[calc(33.333%-16px)] md:w-[calc(25%-18px)] snap-start"
+          >
+            <ProductCard product={p} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

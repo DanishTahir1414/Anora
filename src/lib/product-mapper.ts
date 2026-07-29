@@ -53,6 +53,7 @@ export function mapDbProductToStatic(
     price: db.price,
     category: parentCategorySlug as "clothing" | "jewellery",
     subcategory: subcategoryName,
+    category_id: db.category_id,
     description: db.description ?? "",
     fabric: db.fabric ?? undefined,
     material: db.material ?? undefined,

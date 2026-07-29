@@ -47,6 +47,7 @@ export interface Product {
   discount_percent?: number;
   metadata?: Record<string, unknown>;
   selectedVariantId?: string;
+  category_id?: string;
 }
 
 export interface ProductPriceInfo {

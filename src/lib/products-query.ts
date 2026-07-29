@@ -43,6 +43,7 @@ export function mapDbProduct(row: any): Product & { featured: boolean; is_new: b
     compare_price: row.compare_price ? Number(row.compare_price) : null,
     category: "clothing" as const,
     subcategory: "",
+    category_id: row.category_id,
     description: row.description || "",
     fabric: row.fabric || undefined,
     material: row.material || undefined,
