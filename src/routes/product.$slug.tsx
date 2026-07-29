@@ -846,78 +846,231 @@ function AccordionItem({
 }
 
 function RelatedCarousel({ products }: { products: Product[] }) {
+  const N = products.length;
+  const trackRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [showLeft, setShowLeft] = useState(false);
-  const [showRight, setShowRight] = useState(true);
 
-  const updateButtons = () => {
-    const el = containerRef.current;
-    if (!el) return;
-    setShowLeft(el.scrollLeft > 5);
-    setShowRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 5);
+  const [visibleCards, setVisibleCards] = useState(4);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+
+  const startXRef = useRef(0);
+  const isDraggingRef = useRef(false);
+  const dragOffsetRef = useRef(0);
+
+  // Determine visible cards based on screen sizes
+  const getVisibleCards = () => {
+    if (typeof window === "undefined") return 4;
+    if (window.innerWidth < 640) return 2;
+    if (window.innerWidth < 1024) return 3;
+    return 4;
   };
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    if (N <= getVisibleCards()) {
+      return;
+    }
 
-    el.addEventListener("scroll", updateButtons, { passive: true });
-    updateButtons();
+    const handleResize = () => {
+      const k = getVisibleCards();
+      setVisibleCards(k);
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.clientWidth);
+      }
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize, { passive: true });
 
     const resizeObserver = new ResizeObserver(() => {
-      updateButtons();
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.clientWidth);
+      }
     });
-    resizeObserver.observe(el);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    const k = getVisibleCards();
+    setCurrentIndex(k);
 
     return () => {
-      el.removeEventListener("scroll", updateButtons);
+      window.removeEventListener("resize", handleResize);
       resizeObserver.disconnect();
     };
-  }, [products]);
+  }, [N]);
 
-  const scroll = (direction: "left" | "right") => {
-    const el = containerRef.current;
-    if (!el) return;
+  const shouldSlider = N > visibleCards;
 
-    const cardWidth = el.clientWidth / 4;
-    const scrollAmount = direction === "left" ? -cardWidth * 2 : cardWidth * 2;
+  const clonedItems = useMemo(() => {
+    if (!shouldSlider) return products;
+    const K = visibleCards;
+    return [
+      ...products.slice(-K),
+      ...products,
+      ...products.slice(0, K),
+    ];
+  }, [products, visibleCards, shouldSlider]);
 
-    el.scrollBy({
-      left: scrollAmount,
-      behavior: "smooth",
-    });
+  const slideNext = () => {
+    if (isTransitioning) return;
+    setIsTransitioning(true);
+    setCurrentIndex((prev) => prev + 1);
   };
 
+  const slidePrev = () => {
+    if (isTransitioning) return;
+    setIsTransitioning(true);
+    setCurrentIndex((prev) => prev - 1);
+  };
+
+  const handleTransitionEnd = () => {
+    setIsTransitioning(false);
+    if (currentIndex >= N + visibleCards) {
+      setCurrentIndex(currentIndex - N);
+    } else if (currentIndex < visibleCards) {
+      setCurrentIndex(currentIndex + N);
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!shouldSlider || isTransitioning) return;
+    const touch = e.touches[0];
+    startXRef.current = touch.clientX;
+    isDraggingRef.current = true;
+    dragOffsetRef.current = 0;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDraggingRef.current) return;
+    const touch = e.touches[0];
+    const diff = touch.clientX - startXRef.current;
+    dragOffsetRef.current = diff;
+    setDragOffset(diff);
+  };
+
+  const handleTouchEnd = () => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    const threshold = containerWidth / 5;
+    const offset = dragOffsetRef.current;
+    setDragOffset(0);
+    dragOffsetRef.current = 0;
+
+    if (offset < -threshold) {
+      slideNext();
+    } else if (offset > threshold) {
+      slidePrev();
+    } else {
+      setIsTransitioning(true);
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!shouldSlider || isTransitioning) return;
+    startXRef.current = e.clientX;
+    isDraggingRef.current = true;
+    dragOffsetRef.current = 0;
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      const diff = ev.clientX - startXRef.current;
+      dragOffsetRef.current = diff;
+      setDragOffset(diff);
+    };
+
+    const handleMouseUp = () => {
+      isDraggingRef.current = false;
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+
+      const threshold = containerWidth / 5;
+      const offset = dragOffsetRef.current;
+      setDragOffset(0);
+      dragOffsetRef.current = 0;
+
+      if (offset < -threshold) {
+        slideNext();
+      } else if (offset > threshold) {
+        slidePrev();
+      } else {
+        setIsTransitioning(true);
+      }
+    };
+
+    document.addEventListener("mousemove", handleMouseMove, { passive: true });
+    document.addEventListener("mouseup", handleMouseUp, { passive: true });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!shouldSlider) return;
+    if (e.key === "ArrowLeft") {
+      slidePrev();
+    } else if (e.key === "ArrowRight") {
+      slideNext();
+    }
+  };
+
+  const baseTranslation = -currentIndex * (100 / clonedItems.length);
+  const dragTranslation = containerWidth > 0 ? (dragOffset / containerWidth) * 100 : 0;
+  const scaleFactor = clonedItems.length / visibleCards;
+  const translateX = baseTranslation + (dragTranslation / scaleFactor);
+
+  if (!shouldSlider) {
+    return (
+      <div className="max-w-7xl mx-auto px-5 lg:px-10">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
+          {products.map((p) => (
+            <ProductCard key={p.id} product={p} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="relative group max-w-7xl mx-auto px-5 lg:px-10">
-      {showLeft && (
-        <button
-          onClick={() => scroll("left")}
-          className="hidden md:flex absolute left-2 lg:left-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full border border-border bg-background/90 items-center justify-center hover:bg-foreground hover:text-background hover:scale-105 transition-all duration-300 shadow-luxe"
-          aria-label="Previous products"
-        >
-          <span className="text-xl">‹</span>
-        </button>
-      )}
-      {showRight && (
-        <button
-          onClick={() => scroll("right")}
-          className="hidden md:flex absolute right-2 lg:right-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full border border-border bg-background/90 items-center justify-center hover:bg-foreground hover:text-background hover:scale-105 transition-all duration-300 shadow-luxe"
-          aria-label="Next products"
-        >
-          <span className="text-xl">›</span>
-        </button>
-      )}
+    <div
+      ref={containerRef}
+      className="relative group max-w-7xl mx-auto px-5 lg:px-10 overflow-hidden select-none outline-none"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+    >
+      <button
+        onClick={slidePrev}
+        className="absolute left-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full border border-border bg-background/90 flex items-center justify-center hover:bg-foreground hover:text-background hover:scale-105 transition-all duration-300 shadow-luxe focus:outline-none"
+        aria-label="Previous products"
+      >
+        <span className="text-xl">‹</span>
+      </button>
+      <button
+        onClick={slideNext}
+        className="absolute right-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full border border-border bg-background/90 flex items-center justify-center hover:bg-foreground hover:text-background hover:scale-105 transition-all duration-300 shadow-luxe focus:outline-none"
+        aria-label="Next products"
+      >
+        <span className="text-xl">›</span>
+      </button>
 
       <div
-        ref={containerRef}
-        className="flex gap-4 sm:gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory scrollbar-none pb-4"
-        style={{ scrollbarWidth: "none" }}
+        ref={trackRef}
+        className="flex will-change-transform"
+        onTransitionEnd={handleTransitionEnd}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onMouseDown={handleMouseDown}
+        style={{
+          transform: `translate3d(${translateX}%, 0, 0)`,
+          transition: isTransitioning ? "transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)" : "none",
+          width: `${scaleFactor * 100}%`,
+        }}
       >
-        {products.map((p) => (
+        {clonedItems.map((p, idx) => (
           <div
-            key={p.id}
-            className="flex-none w-[calc(50%-8px)] sm:w-[calc(33.333%-16px)] md:w-[calc(25%-18px)] snap-start"
+            key={`${p.id}-clone-${idx}`}
+            style={{ width: `${100 / clonedItems.length}%` }}
+            className="px-2 sm:px-3 flex-shrink-0"
           >
             <ProductCard product={p} />
           </div>

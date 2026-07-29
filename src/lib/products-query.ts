@@ -82,7 +82,7 @@ export function useProductsCatalog() {
       if (error) throw error;
       return (data || []).map(mapDbProduct);
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes cache
+    staleTime: 0, // Bypass cache to ensure fresh stock levels
     gcTime: 1000 * 60 * 30, // 30 minutes garbage collection
   });
 }
@@ -129,7 +129,7 @@ export function useProductDetailQuery(slug: string) {
       );
       return product;
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes cache
+    staleTime: 0, // Bypass cache to ensure fresh stock levels
     gcTime: 1000 * 60 * 30,
   });
 }

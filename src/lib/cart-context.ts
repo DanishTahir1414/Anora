@@ -19,7 +19,7 @@ export interface CartCtx {
   subtotal: number;
   detailed: { item: CartItem; product: any; active: boolean; availableQuantity: number }[];
   syncCartWithServer: () => Promise<CartItem[]>;
-  validateCartStock: () => CartItem[];
+  validateCartStock: () => CartItem[] | Promise<CartItem[]>;
   isRestoring: boolean;
 }
 

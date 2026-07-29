@@ -435,8 +435,32 @@ export function setCustomerUser(userId: string | null) {
   currentUserId = userId;
 }
 
-export function validateCartStock(items: CartItem[] = cartItems) {
+export async function validateCartStock(items: CartItem[] = cartItems): Promise<CartItem[]> {
   hydrate();
+  if (items.length === 0) return items;
+
+  const productIds = Array.from(new Set(items.map((i) => i.productId)));
+  try {
+    const { data: rows } = await supabase
+      .from("products")
+      .select(`
+        id, slug, name, price, compare_price, stock, size_stock, sizes, sku, colors, fabric, material, is_new, is_best_seller, featured, status, is_active, sale_active, discount_percent, description, category_id, popularity_score, created_at,
+        product_images (image_url, sort_order, variant_id),
+        product_variants (id, name, sku, price, compare_price, stock, sizes, size_stock, color_hex, is_active)
+      `)
+      .in("id", productIds);
+
+    if (rows) {
+      const { mapDbProduct } = await import("./products-query");
+      rows.forEach((row) => {
+        const mapped = mapDbProduct(row);
+        productRegistry.set(mapped.id, mapped);
+      });
+    }
+  } catch (err) {
+    console.error("Failed to fetch fresh stock for validation:", err);
+  }
+
   const validated = items.map((item) => {
     const product = getProduct(item.productId);
     if (!product) {

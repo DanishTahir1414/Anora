@@ -110,18 +110,23 @@ export function CheckoutForm() {
           quantity: i.quantity,
         }))
       );
-      const validated = cart.validateCartStock();
-      const validatedStr = JSON.stringify(
-        validated.map((i) => ({
-          productId: i.productId,
-          variantId: i.variantId,
-          size: i.size,
-          quantity: i.quantity,
-        }))
-      );
-      if (originalItemsStr !== validatedStr) {
-        toast.error("Some items are no longer available. Your cart has been updated automatically.");
-      }
+      
+      const checkAndWarn = async () => {
+        const validated = await cart.validateCartStock();
+        const validatedStr = JSON.stringify(
+          validated.map((i) => ({
+            productId: i.productId,
+            variantId: i.variantId,
+            size: i.size,
+            quantity: i.quantity,
+          }))
+        );
+        if (originalItemsStr !== validatedStr) {
+          toast.error("Some items are no longer available. Your cart has been updated automatically.");
+        }
+      };
+      
+      void checkAndWarn();
     }
   }, [cartHash]);
 

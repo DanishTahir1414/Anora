@@ -16,19 +16,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { useInventoryManagement, type InventoryProductRow } from "@/lib/admin-inventory";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { useInventoryManagement } from "@/lib/admin-inventory";
 import { supabase } from "@/lib/supabase";
 import { InventoryHistoryDrawer } from "./InventoryHistoryDrawer";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
-
-function getStockBadge(stock: number) {
-  if (stock <= 2) return <Badge variant="destructive">Critical</Badge>;
-  if (stock <= 10) return <Badge variant="secondary">Low</Badge>;
-  if (stock > 100) return <Badge>Overstock</Badge>;
-  return <Badge variant="outline">Healthy</Badge>;
-}
 
 export function InventoryTable() {
   const [page, setPage] = useState(1);
@@ -39,11 +37,14 @@ export function InventoryTable() {
   const [categoryId, setCategoryId] = useState("all");
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [historyProductId, setHistoryProductId] = useState<string | null>(null);
-  const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
   const [reservations, setReservations] = useState<any[]>([]);
-  const [savingId, setSavingId] = useState<string | null>(null);
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const pageSize = 20;
+
+  // Modal State
+  const [adjustRecord, setAdjustRecord] = useState<any | null>(null);
+  const [sizeStock, setSizeStock] = useState<Record<string, number>>({});
+  const [saving, setSaving] = useState(false);
 
   const { result, loading, error, refetch } = useInventoryManagement(
     page,
@@ -92,38 +93,110 @@ export function InventoryTable() {
       .reduce((sum, r) => sum + r.quantity, 0);
   };
 
-  async function handleSaveSizeStock(
-    product: any,
-    variantId: string | null,
-    size: string,
-    newQty: number
-  ) {
-    const saveKey = `${product.id}-${variantId || ""}-${size}`;
-    setSavingId(saveKey);
+  // Flattened inventory records for display (ONE ROW PER VARIANT/BASE PRODUCT)
+  const flattenedRecords = useMemo(() => {
+    if (!result?.products) return [];
+
+    const list: any[] = [];
+    result.products.forEach((product) => {
+      const isSingle = !product.variants || product.variants.length === 0;
+      if (isSingle) {
+        // Single Product (Base variant)
+        const currentStock = product.stock ?? 0;
+        const reserved = product.sizes?.reduce((sum: number, sz: string) => sum + getReservedQty(product.id, null, sz), 0) ?? 0;
+        const available = Math.max(0, currentStock - reserved);
+        const image = product.images?.[0] || "";
+
+        list.push({
+          id: `${product.id}--base`,
+          productId: product.id,
+          variantId: null,
+          productName: product.name,
+          variantName: "Base",
+          sku: product.sku || "—",
+          stock: currentStock,
+          reserved,
+          available,
+          image,
+          categoryName: product.category_name,
+          productObj: product,
+          sizes: product.sizes || [],
+          size_stock: product.size_stock || {},
+        });
+      } else {
+        // Variant Product (One row per variant)
+        product.variants?.forEach((v) => {
+          const currentStock = v.stock ?? 0;
+          const reserved = v.sizes?.reduce((sum: number, sz: string) => sum + getReservedQty(product.id, v.id, sz), 0) ?? 0;
+          const available = Math.max(0, currentStock - reserved);
+          const image = v.images?.[0] || product.images?.[0] || "";
+
+          list.push({
+            id: `${product.id}-${v.id}`,
+            productId: product.id,
+            variantId: v.id,
+            productName: product.name,
+            variantName: v.name,
+            sku: v.sku || "—",
+            stock: currentStock,
+            reserved,
+            available,
+            image,
+            categoryName: product.category_name,
+            productObj: product,
+            sizes: v.sizes || [],
+            size_stock: v.size_stock || {},
+          });
+        });
+      }
+    });
+    return list;
+  }, [result, reservations]);
+
+  // Set local state when record is loaded in the adjust modal
+  useEffect(() => {
+    if (adjustRecord) {
+      setSizeStock(adjustRecord.size_stock || {});
+    }
+  }, [adjustRecord]);
+
+  // Calculated live sum of the size stocks in the modal
+  const computedTotal = useMemo(() => {
+    return Object.values(sizeStock).reduce((sum, val) => sum + (val || 0), 0);
+  }, [sizeStock]);
+
+  const handleClose = () => {
+    const isChanged = JSON.stringify(sizeStock) !== JSON.stringify(adjustRecord?.size_stock || {});
+    if (isChanged && !confirm("You have unsaved changes. Are you sure you want to close?")) {
+      return;
+    }
+    setAdjustRecord(null);
+  };
+
+  async function handleSaveStock() {
+    if (!adjustRecord) return;
+    setSaving(true);
     try {
-      if (variantId) {
-        const variantObj = product.variants?.find((v: any) => v.id === variantId);
-        if (!variantObj) throw new Error("Variant not found");
-        const nextSizeStock = { ...variantObj.size_stock, [size]: newQty };
+      if (adjustRecord.variantId) {
         const { error } = await supabase
           .from("product_variants")
-          .update({ size_stock: nextSizeStock })
-          .eq("id", variantId);
+          .update({ size_stock: sizeStock })
+          .eq("id", adjustRecord.variantId);
         if (error) throw error;
       } else {
-        const nextSizeStock = { ...product.size_stock, [size]: newQty };
         const { error } = await supabase
           .from("products")
-          .update({ size_stock: nextSizeStock })
-          .eq("id", product.id);
+          .update({ size_stock: sizeStock })
+          .eq("id", adjustRecord.productId);
         if (error) throw error;
       }
       toast.success("Stock updated successfully");
+      setAdjustRecord(null);
       triggerReload();
     } catch (err: any) {
       toast.error(`Failed to update stock: ${err.message}`);
     } finally {
-      setSavingId(null);
+      setSaving(false);
     }
   }
 
@@ -140,10 +213,6 @@ export function InventoryTable() {
   const sortIndicator = (column: string) => {
     if (sortBy !== column) return " ↕";
     return sortDir === "asc" ? " ↑" : " ↓";
-  };
-
-  const toggleExpandProduct = (productId: string) => {
-    setExpandedProducts((prev) => ({ ...prev, [productId]: !prev[productId] }));
   };
 
   const totalPages = Math.max(1, Math.ceil((result?.total ?? 0) / pageSize));
@@ -201,187 +270,76 @@ export function InventoryTable() {
 
       {error && <p className="text-red-500 text-sm">{error}</p>}
 
-      <div className="rounded-md border overflow-x-auto">
+      <div className="rounded-md border overflow-x-auto bg-background">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-10"></TableHead>
+              <TableHead className="w-20">Image</TableHead>
               <TableHead className="cursor-pointer select-none" onClick={() => handleSort("name")}>
                 Product{sortIndicator("name")}
               </TableHead>
-              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("sku")}>
-                SKU{sortIndicator("sku")}
-              </TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead
-                className="cursor-pointer select-none text-right"
-                onClick={() => handleSort("stock")}
-              >
-                Stock{sortIndicator("stock")}
-              </TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>Variant</TableHead>
+              <TableHead>SKU</TableHead>
+              <TableHead className="text-right">Total Stock</TableHead>
+              <TableHead className="text-right">Reserved</TableHead>
+              <TableHead className="text-right">Available</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                   Loading...
                 </TableCell>
               </TableRow>
-            ) : (result?.products?.length ?? 0) === 0 ? (
+            ) : flattenedRecords.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                  No products found
+                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  No inventory records found
                 </TableCell>
               </TableRow>
             ) : (
-              result?.products.map((product) => {
-                const isExpanded = !!expandedProducts[product.id];
-                const isSingle = !product.variants || product.variants.length === 0;
-
-                return (
-                  <>
-                    <TableRow key={product.id} className="hover:bg-muted/50">
-                      <TableCell className="p-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => toggleExpandProduct(product.id)}
-                        >
-                          {isExpanded ? (
-                            <ChevronDown className="h-4 w-4" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </TableCell>
-                      <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell className="font-mono text-sm">{product.sku ?? "—"}</TableCell>
-                      <TableCell className="text-sm">{product.category_name}</TableCell>
-                      <TableCell className="text-right font-mono font-semibold">{product.stock}</TableCell>
-                      <TableCell>{getStockBadge(product.stock)}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setHistoryProductId(product.id)}
-                        >
-                          History
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                    {isExpanded && (
-                      <TableRow key={`${product.id}-expanded`}>
-                        <TableCell colSpan={7} className="bg-stone-50/50 dark:bg-stone-900/10 p-4">
-                          {isSingle ? (
-                            <div className="max-w-3xl border rounded bg-background p-4 space-y-2">
-                              <p className="text-xs font-semibold tracking-wider uppercase text-muted-foreground">Sizes Stock</p>
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead className="w-20">Size</TableHead>
-                                    <TableHead className="w-40">SKU</TableHead>
-                                    <TableHead className="w-32 text-right">Current Stock</TableHead>
-                                    <TableHead className="w-32 text-right">Reserved Stock</TableHead>
-                                    <TableHead className="w-32 text-right">Available Stock</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {product.sizes?.map((sz: string) => {
-                                    const currentStock = product.size_stock?.[sz] ?? 0;
-                                    const reserved = getReservedQty(product.id, null, sz);
-                                    const available = Math.max(0, currentStock - reserved);
-                                    return (
-                                      <SizeStockRow
-                                        key={sz}
-                                        productId={product.id}
-                                        variantId={null}
-                                        size={sz}
-                                        sku={product.sku ? `${product.sku}-${sz}` : `—`}
-                                        currentStock={currentStock}
-                                        reserved={reserved}
-                                        available={available}
-                                        onSave={(newVal) =>
-                                          handleSaveSizeStock(product, null, sz, newVal)
-                                        }
-                                        saving={savingId === `${product.id}--${sz}`}
-                                      />
-                                    );
-                                  })}
-                                </TableBody>
-                              </Table>
-                            </div>
-                          ) : (
-                            <div className="space-y-4 max-w-3xl">
-                              <p className="text-xs font-semibold tracking-wider uppercase text-muted-foreground">Color Variants</p>
-                              {product.variants?.map((v: any) => (
-                                <div key={v.id} className="border border-border/60 rounded p-4 bg-background space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <span
-                                        className="w-4 h-4 rounded-full border"
-                                        style={{ backgroundColor: v.color_hex || "#FFFFFF" }}
-                                      />
-                                      <span className="font-semibold text-sm">{v.name}</span>
-                                    </div>
-                                    <span className="text-xs text-muted-foreground font-mono">
-                                      SKU: {v.sku || "—"} | Stock: <strong>{v.stock}</strong>
-                                    </span>
-                                  </div>
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead className="w-20">Size</TableHead>
-                                        <TableHead className="w-40">SKU</TableHead>
-                                        <TableHead className="w-32 text-right">Current Stock</TableHead>
-                                        <TableHead className="w-32 text-right">Reserved Stock</TableHead>
-                                        <TableHead className="w-32 text-right">Available Stock</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {v.sizes?.map((sz: string) => {
-                                        const currentStock = v.size_stock?.[sz] ?? 0;
-                                        const reserved = getReservedQty(product.id, v.id, sz);
-                                        const available = Math.max(0, currentStock - reserved);
-                                        return (
-                                          <SizeStockRow
-                                            key={sz}
-                                            productId={product.id}
-                                            variantId={v.id}
-                                            size={sz}
-                                            sku={v.sku ? `${v.sku}-${sz}` : `—`}
-                                            currentStock={currentStock}
-                                            reserved={reserved}
-                                            available={available}
-                                            onSave={(newVal) =>
-                                              handleSaveSizeStock(product, v.id, sz, newVal)
-                                            }
-                                            saving={savingId === `${product.id}-${v.id}-${sz}`}
-                                          />
-                                        );
-                                      })}
-                                    </TableBody>
-                                  </Table>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </TableCell>
-                      </TableRow>
+              flattenedRecords.map((record) => (
+                <TableRow key={record.id} className="hover:bg-muted/50">
+                  <TableCell className="p-2">
+                    {record.image ? (
+                      <img
+                        src={record.image}
+                        alt={record.productName}
+                        className="w-12 h-16 object-cover border rounded bg-neutral"
+                      />
+                    ) : (
+                      <div className="w-12 h-16 border rounded bg-neutral flex items-center justify-center text-[10px] text-muted-foreground leading-tight text-center">
+                        No Image
+                      </div>
                     )}
-                  </>
-                );
-              })
+                  </TableCell>
+                  <TableCell className="font-semibold text-sm">{record.productName}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{record.variantName}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{record.sku}</TableCell>
+                  <TableCell className="text-right font-mono text-sm font-semibold">{record.stock}</TableCell>
+                  <TableCell className="text-right font-mono text-xs text-muted-foreground">{record.reserved}</TableCell>
+                  <TableCell className="text-right font-mono text-sm font-semibold">{record.available}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setAdjustRecord(record)}>
+                        Adjust
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setHistoryProductId(record.productId)}>
+                        History
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
       </div>
 
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{result?.total ?? 0} total</p>
+        <p className="text-sm text-muted-foreground">{result?.total ?? 0} products ({flattenedRecords.length} variants listed)</p>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -405,71 +363,94 @@ export function InventoryTable() {
         </div>
       </div>
 
+      {/* Adjust Inventory Modal */}
+      <Dialog open={!!adjustRecord} onOpenChange={(open) => { if (!open) handleClose(); }}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Adjust Inventory</DialogTitle>
+          </DialogHeader>
+          {adjustRecord && (
+            <div className="space-y-4">
+              <div className="flex gap-4">
+                {adjustRecord.image ? (
+                  <img
+                    src={adjustRecord.image}
+                    alt={adjustRecord.productName}
+                    className="w-16 h-20 object-cover border rounded bg-neutral"
+                  />
+                ) : (
+                  <div className="w-16 h-20 border rounded bg-neutral flex items-center justify-center text-[10px] text-muted-foreground text-center">
+                    No Image
+                  </div>
+                )}
+                <div className="flex-1 space-y-1">
+                  <h4 className="font-semibold text-sm leading-tight">{adjustRecord.productName}</h4>
+                  <p className="text-xs text-muted-foreground">Variant: {adjustRecord.variantName}</p>
+                  <p className="text-xs font-mono text-muted-foreground">SKU: {adjustRecord.sku}</p>
+                </div>
+              </div>
+
+              <div className="h-px bg-border" />
+
+              <div className="max-h-[300px] overflow-y-auto pr-1 space-y-1">
+                {adjustRecord.sizes.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-4 text-center">
+                    No sizes defined for this product/variant.
+                  </p>
+                ) : (
+                  adjustRecord.sizes.map((sz: string) => {
+                    const val = sizeStock[sz] ?? 0;
+                    return (
+                      <div key={sz} className="flex items-center justify-between gap-4 py-2 border-b border-border/40">
+                        <span className="font-semibold text-sm">{sz}</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={val}
+                          onChange={(e) =>
+                            setSizeStock((prev) => ({
+                              ...prev,
+                              [sz]: Math.max(0, parseInt(e.target.value) || 0),
+                            }))
+                          }
+                          className="h-8 w-24 text-right text-xs"
+                          disabled={saving}
+                        />
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="flex justify-between items-center bg-stone-50 dark:bg-stone-900/40 p-3 rounded-lg border">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Calculated Total Stock
+                </span>
+                <span className="text-lg font-bold font-mono">{computedTotal}</span>
+              </div>
+
+              <DialogFooter className="flex justify-end gap-2 pt-2 border-t">
+                <Button variant="outline" size="sm" onClick={handleClose} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSaveStock}
+                  disabled={saving}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                >
+                  {saving ? "Saving..." : "Save Changes"}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <InventoryHistoryDrawer
         productId={historyProductId}
         onClose={() => setHistoryProductId(null)}
       />
     </div>
-  );
-}
-
-interface SizeStockRowProps {
-  productId: string;
-  variantId: string | null;
-  size: string;
-  sku: string;
-  currentStock: number;
-  reserved: number;
-  available: number;
-  onSave: (val: number) => void;
-  saving: boolean;
-}
-
-function SizeStockRow({
-  sku,
-  size,
-  currentStock,
-  reserved,
-  available,
-  onSave,
-  saving,
-}: SizeStockRowProps) {
-  const [val, setVal] = useState(currentStock);
-
-  useEffect(() => {
-    setVal(currentStock);
-  }, [currentStock]);
-
-  const isChanged = val !== currentStock;
-
-  return (
-    <TableRow>
-      <TableCell className="font-semibold text-sm">{size}</TableCell>
-      <TableCell className="font-mono text-xs text-muted-foreground">{sku}</TableCell>
-      <TableCell className="text-right">
-        <div className="flex items-center justify-end gap-2">
-          <Input
-            type="number"
-            min="0"
-            value={val}
-            onChange={(e) => setVal(Math.max(0, parseInt(e.target.value) || 0))}
-            className="h-8 w-20 text-right text-xs"
-            disabled={saving}
-          />
-          {isChanged && (
-            <Button
-              size="sm"
-              onClick={() => onSave(val)}
-              disabled={saving}
-              className="h-8 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
-            >
-              {saving ? "..." : "Save"}
-            </Button>
-          )}
-        </div>
-      </TableCell>
-      <TableCell className="text-right font-mono text-xs text-muted-foreground">{reserved}</TableCell>
-      <TableCell className="text-right font-mono text-sm font-semibold">{available}</TableCell>
-    </TableRow>
   );
 }
