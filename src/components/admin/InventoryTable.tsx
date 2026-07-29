@@ -27,8 +27,10 @@ import { useInventoryManagement } from "@/lib/admin-inventory";
 import { supabase } from "@/lib/supabase";
 import { InventoryHistoryDrawer } from "./InventoryHistoryDrawer";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function InventoryTable() {
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<string>("name");
@@ -191,6 +193,8 @@ export function InventoryTable() {
         if (error) throw error;
       }
       toast.success("Stock updated successfully");
+      queryClient.invalidateQueries({ queryKey: ["product-detail"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       setAdjustRecord(null);
       triggerReload();
     } catch (err: any) {

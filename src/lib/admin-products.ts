@@ -261,13 +261,11 @@ export async function updateProduct(
     sku: data.sku,
     price,
     compare_price: comparePrice,
-    stock: data.stock,
     category_id: data.category_id,
     description: data.description ?? null,
     short_description: data.short_description ?? null,
     low_stock_threshold: data.low_stock_threshold ?? 5,
     sizes: data.sizes ?? [],
-    size_stock: data.size_stock ?? {},
     colors: data.colors ?? [],
     fabric: data.fabric ?? null,
     material: data.material ?? null,
@@ -278,6 +276,14 @@ export async function updateProduct(
     discount_percent: data.discount_percent ?? 0,
     updated_at: new Date().toISOString(),
   };
+
+  if (data.stock !== undefined) {
+    updateData.stock = data.stock;
+  }
+  if (data.size_stock !== undefined) {
+    updateData.size_stock = data.size_stock;
+  }
+
   if (data.status !== undefined) {
     updateData.status = data.status;
     updateData.is_active = data.status === "active" || data.status === "out_of_stock";

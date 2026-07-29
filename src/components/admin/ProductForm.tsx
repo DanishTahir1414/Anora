@@ -894,7 +894,8 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
 
       let targetProductId = productId;
       if (isEdit && productId) {
-        await updateProduct(productId, productData as any);
+        const { stock, size_stock, ...productUpdateData } = productData;
+        await updateProduct(productId, productUpdateData as any);
       } else {
         const newProductId = await createProduct(productData as any);
         targetProductId = newProductId;
@@ -946,7 +947,8 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
 
           let resolvedVariantId = v.id;
           if (v.id) {
-            await supabase.from("product_variants").update(variantData).eq("id", v.id);
+            const { stock, size_stock, ...variantUpdateData } = variantData;
+            await supabase.from("product_variants").update(variantUpdateData).eq("id", v.id);
           } else {
             const { data: newV, error: insertError } = await supabase
               .from("product_variants")
@@ -1490,7 +1492,8 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
                                     const total = Object.values(nextStock).reduce((sum, val) => sum + val, 0);
                                     updateVariant(idx, "stock", String(total));
                                   }}
-                                  className="h-7 text-center text-xs"
+                                  disabled={isEdit}
+                                  className="h-7 text-center text-xs disabled:opacity-60"
                                 />
                               </div>
                             ))}
@@ -1713,7 +1716,8 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
                           onChange={(e) =>
                             setSizeStock(size, Math.max(0, parseInt(e.target.value) || 0))
                           }
-                          className="h-8 text-center text-sm"
+                          disabled={isEdit}
+                          className="h-8 text-center text-sm disabled:opacity-60"
                         />
                       </div>
                     ))}
