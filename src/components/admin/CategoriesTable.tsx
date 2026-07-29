@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Table,
   TableHeader,
@@ -201,7 +201,7 @@ export function CategoriesTable() {
                 </TableCell>
               </TableRow>
             ) : (
-              categoriesList.map((cat) => (
+              categoriesList.map((cat: any) => (
                 <TableRow key={cat.id}>
                   <TableCell className="font-medium">
                     <div style={{ paddingLeft: `${cat.depth * 16}px` }} className="flex items-center gap-1.5">

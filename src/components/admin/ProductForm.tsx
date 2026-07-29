@@ -402,23 +402,70 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
     });
   }, [variants]);
 
-  // Resolve parent category when editing an existing product
+  // Keep category_id and subcategory_id in sync with the category hierarchy
   useEffect(() => {
-    if (productId && allCategories.length > 0 && form.subcategory_id && form.category_id === "") {
+    if (allCategories.length > 0 && form.subcategory_id) {
       const currentSubId = form.subcategory_id;
       const subCat = allCategories.find((c) => c.id === currentSubId);
-      if (subCat && subCat.parent_id) {
-        setForm((prev) => ({
-          ...prev,
-          category_id: subCat.parent_id!,
-          subcategory_id: currentSubId,
-        }));
+      if (subCat) {
+        const expectedParentId = subCat.parent_id || currentSubId;
+        if (form.category_id !== expectedParentId) {
+          setForm((prev) => ({
+            ...prev,
+            category_id: expectedParentId,
+          }));
+        }
       }
     }
-  }, [allCategories, productId, form.subcategory_id, form.category_id]);
+  }, [allCategories, form.subcategory_id, form.category_id]);
 
-  const parentCategories = allCategories.filter((c) => !c.parent_id);
-  const subCategories = allCategories.filter((c) => c.parent_id === form.category_id);
+  const hierarchicalCategories = useMemo(() => {
+    if (allCategories.length === 0) return [];
+
+    const map = new Map<string, CategoryOption>();
+    allCategories.forEach((cat) => map.set(cat.id, cat));
+
+    const childrenMap = new Map<string, CategoryOption[]>();
+    allCategories.forEach((cat) => {
+      if (cat.parent_id) {
+        if (!childrenMap.has(cat.parent_id)) {
+          childrenMap.set(cat.parent_id, []);
+        }
+        childrenMap.get(cat.parent_id)!.push(cat);
+      }
+    });
+
+    const roots = allCategories.filter(
+      (cat) => !cat.parent_id || !map.has(cat.parent_id)
+    );
+
+    roots.sort((a, b) => a.name.localeCompare(b.name));
+
+    interface HierarchicalCategory {
+      id: string;
+      name: string;
+      parent_id: string | null;
+      depth: number;
+    }
+
+    const result: HierarchicalCategory[] = [];
+
+    function traverse(cat: CategoryOption, depth: number) {
+      result.push({
+        id: cat.id,
+        name: cat.name,
+        parent_id: cat.parent_id,
+        depth,
+      });
+
+      const children = childrenMap.get(cat.id) || [];
+      children.sort((a, b) => a.name.localeCompare(b.name));
+      children.forEach((child) => traverse(child, depth + 1));
+    }
+
+    roots.forEach((root) => traverse(root, 0));
+    return result;
+  }, [allCategories]);
 
   useEffect(() => {
     getAllActiveCategories()
@@ -1068,48 +1115,32 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
                 Category
               </legend>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="category_id">Parent Category *</Label>
-                  <select
-                    id="category_id"
-                    value={form.category_id}
-                    onChange={(e) => {
-                      set("category_id", e.target.value);
-                      set("subcategory_id", "");
-                    }}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                  >
-                    <option value="">Select parent</option>
-                    {parentCategories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.category_id && <p className="text-xs text-red">{errors.category_id}</p>}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="subcategory_id">Subcategory *</Label>
-                  <select
-                    id="subcategory_id"
-                    value={form.subcategory_id}
-                    onChange={(e) => set("subcategory_id", e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                    disabled={!form.category_id}
-                  >
-                    <option value="">Select subcategory</option>
-                    {subCategories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.subcategory_id && (
-                    <p className="text-xs text-red">{errors.subcategory_id}</p>
-                  )}
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="subcategory_id">Category *</Label>
+                <select
+                  id="subcategory_id"
+                  value={form.subcategory_id}
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    const cat = allCategories.find((c) => c.id === selectedId);
+                    setForm((prev) => ({
+                      ...prev,
+                      subcategory_id: selectedId,
+                      category_id: cat ? (cat.parent_id || selectedId) : "",
+                    }));
+                  }}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                >
+                  <option value="">Select category</option>
+                  {hierarchicalCategories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {"\u00a0\u00a0\u00a0\u00a0".repeat(c.depth) + c.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.subcategory_id && (
+                  <p className="text-xs text-red">{errors.subcategory_id}</p>
+                )}
               </div>
             </fieldset>
 
