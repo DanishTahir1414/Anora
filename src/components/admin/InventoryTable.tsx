@@ -127,7 +127,7 @@ export function InventoryTable() {
         });
       } else {
         // Variant Product (One row per variant)
-        product.variants?.forEach((v) => {
+        product.variants?.forEach((v: any) => {
           const currentStock = v.stock ?? 0;
           const reserved = v.sizes?.reduce((sum: number, sz: string) => sum + getReservedQty(product.id, v.id, sz), 0) ?? 0;
           const available = Math.max(0, currentStock - reserved);
@@ -179,20 +179,79 @@ export function InventoryTable() {
     if (!adjustRecord) return;
     setSaving(true);
     try {
+      const newTotalStock = Object.values(sizeStock).reduce((sum, val) => sum + (val || 0), 0);
+      const diff = newTotalStock - (adjustRecord.stock || 0);
+
       if (adjustRecord.variantId) {
-        const { error } = await supabase
+        // 1. Update variant size_stock and stock
+        const { error: variantErr } = await supabase
           .from("product_variants")
-          .update({ size_stock: sizeStock })
+          .update({
+            size_stock: sizeStock,
+            stock: newTotalStock,
+          })
           .eq("id", adjustRecord.variantId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
+        if (variantErr) throw variantErr;
+
+        // 2. Fetch all sibling variants to compute new parent product stock sum
+        const { data: siblingVariants, error: sibErr } = await supabase
+          .from("product_variants")
+          .select("id, stock, is_active")
+          .eq("product_id", adjustRecord.productId);
+        if (sibErr) throw sibErr;
+
+        // Map and sum variant stocks (replacing the updated one with new total)
+        const updatedTotalProductStock = (siblingVariants || []).reduce((sum, v) => {
+          const vStock = v.id === adjustRecord.variantId ? newTotalStock : (v.stock || 0);
+          return sum + (v.is_active !== false ? vStock : 0);
+        }, 0);
+
+        // 3. Update parent product stock
+        const { error: productErr } = await supabase
           .from("products")
-          .update({ size_stock: sizeStock })
+          .update({ stock: updatedTotalProductStock })
           .eq("id", adjustRecord.productId);
-        if (error) throw error;
+        if (productErr) throw productErr;
+
+        // 4. Log to inventory_logs
+        await supabase
+          .from("inventory_logs")
+          .insert({
+            product_id: adjustRecord.productId,
+            variant_id: adjustRecord.variantId,
+            change_type: diff > 0 ? "restock" : "adjustment",
+            quantity_change: diff,
+            quantity_after: newTotalStock,
+            reference_id: "admin-adjustment",
+            notes: `Stock adjusted manually for variant ${adjustRecord.variantName}. Size changes: ${JSON.stringify(sizeStock)}`,
+          });
+      } else {
+        // 1. Update base product size_stock and stock
+        const { error: productErr } = await supabase
+          .from("products")
+          .update({
+            size_stock: sizeStock,
+            stock: newTotalStock,
+          })
+          .eq("id", adjustRecord.productId);
+        if (productErr) throw productErr;
+
+        // 2. Log to inventory_logs
+        await supabase
+          .from("inventory_logs")
+          .insert({
+            product_id: adjustRecord.productId,
+            variant_id: null,
+            change_type: diff > 0 ? "restock" : "adjustment",
+            quantity_change: diff,
+            quantity_after: newTotalStock,
+            reference_id: "admin-adjustment",
+            notes: `Stock adjusted manually. Size changes: ${JSON.stringify(sizeStock)}`,
+          });
       }
+
       toast.success("Stock updated successfully");
+      queryClient.invalidateQueries({ queryKey: ["admin-inventory"] });
       queryClient.invalidateQueries({ queryKey: ["product-detail"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       setAdjustRecord(null);

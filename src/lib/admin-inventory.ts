@@ -79,6 +79,8 @@ async function rpc<T>(name: string, params?: Record<string, unknown>): Promise<T
   return data as T;
 }
 
+import { useQuery } from "@tanstack/react-query";
+
 export function useInventoryManagement(
   page: number,
   pageSize: number,
@@ -88,16 +90,10 @@ export function useInventoryManagement(
   stockStatus = "",
   categoryId = "",
 ) {
-  const [result, setResult] = useState<InventoryProductsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      let query = supabase
+  const query = useQuery({
+    queryKey: ["admin-inventory", page, pageSize, search, sortBy, sortDir, stockStatus, categoryId],
+    queryFn: async () => {
+      let q = supabase
         .from("products")
         .select(`
           id, name, sku, stock, is_active, updated_at, sizes, size_stock, colors,
@@ -107,32 +103,32 @@ export function useInventoryManagement(
         `, { count: "exact" });
 
       if (search) {
-        query = query.or(`name.ilike.%${search}%,sku.ilike.%${search}%`);
+        q = q.or(`name.ilike.%${search}%,sku.ilike.%${search}%`);
       }
       if (categoryId) {
-        query = query.eq("category_id", categoryId);
+        q = q.eq("category_id", categoryId);
       }
       if (stockStatus === "low") {
-        query = query.gt("stock", 0).lte("stock", 10);
+        q = q.gt("stock", 0).lte("stock", 10);
       } else if (stockStatus === "out") {
-        query = query.eq("stock", 0);
+        q = q.eq("stock", 0);
       } else if (stockStatus === "overstock") {
-        query = query.gt("stock", 100);
+        q = q.gt("stock", 100);
       }
 
       if (sortBy === "stock") {
-        query = query.order("stock", { ascending: sortDir === "asc" });
+        q = q.order("stock", { ascending: sortDir === "asc" });
       } else if (sortBy === "updated_at") {
-        query = query.order("updated_at", { ascending: sortDir === "asc" });
+        q = q.order("updated_at", { ascending: sortDir === "asc" });
       } else {
-        query = query.order("name", { ascending: sortDir === "asc" });
+        q = q.order("name", { ascending: sortDir === "asc" });
       }
 
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
-      query = query.range(from, to);
+      q = q.range(from, to);
 
-      const { data, count, error } = await query;
+      const { data, count, error } = await q;
       if (error) throw error;
 
       const productsMapped = (data || []).map((p: any) => {
@@ -170,21 +166,21 @@ export function useInventoryManagement(
         };
       });
 
-      setResult({
+      return {
         products: productsMapped,
         total: count || 0,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
-      setLoading(false);
-    }
-  }, [page, pageSize, search, sortBy, sortDir, stockStatus, categoryId]);
+      };
+    },
+    staleTime: 0,
+    gcTime: 1000 * 60 * 5,
+  });
 
-  useEffect(() => {
-    load();
-  }, [load]);
-  return { result, loading, error, refetch: load };
+  return {
+    result: query.data || null,
+    loading: query.isLoading,
+    error: query.error ? (query.error as Error).message : null,
+    refetch: query.refetch,
+  };
 }
 
 export function useInventorySummary() {
