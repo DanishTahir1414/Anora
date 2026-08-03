@@ -98,11 +98,11 @@ export class RefundService {
 
     // 3b. Log to audit logs
     await this.db.from("audit_logs").insert({
-      table_name: "refunds",
-      record_id: refund.id,
+      entity_type: "refunds",
+      entity_id: refund.id,
       action: "request",
       new_data: { order_id: orderId, amount: refundAmount, reason },
-      changed_by: userId,
+      actor_id: userId,
     });
 
     // 4. Send emails using centralized notification template
@@ -181,12 +181,12 @@ export class RefundService {
 
     // 3b. Log to audit_logs
     await this.db.from("audit_logs").insert({
-      table_name: "refunds",
-      record_id: refundId,
+      entity_type: "refunds",
+      entity_id: refundId,
       action: "approve",
       old_data: { status: "pending" },
       new_data: { status: "awaiting_return" },
-      changed_by: adminUserId,
+      actor_id: adminUserId,
     });
 
     // 4. Send Return Approved notification email
@@ -297,12 +297,12 @@ export class RefundService {
 
     // Log to audit_logs
     await this.db.from("audit_logs").insert({
-      table_name: "refunds",
-      record_id: refundId,
+      entity_type: "refunds",
+      entity_id: refundId,
       action: "request_info",
       old_data: { more_info_notes: refund.more_info_notes },
       new_data: { more_info_notes: message },
-      changed_by: adminUserId,
+      actor_id: adminUserId,
     });
 
     // Centralized email template compiler
@@ -365,12 +365,12 @@ export class RefundService {
 
     // Audit log
     await this.db.from("audit_logs").insert({
-      table_name: "refunds",
-      record_id: refundId,
+      entity_type: "refunds",
+      entity_id: refundId,
       action: "receive",
       old_data: { status: refund.status },
       new_data: { status: "received", metadata: updatedMetadata },
-      changed_by: adminUserId,
+      actor_id: adminUserId,
     });
 
     return { success: true };
@@ -413,12 +413,12 @@ export class RefundService {
 
     // Audit log
     await this.db.from("audit_logs").insert({
-      table_name: "refunds",
-      record_id: refundId,
+      entity_type: "refunds",
+      entity_id: refundId,
       action: "inspect",
       old_data: { status: "received" },
       new_data: { status: "inspection_passed" },
-      changed_by: adminUserId,
+      actor_id: adminUserId,
     });
 
     return { success: true };
@@ -682,12 +682,12 @@ export class RefundService {
 
     // Audit log
     await this.db.from("audit_logs").insert({
-      table_name: "refunds",
-      record_id: refundId,
+      entity_type: "refunds",
+      entity_id: refundId,
       action: "initiate",
       old_data: { status: refund.status },
       new_data: { status: "processing", stripe_refund_id: stripeRefundId || paypalRefundId },
-      changed_by: adminUserId,
+      actor_id: adminUserId,
     });
 
     return { success: true };
@@ -880,12 +880,12 @@ export class RefundService {
       // Audit log
       logger.info("Refund completion pipeline: Writing audit logs", { refundId });
       const { error: auditErr } = await this.db.from("audit_logs").insert({
-        table_name: "refunds",
-        record_id: refundId,
+        entity_type: "refunds",
+        entity_id: refundId,
         action: "complete",
         old_data: { status: refund.status },
         new_data: { status: "completed" },
-        changed_by: actorUuid,
+        actor_id: actorUuid,
       });
 
       if (auditErr) {

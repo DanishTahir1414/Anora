@@ -126,6 +126,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
   const [colorName, setColorName] = useState("");
   const [colorHex, setColorHex] = useState("#000000");
   const [enableColors, setEnableColors] = useState(true);
+  const [sizeInventoryEnabled, setSizeInventoryEnabled] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<FormData>({
@@ -507,6 +508,8 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
           });
           setImages(data.images ?? []);
           const colorsExist = !!(p.colors && p.colors.length > 0);
+          const sizesExist = !!(p.sizes && p.sizes.length > 0);
+          setSizeInventoryEnabled(sizesExist);
 
           try {
             const { data: vRows } = await supabase
@@ -564,6 +567,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
         .catch(() => setLoadingData(false));
     } else if (open) {
       setEnableColors(true);
+      setSizeInventoryEnabled(true);
       setForm({
         name: "",
         slug: "",
@@ -687,7 +691,6 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
   }, [variants, form.size_stock]);
 
   const computedStock = computedProductStock;
-  const sizeInventoryEnabled = true;
 
   function setSizeStock(size: string, value: number) {
     setForm((prev) => ({
@@ -885,8 +888,8 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
         compare_price: form.compare_price ? parseFloat(form.compare_price) : undefined,
         stock: sizeInventoryEnabled ? computedStock : parseInt(form.stock, 10),
         low_stock_threshold: parseInt(form.low_stock_threshold, 10),
-        sizes: form.sizes,
-        size_stock: sizeStock,
+        sizes: sizeInventoryEnabled ? form.sizes : [],
+        size_stock: sizeInventoryEnabled ? sizeStock : {},
         colors: enableColors ? form.colors : [],
         fabric: form.fabric.trim() || undefined,
         material: form.material.trim() || undefined,
@@ -947,8 +950,8 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
               price: v.price ? parseFloat(v.price) : null,
               compare_price: v.compare_price ? parseFloat(v.compare_price) : null,
               stock: parseInt(v.stock, 10) || 0,
-              sizes: v.sizes,
-              size_stock: v.size_stock,
+              sizes: sizeInventoryEnabled ? v.sizes : [],
+              size_stock: sizeInventoryEnabled ? v.size_stock : {},
               is_active: v.is_active,
               sort_order: v.sort_order,
             };
@@ -1203,22 +1206,36 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
               <legend className="text-xs tracking-[0.2em] uppercase px-2 font-medium">
                 Available Sizes
               </legend>
-              <div className="flex flex-wrap gap-2">
-                {SIZE_OPTIONS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => toggleSize(s)}
-                    className={`min-w-10 h-10 px-3 text-sm border transition-all duration-300 ${
-                      form.sizes.includes(s)
-                        ? "border-foreground bg-foreground text-background"
-                        : "border-border hover:border-foreground"
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
+              <div className="flex items-center justify-between pb-2">
+                <Label className="text-sm font-medium">Enable Size Inventory</Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase">{sizeInventoryEnabled ? "ON" : "OFF"}</span>
+                  <Switch
+                    checked={sizeInventoryEnabled}
+                    onCheckedChange={setSizeInventoryEnabled}
+                    aria-label="Enable Size Inventory"
+                  />
+                </div>
               </div>
+
+              {sizeInventoryEnabled && (
+                <div className="flex flex-wrap gap-2 border-t border-border/40 pt-4">
+                  {SIZE_OPTIONS.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => toggleSize(s)}
+                      className={`min-w-10 h-10 px-3 text-sm border transition-all duration-300 ${
+                        form.sizes.includes(s)
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-border hover:border-foreground"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
             </fieldset>
 
             {/* ─── Enable Colors Toggle ─── */}
@@ -1402,8 +1419,13 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
                               <Input
                                 type="number"
                                 value={v.stock}
-                                disabled
-                                className="h-8 text-sm opacity-60"
+                                onChange={(e) => {
+                                  if (!sizeInventoryEnabled) {
+                                    updateVariant(idx, "stock", e.target.value);
+                                  }
+                                }}
+                                disabled={sizeInventoryEnabled}
+                                className={`h-8 text-sm ${sizeInventoryEnabled ? "opacity-60" : ""}`}
                               />
                             </div>
                           </div>
@@ -1502,7 +1524,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
                           </div>
 
                           {/* Variant size stock */}
-                          {form.sizes.length > 0 && (
+                          {sizeInventoryEnabled && form.sizes.length > 0 && (
                             <div className="border-t border-border/40 pt-3">
                               <p className="text-xs font-semibold mb-2">Variant Sizes Stock</p>
                               <div className="grid grid-cols-6 gap-2">
@@ -1729,7 +1751,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
                 </div>
               </div>
 
-              {form.sizes.length > 0 && (
+              {sizeInventoryEnabled && form.sizes.length > 0 && (
                 <div className="border-t border-border/40 pt-4">
                   <p className="text-xs tracking-[0.2em] uppercase font-medium mb-3">
                     Per-Size Stock
