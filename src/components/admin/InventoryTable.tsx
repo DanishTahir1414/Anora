@@ -158,17 +158,30 @@ export function InventoryTable() {
   // Set local state when record is loaded in the adjust modal
   useEffect(() => {
     if (adjustRecord) {
-      setSizeStock(adjustRecord.size_stock || {});
+      if (adjustRecord.sizes.length === 0 || (adjustRecord.sizes.length === 1 && adjustRecord.sizes[0] === "OS")) {
+        const initialVal = adjustRecord.size_stock?.OS ?? adjustRecord.stock ?? 0;
+        setSizeStock({ OS: initialVal, _general: initialVal });
+      } else {
+        setSizeStock(adjustRecord.size_stock || {});
+      }
     }
   }, [adjustRecord]);
 
   // Calculated live sum of the size stocks in the modal
   const computedTotal = useMemo(() => {
+    const isGeneral = adjustRecord?.sizes.length === 0 || (adjustRecord?.sizes.length === 1 && adjustRecord?.sizes[0] === "OS");
+    if (isGeneral) {
+      return sizeStock.OS ?? sizeStock._general ?? 0;
+    }
     return Object.values(sizeStock).reduce((sum, val) => sum + (val || 0), 0);
-  }, [sizeStock]);
+  }, [sizeStock, adjustRecord]);
 
   const handleClose = () => {
-    const isChanged = JSON.stringify(sizeStock) !== JSON.stringify(adjustRecord?.size_stock || {});
+    const isGeneral = adjustRecord?.sizes.length === 0 || (adjustRecord?.sizes.length === 1 && adjustRecord?.sizes[0] === "OS");
+    const currentStockVal = isGeneral ? (sizeStock.OS ?? sizeStock._general ?? 0) : 0;
+    const isChanged = isGeneral
+      ? (currentStockVal !== (adjustRecord?.stock || 0))
+      : JSON.stringify(sizeStock) !== JSON.stringify(adjustRecord?.size_stock || {});
     if (isChanged && !confirm("You have unsaved changes. Are you sure you want to close?")) {
       return;
     }
@@ -179,15 +192,19 @@ export function InventoryTable() {
     if (!adjustRecord) return;
     setSaving(true);
     try {
-      const newTotalStock = Object.values(sizeStock).reduce((sum, val) => sum + (val || 0), 0);
+      const isGeneral = adjustRecord.sizes.length === 0 || (adjustRecord.sizes.length === 1 && adjustRecord.sizes[0] === "OS");
+      const newTotalStock = isGeneral
+        ? (sizeStock.OS ?? sizeStock._general ?? 0)
+        : Object.values(sizeStock).reduce((sum, val) => sum + (val || 0), 0);
       const diff = newTotalStock - (adjustRecord.stock || 0);
+      const finalSizeStock = isGeneral ? { "OS": newTotalStock } : sizeStock;
 
       if (adjustRecord.variantId) {
         // 1. Update variant size_stock and stock
         const { error: variantErr } = await supabase
           .from("product_variants")
           .update({
-            size_stock: sizeStock,
+            size_stock: finalSizeStock,
             stock: newTotalStock,
           })
           .eq("id", adjustRecord.variantId);
@@ -223,14 +240,16 @@ export function InventoryTable() {
             quantity_change: diff,
             quantity_after: newTotalStock,
             reference_id: "admin-adjustment",
-            notes: `Stock adjusted manually for variant ${adjustRecord.variantName}. Size changes: ${JSON.stringify(sizeStock)}`,
+            notes: isGeneral
+              ? `Stock adjusted manually for variant ${adjustRecord.variantName}. Stock: ${newTotalStock}`
+              : `Stock adjusted manually for variant ${adjustRecord.variantName}. Size changes: ${JSON.stringify(sizeStock)}`,
           });
       } else {
         // 1. Update base product size_stock and stock
         const { error: productErr } = await supabase
           .from("products")
           .update({
-            size_stock: sizeStock,
+            size_stock: finalSizeStock,
             stock: newTotalStock,
           })
           .eq("id", adjustRecord.productId);
@@ -246,7 +265,9 @@ export function InventoryTable() {
             quantity_change: diff,
             quantity_after: newTotalStock,
             reference_id: "admin-adjustment",
-            notes: `Stock adjusted manually. Size changes: ${JSON.stringify(sizeStock)}`,
+            notes: isGeneral
+              ? `Stock adjusted manually. Stock: ${newTotalStock}`
+              : `Stock adjusted manually. Size changes: ${JSON.stringify(sizeStock)}`,
           });
       }
 
@@ -456,10 +477,21 @@ export function InventoryTable() {
               <div className="h-px bg-border" />
 
               <div className="max-h-[300px] overflow-y-auto pr-1 space-y-1">
-                {adjustRecord.sizes.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-4 text-center">
-                    No sizes defined for this product/variant.
-                  </p>
+                {adjustRecord.sizes.length === 0 || (adjustRecord.sizes.length === 1 && adjustRecord.sizes[0] === "OS") ? (
+                  <div className="flex items-center justify-between gap-4 py-2 border-b border-border/40">
+                    <span className="font-semibold text-sm">Stock Quantity</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={sizeStock.OS ?? sizeStock._general ?? 0}
+                      onChange={(e) => {
+                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                        setSizeStock({ OS: val, _general: val });
+                      }}
+                      className="h-8 w-24 text-right text-xs"
+                      disabled={saving}
+                    />
+                  </div>
                 ) : (
                   adjustRecord.sizes.map((sz: string) => {
                     const val = sizeStock[sz] ?? 0;

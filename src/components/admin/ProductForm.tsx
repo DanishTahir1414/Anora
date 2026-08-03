@@ -888,8 +888,8 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
         compare_price: form.compare_price ? parseFloat(form.compare_price) : undefined,
         stock: sizeInventoryEnabled ? computedStock : parseInt(form.stock, 10),
         low_stock_threshold: parseInt(form.low_stock_threshold, 10),
-        sizes: sizeInventoryEnabled ? form.sizes : [],
-        size_stock: sizeInventoryEnabled ? sizeStock : {},
+        sizes: sizeInventoryEnabled ? form.sizes : ["OS"],
+        size_stock: sizeInventoryEnabled ? sizeStock : { "OS": parseInt(form.stock, 10) || 0 },
         colors: enableColors ? form.colors : [],
         fabric: form.fabric.trim() || undefined,
         material: form.material.trim() || undefined,
@@ -950,16 +950,15 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
               price: v.price ? parseFloat(v.price) : null,
               compare_price: v.compare_price ? parseFloat(v.compare_price) : null,
               stock: parseInt(v.stock, 10) || 0,
-              sizes: sizeInventoryEnabled ? v.sizes : [],
-              size_stock: sizeInventoryEnabled ? v.size_stock : {},
+              sizes: sizeInventoryEnabled ? v.sizes : ["OS"],
+              size_stock: sizeInventoryEnabled ? v.size_stock : { "OS": parseInt(v.stock, 10) || 0 },
               is_active: v.is_active,
               sort_order: v.sort_order,
             };
 
             let resolvedVariantId = v.id;
             if (v.id) {
-              const { stock, size_stock, ...variantUpdateData } = variantData;
-              await supabase.from("product_variants").update(variantUpdateData).eq("id", v.id);
+              await supabase.from("product_variants").update(variantData).eq("id", v.id);
             } else {
               const { data: newV, error: insertError } = await supabase
                 .from("product_variants")

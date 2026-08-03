@@ -505,42 +505,44 @@ function ProductPage() {
           )}
 
           {/* Size Selector */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground font-semibold">Size</span>
-              <button
-                type="button"
-                onClick={() => setGuideOpen(true)}
-                className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground/75 hover:text-foreground transition-colors duration-300 focus:outline-none hover-underline"
-              >
-                Size Guide
-              </button>
+          {activeSizes.length > 0 && !(activeSizes.length === 1 && activeSizes[0] === "OS") && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground font-semibold">Size</span>
+                <button
+                  type="button"
+                  onClick={() => setGuideOpen(true)}
+                  className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground/75 hover:text-foreground transition-colors duration-300 focus:outline-none hover-underline"
+                >
+                  Size Guide
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {activeSizes.map((s) => {
+                  const qty = activeSizeStock?.[s];
+                  const disabled = productTotalOOS || activeStock === 0 || (hasSizeStock && qty !== undefined && qty === 0);
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => {
+                        if (!disabled) setSize(s);
+                      }}
+                      className={`w-10 h-10 flex items-center justify-center text-xs tracking-wider border rounded-md transition-all duration-200 focus:outline-none ${
+                        size === s && !disabled
+                          ? "border-foreground bg-foreground text-background font-semibold shadow-sm"
+                          : disabled
+                            ? "border-border/20 text-border/40 line-through cursor-not-allowed opacity-55"
+                            : "border-border hover:border-foreground hover:bg-foreground/5 hover:scale-[1.02]"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {activeSizes.map((s) => {
-                const qty = activeSizeStock?.[s];
-                const disabled = productTotalOOS || activeStock === 0 || (hasSizeStock && qty !== undefined && qty === 0);
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => {
-                      if (!disabled) setSize(s);
-                    }}
-                    className={`w-10 h-10 flex items-center justify-center text-xs tracking-wider border rounded-md transition-all duration-200 focus:outline-none ${
-                      size === s && !disabled
-                        ? "border-foreground bg-foreground text-background font-semibold shadow-sm"
-                        : disabled
-                          ? "border-border/20 text-border/40 line-through cursor-not-allowed opacity-55"
-                          : "border-border hover:border-foreground hover:bg-foreground/5 hover:scale-[1.02]"
-                    }`}
-                  >
-                    {s}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          )}
 
           <div className="h-px w-full bg-border/10" />
 
