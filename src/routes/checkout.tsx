@@ -403,7 +403,7 @@ export function CheckoutForm() {
       <div className="px-5 lg:px-10 py-16 max-w-6xl mx-auto">
         <div className="text-center mb-10">
           <span className="eyebrow">Secure Checkout</span>
-          <h1 className="font-serif text-5xl mt-3">Checkout</h1>
+          <h1 className="font-sans text-2xl lg:text-3xl font-bold mt-3 text-foreground">Checkout</h1>
         </div>
         <CheckoutSkeleton />
       </div>
@@ -413,7 +413,7 @@ export function CheckoutForm() {
   if (success === "1" && orderCreating) {
     return (
       <div className="px-6 py-24 text-center max-w-md mx-auto">
-        <h1 className="font-serif text-4xl">Payment Successful</h1>
+        <h1 className="font-sans text-2xl lg:text-3xl font-bold text-foreground">Payment Successful</h1>
         <p className="text-muted-foreground mt-4">Creating your order...</p>
       </div>
     );
@@ -422,7 +422,7 @@ export function CheckoutForm() {
   if (canceled === "1") {
     return (
       <div className="px-6 py-24 text-center max-w-md mx-auto">
-        <h1 className="font-serif text-4xl">Payment Canceled</h1>
+        <h1 className="font-sans text-2xl lg:text-3xl font-bold text-foreground">Payment Canceled</h1>
         <p className="text-muted-foreground mt-4">Your payment was not completed. Your cart items are still saved.</p>
         <Link to="/checkout" className="mt-8 inline-block text-[11px] tracking-[0.32em] uppercase hover-underline">Try Again</Link>
       </div>
@@ -432,7 +432,7 @@ export function CheckoutForm() {
   if (cart.detailed.length === 0) {
     return (
       <div className="px-6 py-24 text-center max-w-md mx-auto">
-        <h1 className="font-serif text-4xl">Your bag is empty</h1>
+        <h1 className="font-sans text-2xl lg:text-3xl font-bold text-foreground">Your bag is empty</h1>
         <Link to="/shop" className="mt-6 inline-block text-[11px] tracking-[0.32em] uppercase hover-underline">Continue Shopping</Link>
       </div>
     );
@@ -462,11 +462,11 @@ export function CheckoutForm() {
         }}
         className="grid lg:grid-cols-[1.6fr_1fr] gap-12 lg:gap-20 items-start"
       >
-        <div className="space-y-8">
+        <div className="space-y-10">
           {/* ─── STEP 1: ENTER EMAIL ─── */}
           <div className="space-y-4">
-            {activeStep !== "email" && completedSteps.email ? (
-              <div className="bg-neutral/40 border border-border/40 rounded-lg p-6 flex items-center justify-between transition-all duration-300">
+            {completedSteps.email && activeStep !== "email" && (
+              <div className="bg-background border border-border/80 rounded-lg p-8 shadow-sm flex items-center justify-between transition-all duration-300">
                 <div className="flex items-center gap-3.5">
                   <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center flex-shrink-0">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
@@ -474,14 +474,14 @@ export function CheckoutForm() {
                     </svg>
                   </div>
                   <div>
-                    <div className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground/80 font-bold">ENTER EMAIL</div>
-                    <div className="text-sm font-semibold text-foreground mt-0.5">{email}</div>
+                    <div className="text-[13px] lg:text-[14px] font-bold tracking-[0.15em] uppercase text-foreground">ENTER EMAIL</div>
+                    <div className="text-sm font-medium text-muted-foreground/80 mt-1">{email}</div>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setActiveStep("email")}
-                  className="text-muted-foreground hover:text-foreground p-2 transition-colors focus:outline-none"
+                  className="text-muted-foreground hover:text-foreground transition-colors duration-200 focus:outline-none"
                   title="Edit Email"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -489,34 +489,37 @@ export function CheckoutForm() {
                   </svg>
                 </button>
               </div>
-            ) : (
-              <div className="bg-background border border-border rounded-lg p-8 shadow-sm space-y-6">
-                <div className="flex items-center gap-3 border-b border-border/30 pb-4">
-                  <div className="w-6 h-6 rounded-full bg-foreground text-background flex items-center justify-center text-xs font-bold font-sans">1</div>
-                  <h2 className="text-sm tracking-[0.2em] font-bold uppercase text-foreground">ENTER EMAIL</h2>
-                </div>
-                <div className="space-y-4 max-w-xl">
-                  <Input 
-                    label="Email Address" 
-                    name="email" 
-                    type="email" 
-                    required 
-                    placeholder="your.email@example.com"
-                    value={email} 
-                    onChange={(e) => setEmail(e.target.value)} 
-                  />
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={handleEmailContinue}
-                      className="h-12 px-8 bg-foreground text-background text-xs tracking-[0.2em] uppercase font-bold rounded-md hover:bg-gold hover:text-ink transition-all duration-300"
-                    >
-                      Continue
-                    </button>
-                  </div>
+            )}
+
+            <div 
+              className="bg-background border border-border/80 rounded-lg p-8 shadow-sm space-y-6"
+              style={{ display: activeStep === "email" ? "block" : "none" }}
+            >
+              <div className="flex items-center gap-3 border-b border-border/30 pb-4">
+                <div className="w-6 h-6 rounded-full bg-foreground text-background flex items-center justify-center text-xs font-bold font-sans">1</div>
+                <h2 className="text-[13px] lg:text-[14px] font-bold tracking-[0.15em] uppercase text-foreground">ENTER EMAIL</h2>
+              </div>
+              <div className="space-y-4 max-w-xl">
+                <Input 
+                  label="Email Address" 
+                  name="email" 
+                  type="email" 
+                  required 
+                  placeholder="your.email@example.com"
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                />
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleEmailContinue}
+                    className="h-12 px-8 bg-foreground text-background text-xs tracking-[0.2em] uppercase font-bold rounded-md hover:bg-gold hover:text-ink transition-all duration-300"
+                  >
+                    Continue
+                  </button>
                 </div>
               </div>
-            )}
+            </div>
           </div>
 
           {/* ─── STEP 2: SHIPPING ADDRESS ─── */}
@@ -525,139 +528,146 @@ export function CheckoutForm() {
               <div className="bg-neutral/10 border border-border/20 rounded-lg p-6 opacity-50 cursor-not-allowed">
                 <div className="flex items-center gap-3">
                   <div className="w-6 h-6 rounded-full bg-neutral text-muted-foreground/60 flex items-center justify-center text-xs font-bold">2</div>
-                  <h2 className="text-sm tracking-[0.2em] font-semibold uppercase text-muted-foreground/70">SHIPPING ADDRESS</h2>
+                  <h2 className="text-[13px] lg:text-[14px] font-bold tracking-[0.15em] uppercase text-muted-foreground/75">SHIPPING ADDRESS</h2>
                 </div>
-              </div>
-            ) : activeStep !== "shipping" && completedSteps.shipping ? (
-              <div className="bg-neutral/40 border border-border/40 rounded-lg p-6 flex items-center justify-between transition-all duration-300">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center flex-shrink-0">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground/80 font-bold">SHIPPING ADDRESS</div>
-                    <div className="text-sm font-semibold text-foreground mt-1">
-                      {formRef.current ? `${getFormValue(formRef.current, "firstName")} ${getFormValue(formRef.current, "lastName")}` : ""}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {formRef.current ? `${getFormValue(formRef.current, "address")}${getFormValue(formRef.current, "address2") ? ", " + getFormValue(formRef.current, "address2") : ""}, ${getFormValue(formRef.current, "city")}, ${getFormValue(formRef.current, "postalCode")}` : ""}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      Phone: {formRef.current ? getFormValue(formRef.current, "phone") : ""}
-                    </div>
-                    <div className="text-xs text-muted-foreground/75 mt-0.5">
-                      Method: {shippingOptions.find(o => o.id === shippingMethod)?.label} ({shippingOptions.find(o => o.id === shippingMethod)?.price})
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveStep("shipping")}
-                  className="text-muted-foreground hover:text-foreground p-2 transition-colors focus:outline-none"
-                  title="Edit Shipping"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                </button>
               </div>
             ) : (
-              <div className="bg-background border border-border rounded-lg p-8 shadow-sm space-y-8 animate-fade-up">
-                <div className="flex items-center gap-3 border-b border-border/30 pb-4">
-                  <div className="w-6 h-6 rounded-full bg-foreground text-background flex items-center justify-center text-xs font-bold">2</div>
-                  <h2 className="text-sm tracking-[0.2em] font-bold uppercase text-foreground">SHIPPING ADDRESS</h2>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="space-y-4">
-                    <h3 className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground/80 font-bold">Customer Details</h3>
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <Input label="First name" name="firstName" required />
-                      <Input label="Last name" name="lastName" required />
-                    </div>
-                    <Input label="Mobile Number" name="phone" type="tel" required placeholder="+1 (555) 000-0000" />
-                  </div>
-
-                  <div className="space-y-4">
-                    <h3 className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground/80 font-bold">Address Details</h3>
-                    <Input label="Street Address" name="address" required placeholder="123 Main St" />
-                    <Input label="House / Apartment Number" name="address2" placeholder="Apt, Suite, Unit" />
-                    <div className="grid sm:grid-cols-3 gap-4">
-                      <Input label="City" name="city" required />
-                      <Input label="State / Province" name="state" />
-                      <Input label="Postal code" name="postalCode" required />
-                    </div>
-                    <Input label="Country" name="country" required defaultValue="United States" />
-                  </div>
-
-                  {/* Billing Address Option */}
-                  <div className="space-y-4 pt-2">
-                    <label className="flex items-center gap-3 text-sm cursor-pointer select-none">
-                      <input 
-                        type="checkbox" 
-                        checked={billingSame} 
-                        onChange={(e) => setBillingSame(e.target.checked)} 
-                        className="h-4.5 w-4.5 accent-foreground rounded border-border" 
-                      />
-                      <span className="text-sm font-medium text-foreground">Same as shipping address</span>
-                    </label>
-                    {!billingSame && (
-                      <div className="space-y-4 animate-fade-up pl-1.5 border-l border-border mt-3">
-                        <Input label="Billing address" name="billingAddress" required />
-                        <div className="grid sm:grid-cols-3 gap-4">
-                          <Input label="City" name="billingCity" required />
-                          <Input label="Postal code" name="billingPostalCode" required />
-                          <Input label="Country" name="billingCountry" required />
+              <>
+                {/* Completed summary view */}
+                {activeStep !== "shipping" && completedSteps.shipping && (
+                  <div className="bg-background border border-border/80 rounded-lg p-8 shadow-sm flex items-center justify-between transition-all duration-300">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center flex-shrink-0">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="text-[13px] lg:text-[14px] font-bold tracking-[0.15em] uppercase text-foreground">SHIPPING ADDRESS</div>
+                        <div className="text-sm font-semibold text-foreground mt-3">
+                          {formRef.current ? `${getFormValue(formRef.current, "firstName")} ${getFormValue(formRef.current, "lastName")}` : ""}
+                        </div>
+                        <div className="text-sm text-muted-foreground/80 mt-1 space-y-0.5">
+                          <p>{formRef.current ? `${getFormValue(formRef.current, "address")}${getFormValue(formRef.current, "address2") ? ", " + getFormValue(formRef.current, "address2") : ""}` : ""}</p>
+                          <p>{formRef.current ? `${getFormValue(formRef.current, "city")}, ${getFormValue(formRef.current, "state") || ""} ${getFormValue(formRef.current, "postalCode")}` : ""}</p>
+                          <p>{formRef.current ? getFormValue(formRef.current, "country") : ""}</p>
+                          <p className="mt-2 text-xs font-semibold text-foreground/80">Phone: {formRef.current ? getFormValue(formRef.current, "phone") : ""}</p>
+                          <p className="text-xs font-semibold text-foreground/80">Method: {shippingOptions.find(o => o.id === shippingMethod)?.label} ({shippingOptions.find(o => o.id === shippingMethod)?.price})</p>
                         </div>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Shipping Methods */}
-                  <div className="space-y-4 pt-4 border-t border-border/45">
-                    <h3 className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground/80 font-bold">Shipping Method</h3>
-                    <div className="grid md:grid-cols-3 gap-4">
-                      {shippingOptions.map((opt) => {
-                        const isSel = shippingMethod === opt.id;
-                        return (
-                          <div
-                            key={opt.id}
-                            onClick={() => setShippingMethod(opt.id)}
-                            className={`border p-4 rounded-lg cursor-pointer transition-all duration-300 flex flex-col justify-between ${
-                              isSel
-                                ? "border-foreground bg-foreground/[0.02] shadow-sm ring-1 ring-foreground/10"
-                                : "border-border hover:border-foreground/50 hover:bg-neutral/10"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-3.5">
-                              <span className="text-xs font-bold text-foreground tracking-wide">{opt.label}</span>
-                              <div className={`h-4.5 w-4.5 rounded-full border flex items-center justify-center ${isSel ? "border-foreground" : "border-border"}`}>
-                                {isSel && <div className="h-2.5 w-2.5 rounded-full bg-foreground" />}
-                              </div>
-                            </div>
-                            <div>
-                              <p className="text-[11px] text-muted-foreground">{opt.time}</p>
-                              <p className="text-xs font-semibold text-foreground mt-1.5">{opt.price}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
                     </div>
-                  </div>
-
-                  <div className="pt-4">
                     <button
                       type="button"
-                      onClick={handleShippingContinue}
-                      className="h-12 px-8 bg-foreground text-background text-xs tracking-[0.2em] uppercase font-bold rounded-md hover:bg-gold hover:text-ink transition-all duration-300"
+                      onClick={() => setActiveStep("shipping")}
+                      className="text-muted-foreground hover:text-foreground transition-colors duration-200 focus:outline-none self-start"
+                      title="Edit Shipping"
                     >
-                      Continue
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
                     </button>
                   </div>
+                )}
+
+                {/* Form inputs section (Always mounted once email is completed) */}
+                <div 
+                  className="bg-background border border-border/80 rounded-lg p-8 shadow-sm space-y-8 animate-fade-up"
+                  style={{ display: activeStep === "shipping" ? "block" : "none" }}
+                >
+                  <div className="flex items-center gap-3 border-b border-border/30 pb-4">
+                    <div className="w-6 h-6 rounded-full bg-foreground text-background flex items-center justify-center text-xs font-bold">2</div>
+                    <h2 className="text-[13px] lg:text-[14px] font-bold tracking-[0.15em] uppercase text-foreground">SHIPPING ADDRESS</h2>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      <h3 className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground/80 font-bold">Customer Details</h3>
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <Input label="First name" name="firstName" required />
+                        <Input label="Last name" name="lastName" required />
+                      </div>
+                      <Input label="Mobile Number" name="phone" type="tel" required placeholder="+1 (555) 000-0000" />
+                    </div>
+
+                    <div className="space-y-4">
+                      <h3 className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground/80 font-bold">Address Details</h3>
+                      <Input label="Street Address" name="address" required placeholder="123 Main St" />
+                      <Input label="House / Apartment Number" name="address2" placeholder="Apt, Suite, Unit" />
+                      <div className="grid sm:grid-cols-3 gap-4">
+                        <Input label="City" name="city" required />
+                        <Input label="State / Province" name="state" />
+                        <Input label="Postal code" name="postalCode" required />
+                      </div>
+                      <Input label="Country" name="country" required defaultValue="United States" />
+                    </div>
+
+                    {/* Billing Address Option */}
+                    <div className="space-y-4 pt-2">
+                      <label className="flex items-center gap-3 text-sm cursor-pointer select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={billingSame} 
+                          onChange={(e) => setBillingSame(e.target.checked)} 
+                          className="h-4.5 w-4.5 accent-foreground rounded border-border" 
+                        />
+                        <span className="text-sm font-medium text-foreground">Same as shipping address</span>
+                      </label>
+                      {!billingSame && (
+                        <div className="space-y-4 pl-1.5 border-l border-border mt-3">
+                          <Input label="Billing address" name="billingAddress" required />
+                          <div className="grid sm:grid-cols-3 gap-4">
+                            <Input label="City" name="billingCity" required />
+                            <Input label="Postal code" name="billingPostalCode" required />
+                            <Input label="Country" name="billingCountry" required />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Shipping Methods */}
+                    <div className="space-y-4 pt-4 border-t border-border/45">
+                      <h3 className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground/80 font-bold">Shipping Method</h3>
+                      <div className="grid md:grid-cols-3 gap-4">
+                        {shippingOptions.map((opt) => {
+                          const isSel = shippingMethod === opt.id;
+                          return (
+                            <div
+                              key={opt.id}
+                              onClick={() => setShippingMethod(opt.id)}
+                              className={`border p-4 rounded-lg cursor-pointer transition-all duration-300 flex flex-col justify-between ${
+                                isSel
+                                  ? "border-foreground bg-foreground/[0.02] shadow-sm ring-1 ring-foreground/10"
+                                  : "border-border hover:border-foreground/50 hover:bg-neutral/10"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-3.5">
+                                <span className="text-xs font-bold text-foreground tracking-wide">{opt.label}</span>
+                                <div className={`h-4.5 w-4.5 rounded-full border flex items-center justify-center ${isSel ? "border-foreground" : "border-border"}`}>
+                                  {isSel && <div className="h-2.5 w-2.5 rounded-full bg-foreground" />}
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-[11px] text-muted-foreground">{opt.time}</p>
+                                <p className="text-xs font-semibold text-foreground mt-1.5">{opt.price}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="pt-4">
+                      <button
+                        type="button"
+                        onClick={handleShippingContinue}
+                        className="h-12 px-8 bg-foreground text-background text-xs tracking-[0.2em] uppercase font-bold rounded-md hover:bg-gold hover:text-ink transition-all duration-300"
+                      >
+                        Continue
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
 
@@ -667,17 +677,17 @@ export function CheckoutForm() {
               <div className="bg-neutral/10 border border-border/20 rounded-lg p-6 opacity-50 cursor-not-allowed">
                 <div className="flex items-center gap-3">
                   <div className="w-6 h-6 rounded-full bg-neutral text-muted-foreground/60 flex items-center justify-center text-xs font-bold">3</div>
-                  <h2 className="text-sm tracking-[0.2em] font-semibold uppercase text-muted-foreground/70">PAYMENT</h2>
+                  <h2 className="text-[13px] lg:text-[14px] font-bold tracking-[0.15em] uppercase text-muted-foreground/75">PAYMENT</h2>
                 </div>
               </div>
             ) : (
-              <div className="bg-background border border-border rounded-lg p-8 shadow-sm space-y-6 animate-fade-up">
+              <div className="bg-background border border-border rounded-lg p-8 shadow-sm space-y-8 animate-fade-up">
                 <div className="flex items-center gap-3 border-b border-border/30 pb-4">
                   <div className="w-6 h-6 rounded-full bg-foreground text-background flex items-center justify-center text-xs font-bold">3</div>
-                  <h2 className="text-sm tracking-[0.2em] font-bold uppercase text-foreground">PAYMENT</h2>
+                  <h2 className="text-[13px] lg:text-[14px] font-bold tracking-[0.15em] uppercase text-foreground">PAYMENT</h2>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <div className="border border-border rounded-lg p-6 bg-neutral/10">
                     <StripeErrorBoundary onError={() => setStripeLoadFailed(true)}>
                       <StripePaymentForm
@@ -691,7 +701,7 @@ export function CheckoutForm() {
 
                   <div className="my-8 flex items-center justify-between gap-4">
                     <div className="h-px bg-border/40 flex-1" />
-                    <span className="text-[10px] tracking-widest text-muted-foreground uppercase font-bold">Or pay via PayPal</span>
+                    <span className="text-[10px] tracking-widest text-muted-foreground uppercase font-bold font-sans">Or pay via PayPal</span>
                     <div className="h-px bg-border/40 flex-1" />
                   </div>
 
@@ -728,7 +738,7 @@ export function CheckoutForm() {
                   <div key={`${item.productId}-${item.variantId || ""}-${item.size}`} className="flex gap-4">
                     <img src={itemImage} alt={product.name} className="w-16 h-20 object-cover rounded-md border border-border/20 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="font-serif text-sm font-semibold truncate text-foreground">{product.name}</p>
+                      <p className="font-sans text-xs font-semibold truncate text-foreground">{product.name}</p>
                       <p className="text-xs text-muted-foreground/90 mt-1">Color: {itemColor}</p>
                       <p className="text-xs text-muted-foreground/90">Size: {item.size} · Qty: {item.quantity}</p>
                       <div className="mt-2.5">
@@ -750,18 +760,18 @@ export function CheckoutForm() {
             <div className="h-px bg-border/40" />
 
             <div className="space-y-2.5 text-sm">
-              <div className="flex items-center justify-between text-muted-foreground">
+              <div className="flex items-center justify-between text-muted-foreground text-xs">
                 <span>Subtotal</span>
                 <span>${cart.subtotal}</span>
               </div>
-              <div className="flex items-center justify-between text-muted-foreground">
+              <div className="flex items-center justify-between text-muted-foreground text-xs">
                 <span>Shipping</span>
                 <span>Complimentary</span>
               </div>
               <div className="h-px bg-border/40 my-3" />
               <div className="flex items-center justify-between text-foreground font-bold font-sans">
-                <span className="text-xs tracking-[0.2em] uppercase">Total</span>
-                <span className="font-serif text-xl">${total}</span>
+                <span className="text-[10px] tracking-[0.2em] uppercase">Total</span>
+                <span className="font-sans text-sm font-bold">${total}</span>
               </div>
             </div>
 
@@ -774,20 +784,6 @@ export function CheckoutForm() {
                 {submitting ? checkoutStep || "Processing..." : "Place Order"}
               </button>
             )}
-          </div>
-
-          <div className="bg-neutral/20 border border-border/20 rounded-lg p-5 grid grid-cols-2 gap-4 text-center">
-            {[
-              { icon: "🔒", label: "Secure Checkout" },
-              { icon: "🔑", label: "SSL Encrypted" },
-              { icon: "🔄", label: "Easy Returns" },
-              { icon: "💳", label: "Secure Payment" }
-            ].map((badge) => (
-              <div key={badge.label} className="flex flex-col items-center gap-1.5 p-2">
-                <span className="text-lg">{badge.icon}</span>
-                <span className="text-[10px] tracking-wider text-muted-foreground/90 font-medium uppercase">{badge.label}</span>
-              </div>
-            ))}
           </div>
         </aside>
       </form>
@@ -821,9 +817,9 @@ function Input({ label, ...rest }: { label: string } & React.InputHTMLAttributes
 
 function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
-    <div className="flex items-center justify-between py-1.5 text-sm">
-      <span className={`${bold ? "font-bold text-foreground tracking-wide uppercase text-xs" : "text-muted-foreground"}`}>{label}</span>
-      <span className={bold ? "font-serif text-lg font-bold text-foreground" : "text-muted-foreground"}>{value}</span>
+    <div className="flex items-center justify-between py-1.5 text-xs">
+      <span className={`${bold ? "font-bold text-foreground tracking-wide uppercase text-[10px]" : "text-muted-foreground"}`}>{label}</span>
+      <span className={bold ? "font-sans text-xs font-bold text-foreground" : "text-muted-foreground"}>{value}</span>
     </div>
   );
 }
