@@ -241,7 +241,7 @@ function ProductPage() {
   return (
     <div className="pt-8 lg:pt-12 pb-24 font-sans bg-background">
       {/* ─── 1. Premium Breadcrumbs ─── */}
-      <div className="px-5 lg:px-10 mb-10 text-[10px] md:text-[11px] tracking-[0.24em] uppercase text-muted-foreground/80 max-w-7xl mx-auto flex flex-wrap items-center gap-y-1.5">
+      <div className="px-5 lg:px-10 mb-8 text-[12px] tracking-[0.2em] uppercase text-muted-foreground/70 max-w-7xl mx-auto flex flex-wrap items-center gap-y-1.5">
         <Link to="/" className="hover:text-foreground transition-colors duration-300">
           Home
         </Link>
@@ -279,20 +279,20 @@ function ProductPage() {
         <span className="text-foreground font-bold">{product.name}</span>
       </div>
 
-      <div className="px-5 lg:px-10 grid lg:grid-cols-2 gap-12 lg:gap-20 max-w-7xl mx-auto">
+      <div className="px-5 lg:px-10 grid lg:grid-cols-2 gap-12 lg:gap-20 max-w-7xl mx-auto items-stretch">
         {/* ─── 2. Image Gallery ─── */}
-        <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-[90px_1fr] gap-6 md:gap-8 h-fit lg:sticky lg:top-28">
           {/* Thumbnails (Desktop) */}
-          <div className="hidden md:flex flex-col gap-4">
+          <div className="hidden md:flex flex-col gap-3">
             {activeImages.map((img, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => setImgIdx(i)}
-                className={`overflow-hidden aspect-[3/4] border transition-all duration-500 focus:outline-none ${
+                className={`overflow-hidden aspect-[3/4] rounded-md border transition-all duration-300 focus:outline-none ${
                   i === imgIdx
-                    ? "border-foreground scale-105 shadow-sm"
-                    : "border-transparent opacity-50 hover:opacity-100"
+                    ? "border-foreground scale-[1.03] shadow-sm ring-1 ring-foreground/10"
+                    : "border-border/60 opacity-60 hover:opacity-100 hover:border-foreground/45"
                 }`}
                 aria-label={`View image ${i + 1}`}
               >
@@ -310,7 +310,7 @@ function ProductPage() {
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
             onClick={() => setLightboxOpen(true)}
-            className="md:col-start-2 overflow-hidden aspect-[3/4] bg-neutral/40 cursor-crosshair relative shadow-inner border border-border/10"
+            className="md:col-start-2 overflow-hidden aspect-[3/4] rounded-lg bg-neutral/40 cursor-crosshair relative shadow-inner border border-border/15"
           >
             <img
               src={activeImages[imgIdx]}
@@ -381,27 +381,63 @@ function ProductPage() {
 
         {/* ─── 3. Product Information Section ─── */}
         <div className="lg:sticky lg:top-24 lg:self-start space-y-8">
-          <div>
-            {product.badge && (
-              <span className="text-[10px] tracking-[0.3em] uppercase text-gold font-bold">
-                {product.badge}
-              </span>
-            )}
-            <h1 className="font-serif text-3xl md:text-4xl lg:text-5xl tracking-wide mt-2 text-foreground leading-tight">
-              {product.name}
-            </h1>
+          {/* 1. Product Brand & Title & Price & SKU & Short Description */}
+          <div className="space-y-6">
+            {/* Product Brand */}
+            <div className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground/80 font-bold">
+              ANORA NEW YORK
+            </div>
 
-            <div className="mt-4 flex items-center gap-3.5 text-xs text-muted-foreground/80">
-              <span className={isOOS ? "text-red font-medium" : "text-emerald-700 font-medium"}>
+            {/* Product Title */}
+            <div>
+              {product.badge && (
+                <span className="text-[9px] tracking-[0.25em] uppercase text-gold font-bold bg-gold/5 border border-gold/15 px-2.5 py-0.5 rounded-full inline-block mb-2">
+                  {product.badge}
+                </span>
+              )}
+              <h1 className="font-serif text-[24px] tracking-wide text-foreground leading-tight font-semibold">
+                {product.name}
+              </h1>
+            </div>
+
+            {/* Price Section */}
+            <div className="flex items-baseline gap-3 flex-wrap">
+              {priceInfo.isOnSale ? (
+                <>
+                  <span className="font-sans text-2xl font-bold text-[#000000] tracking-wide leading-none">
+                    ${priceInfo.salePrice.toLocaleString()}
+                  </span>
+                  <span className="font-sans text-sm font-normal text-[#81807f] line-through decoration-[#81807f]/30 decoration-[0.5px] leading-none">
+                    ${priceInfo.originalPrice.toLocaleString()}
+                  </span>
+                  {priceInfo.discountPercent > 0 && (
+                    <span className="ml-2 text-[9px] tracking-widest uppercase border border-gold/20 text-gold bg-gold/5 px-2 py-0.5 rounded-full font-bold leading-none align-middle">
+                      {priceInfo.discountPercent}% OFF
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="font-sans text-2xl font-bold text-[#000000] tracking-wide leading-none">
+                  ${(active.id ? (product.colorVariants?.find((v) => v.id === active.id)?.priceOverride ?? product.price) : product.price).toLocaleString()}
+                </span>
+              )}
+            </div>
+
+            {/* SKU & Stock */}
+            <div className="flex items-center gap-3.5 text-xs text-muted-foreground/70">
+              <span className={isOOS ? "text-red font-semibold" : "text-emerald-700 font-semibold"}>
                 {isOOS ? "Out of Stock" : "In Stock"}
               </span>
-              <span className="opacity-40">|</span>
-              <span className="tracking-[0.24em] uppercase text-[10px]">
+              <span className="opacity-30">|</span>
+              <span className="tracking-[0.2em] uppercase text-[10px] font-medium">
                 SKU: {activeSku}
               </span>
             </div>
 
-            <ProductPrice product={product} size="lg" className="mt-5" />
+            {/* Short Description */}
+            <p className="text-sm text-muted-foreground/80 leading-relaxed font-sans max-w-xl">
+              {product.description ? product.description.split('\n')[0] : "A classic, elegant piece designed with premium craftsmanship for a lifetime of luxury styling."}
+            </p>
           </div>
 
           <div className="h-px w-full bg-border/20" />
@@ -409,8 +445,8 @@ function ProductPage() {
           {/* Color Selection */}
           {colors.length > 1 && (
             <div className="space-y-3">
-              <span className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground block">
-                Color: <span className="text-foreground font-semibold ml-1">{activeColor}</span>
+              <span className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground font-semibold block">
+                Color: <span className="text-foreground font-bold ml-1">{activeColor}</span>
               </span>
               <div className="flex flex-wrap gap-3.5">
                 {colors.map((color) => {
@@ -429,7 +465,7 @@ function ProductPage() {
                           switchColor(color.name);
                         }
                       }}
-                      className={`relative h-10 w-10 rounded-full border transition-all duration-500 flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 ${
+                      className={`relative h-10 w-10 rounded-full border transition-all duration-300 flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 ${
                         isSelected
                           ? "border-gold scale-110 shadow-md ring-1 ring-gold/40"
                           : isColorOOS
@@ -463,15 +499,15 @@ function ProductPage() {
 
           {colors.length <= 1 && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground/80">
-              <span className="text-[10px] tracking-[0.24em] uppercase text-foreground/75">Color:</span>
-              <span>{activeColor}</span>
+              <span className="text-[10px] tracking-[0.24em] uppercase text-foreground/75 font-semibold">Color:</span>
+              <span className="font-medium text-foreground">{activeColor}</span>
             </div>
           )}
 
-          {/* Size */}
+          {/* Size Selector */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground">Size</span>
+              <span className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground font-semibold">Size</span>
               <button
                 type="button"
                 onClick={() => setGuideOpen(true)}
@@ -480,7 +516,7 @@ function ProductPage() {
                 Size Guide
               </button>
             </div>
-            <div className="flex flex-wrap gap-2.5">
+            <div className="flex flex-wrap gap-2">
               {activeSizes.map((s) => {
                 const qty = activeSizeStock?.[s];
                 const disabled = productTotalOOS || activeStock === 0 || (hasSizeStock && qty !== undefined && qty === 0);
@@ -491,12 +527,12 @@ function ProductPage() {
                     onClick={() => {
                       if (!disabled) setSize(s);
                     }}
-                    className={`min-w-12 h-11 px-3 text-xs tracking-wider border transition-all duration-300 focus:outline-none ${
+                    className={`w-10 h-10 flex items-center justify-center text-xs tracking-wider border rounded-md transition-all duration-200 focus:outline-none ${
                       size === s && !disabled
-                        ? "border-foreground bg-foreground text-background font-medium"
+                        ? "border-foreground bg-foreground text-background font-semibold shadow-sm"
                         : disabled
-                          ? "border-border/40 text-border/50 line-through diagonal-strike cursor-not-allowed"
-                          : "border-border hover:border-foreground"
+                          ? "border-border/20 text-border/40 line-through cursor-not-allowed opacity-55"
+                          : "border-border hover:border-foreground hover:bg-foreground/5 hover:scale-[1.02]"
                     }`}
                   >
                     {s}
@@ -508,63 +544,32 @@ function ProductPage() {
 
           <div className="h-px w-full bg-border/10" />
 
-          {/* Quantity + Actions */}
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center border border-border h-11">
+          {/* Quantity Selector */}
+          <div className="space-y-3">
+            <span className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground font-semibold block">Quantity</span>
+            <div className="flex items-center border border-border h-10 w-28 rounded-md overflow-hidden bg-background">
               <button
                 type="button"
                 aria-label="decrease"
                 onClick={() => setQty((q) => Math.max(1, q - 1))}
-                className="h-full w-11 grid place-items-center hover:bg-neutral/45 transition-colors focus:outline-none"
+                className="h-full w-9 flex items-center justify-center hover:bg-neutral/45 transition-colors focus:outline-none text-muted-foreground hover:text-foreground"
               >
-                <Minus className="h-3 w-3" />
+                <Minus className="h-3.5 w-3.5" />
               </button>
-              <span className="w-9 text-center text-xs font-semibold">{qty}</span>
+              <span className="flex-1 text-center text-xs font-semibold text-foreground select-none">{qty}</span>
               <button
                 type="button"
                 aria-label="increase"
                 onClick={() => setQty((q) => q + 1)}
-                className="h-full w-11 grid place-items-center hover:bg-neutral/45 transition-colors focus:outline-none"
+                className="h-full w-9 flex items-center justify-center hover:bg-neutral/45 transition-colors focus:outline-none text-muted-foreground hover:text-foreground"
               >
-                <Plus className="h-3 w-3" />
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  const wasWishlisted = wish.has(product.id, activeId);
-                  wish.toggle(product.id, activeId);
-                  toast(wasWishlisted ? "Removed from Wishlist" : "Added to Wishlist");
-                }}
-                className="h-11 w-11 grid place-items-center border border-border hover:border-foreground transition-all duration-300 hover:scale-105 focus:outline-none"
-                aria-label="wishlist"
-              >
-                <Heart className={`h-4 w-4 ${wish.has(product.id, activeId) ? "fill-gold text-gold" : ""}`} />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (navigator.share)
-                    navigator
-                      .share({ title: product.name, url: window.location.href })
-                      .catch(() => { });
-                  else {
-                    navigator.clipboard.writeText(window.location.href);
-                    toast("Link copied to clipboard");
-                  }
-                }}
-                className="h-11 w-11 grid place-items-center border border-border hover:border-foreground transition-all duration-300 hover:scale-105 focus:outline-none"
-                aria-label="share"
-              >
-                <Share2 className="h-4 w-4" />
+                <Plus className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
 
-          {/* Add to Cart / Buy Now */}
-          <div className="grid sm:grid-cols-2 gap-4 pt-2">
+          {/* Add To Bag & Buy Now Buttons */}
+          <div className="space-y-3 pt-2">
             <button
               type="button"
               onClick={() => {
@@ -586,10 +591,10 @@ function ProductPage() {
                 });
               }}
               disabled={isOOS}
-              className={`py-4 text-[10px] md:text-[11px] tracking-[0.28em] uppercase transition-all duration-300 font-semibold focus:outline-none ${
+              className={`h-12 w-full flex items-center justify-center text-xs tracking-[0.25em] uppercase transition-all duration-300 font-semibold rounded-md focus:outline-none ${
                 isOOS
-                  ? "bg-border/40 text-muted-foreground cursor-not-allowed"
-                  : "bg-foreground text-background hover:bg-gold hover:text-ink hover:scale-[1.01]"
+                  ? "bg-neutral text-muted-foreground/60 border border-border cursor-not-allowed"
+                  : "bg-foreground text-background border border-foreground hover:bg-gold hover:border-gold hover:text-ink hover:scale-[1.01]"
               }`}
             >
               {isOOS ? "Out of Stock" : "Add to Bag"}
@@ -598,17 +603,46 @@ function ProductPage() {
               <Link
                 to="/checkout"
                 onClick={() => cart.add(product.id, size, qty, activeId)}
-                className="text-center border border-foreground py-4 text-[10px] md:text-[11px] tracking-[0.28em] uppercase hover:bg-foreground hover:text-background transition-all duration-300 font-semibold hover:scale-[1.01]"
+                className="flex items-center justify-center text-center border border-foreground h-12 text-xs tracking-[0.25em] uppercase hover:bg-foreground hover:text-background transition-all duration-300 font-semibold rounded-md hover:scale-[1.01]"
               >
                 Buy Now
               </Link>
             )}
           </div>
 
-          {/* Delivery */}
-          <div className="flex items-center gap-2.5 text-xs text-muted-foreground/80 pt-1">
-            <Truck className="h-4 w-4 text-muted-foreground/60" />
-            <span>Complimentary express shipping · arrives in 3–5 business days</span>
+          {/* Wishlist & Share Secondary Buttons */}
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                const wasWishlisted = wish.has(product.id, activeId);
+                wish.toggle(product.id, activeId);
+                toast(wasWishlisted ? "Removed from Wishlist" : "Added to Wishlist");
+              }}
+              className="flex-1 h-11 flex items-center justify-center gap-2 border border-border rounded-md hover:border-foreground hover:bg-foreground/5 transition-all duration-300 focus:outline-none text-xs tracking-wider uppercase font-medium text-muted-foreground hover:text-foreground"
+            >
+              <Heart className={`h-4 w-4 ${wish.has(product.id, activeId) ? "fill-gold text-gold" : ""}`} />
+              {wish.has(product.id, activeId) ? "Wishlisted" : "Add to Wishlist"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (navigator.share) {
+                  navigator
+                    .share({ title: product.name, url: window.location.href })
+                    .catch(() => { });
+                } else {
+                  navigator.clipboard.writeText(window.location.href);
+                  toast("Link copied to clipboard");
+                }
+              }}
+              className="h-11 w-11 flex items-center justify-center border border-border rounded-md hover:border-foreground hover:bg-foreground/5 transition-all duration-300 focus:outline-none text-muted-foreground hover:text-foreground"
+              aria-label="Share product"
+              title="Share"
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
           </div>
 
           {/* ─── 4. Premium Accordions ─── */}
@@ -819,25 +853,27 @@ function AccordionItem({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border-b border-border/40">
+    <div className="border-b border-border/50">
       <button
         onClick={onToggle}
         type="button"
-        className="w-full flex items-center justify-between py-5 text-left focus:outline-none group"
+        className="w-full flex items-center justify-between py-4.5 text-left focus:outline-none group"
       >
-        <span className="text-[11px] tracking-[0.24em] uppercase font-medium text-foreground hover:text-gold transition-colors duration-300">
+        <span className="text-[11px] tracking-[0.24em] uppercase font-semibold text-foreground hover:text-gold transition-colors duration-300">
           {title}
         </span>
-        <span className="text-muted-foreground/60 group-hover:text-foreground transition-colors duration-300 text-xs">
-          {isOpen ? "▲" : "▼"}
-        </span>
+        <ChevronDown 
+          className={`h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-transform duration-350 ${
+            isOpen ? "rotate-180 text-foreground" : ""
+          }`} 
+        />
       </button>
       <div
-        className={`overflow-hidden transition-all duration-500 ease-in-out ${
-          isOpen ? "max-h-[500px] opacity-100 pb-5" : "max-h-0 opacity-0"
+        className={`overflow-hidden transition-all duration-[400ms] ease-[cubic-bezier(0.25,1,0.5,1)] ${
+          isOpen ? "max-h-[500px] opacity-100 pb-6" : "max-h-0 opacity-0"
         }`}
       >
-        <div className="text-[13px] text-muted-foreground leading-relaxed font-sans space-y-3">
+        <div className="text-[13px] text-muted-foreground/90 leading-relaxed font-sans space-y-3 pr-4">
           {children}
         </div>
       </div>
