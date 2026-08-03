@@ -88,8 +88,51 @@ export function CheckoutForm() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { success, canceled, payment_intent, redirect_status } = Route.useSearch();
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const [email, setEmail] = useState(() => user?.email ?? "");
   const [billingSame, setBillingSame] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
+  const [activeStep, setActiveStep] = useState<"email" | "shipping" | "payment">("email");
+  const [completedSteps, setCompletedSteps] = useState({
+    email: false,
+    shipping: false,
+  });
+  const [shippingMethod, setShippingMethod] = useState<"standard" | "express" | "intl">("standard");
+
+  const shippingOptions = useMemo(() => [
+    { id: "standard" as const, label: "Standard Shipping", time: "5–7 Business Days", price: "Complimentary" },
+    { id: "express" as const, label: "Express Delivery", time: "2–4 Business Days", price: "$20.00" },
+    { id: "intl" as const, label: "International Shipping", time: "5–10 Business Days", price: "$12.00" },
+  ], []);
+
+  const handleEmailContinue = useCallback(() => {
+    const emailResult = z.string().email().safeParse(email);
+    if (!emailResult.success) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    setCompletedSteps((prev) => ({ ...prev, email: true }));
+    setActiveStep("shipping");
+  }, [email]);
+
+  const handleShippingContinue = useCallback(() => {
+    if (!formRef.current) return;
+    const firstName = getFormValue(formRef.current, "firstName");
+    const lastName = getFormValue(formRef.current, "lastName");
+    const address = getFormValue(formRef.current, "address");
+    const city = getFormValue(formRef.current, "city");
+    const postalCode = getFormValue(formRef.current, "postalCode");
+    const country = getFormValue(formRef.current, "country");
+    const phone = getFormValue(formRef.current, "phone");
+
+    if (!firstName || !lastName || !address || !city || !postalCode || !country || !phone) {
+      toast.error("Please fill in all required shipping address fields");
+      return;
+    }
+
+    setCompletedSteps((prev) => ({ ...prev, shipping: true }));
+    setActiveStep("payment");
+  }, []);
 
   useEffect(() => {
     setIsMounted(true);
@@ -143,7 +186,6 @@ export function CheckoutForm() {
       ? cachedCheckoutRequestId
       : crypto.randomUUID()
   );
-  const formRef = useRef<HTMLFormElement | null>(null);
 
   const [confirmHandler, setConfirmHandler] = useState<
     | ((
@@ -192,7 +234,6 @@ export function CheckoutForm() {
     }
   }, [success, payment_intent, navigate]);
 
-  const [email, setEmail] = useState(() => user?.email ?? "");
 
   // Sync email with logged in user
   useEffect(() => {
@@ -398,10 +439,14 @@ export function CheckoutForm() {
   }
 
   return (
-    <div className="px-5 lg:px-10 py-16 max-w-6xl mx-auto">
-      <div className="text-center mb-10">
-        <span className="eyebrow">Secure Checkout</span>
-        <h1 className="font-serif text-5xl mt-3">Checkout</h1>
+    <div className="px-5 lg:px-10 py-16 max-w-7xl mx-auto font-sans bg-background">
+      <div className="text-left mb-12 border-b border-border/30 pb-6 flex items-center justify-between">
+        <div>
+          <h1 className="font-brand text-3xl tracking-[0.18em] uppercase text-foreground leading-none">Checkout</h1>
+        </div>
+        <Link to="/cart" className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors">
+          ← Back to Bag
+        </Link>
       </div>
 
       <form
@@ -415,84 +460,262 @@ export function CheckoutForm() {
 
           await handleStripeSubmit();
         }}
-        className="grid lg:grid-cols-[1fr_360px] gap-12"
+        className="grid lg:grid-cols-[1.6fr_1fr] gap-12 lg:gap-20 items-start"
       >
-        <div className="space-y-10">
-          <Section title="Contact Information">
-            <Input label="Email" name="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-            <Input label="Phone" name="phone" type="tel" required />
-          </Section>
-
-          <Section title="Shipping Address">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <Input label="First name" name="firstName" required />
-              <Input label="Last name" name="lastName" required />
-            </div>
-            <Input label="Address" name="address" required />
-            <Input label="Apartment, suite, etc." name="address2" />
-            <div className="grid sm:grid-cols-3 gap-4">
-              <Input label="City" name="city" required />
-              <Input label="State" name="state" />
-              <Input label="Postal code" name="postalCode" required />
-            </div>
-            <Input label="Country" name="country" required defaultValue="United States" />
-          </Section>
-
-          <Section title="Billing Address">
-            <label className="flex items-center gap-3 text-sm cursor-pointer">
-              <input type="checkbox" checked={billingSame} onChange={(e) => setBillingSame(e.target.checked)} className="h-4 w-4 accent-foreground" />
-              Same as shipping address
-            </label>
-            {!billingSame && (
-              <div className="mt-5 space-y-4">
-                <Input label="Billing address" name="billingAddress" required />
-                <div className="grid sm:grid-cols-3 gap-4">
-                  <Input label="City" name="billingCity" required />
-                  <Input label="Postal code" name="billingPostalCode" required />
-                  <Input label="Country" name="billingCountry" required />
+        <div className="space-y-8">
+          {/* ─── STEP 1: ENTER EMAIL ─── */}
+          <div className="space-y-4">
+            {activeStep !== "email" && completedSteps.email ? (
+              <div className="bg-neutral/40 border border-border/40 rounded-lg p-6 flex items-center justify-between transition-all duration-300">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground/80 font-bold">ENTER EMAIL</div>
+                    <div className="text-sm font-semibold text-foreground mt-0.5">{email}</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveStep("email")}
+                  className="text-muted-foreground hover:text-foreground p-2 transition-colors focus:outline-none"
+                  title="Edit Email"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <div className="bg-background border border-border rounded-lg p-8 shadow-sm space-y-6">
+                <div className="flex items-center gap-3 border-b border-border/30 pb-4">
+                  <div className="w-6 h-6 rounded-full bg-foreground text-background flex items-center justify-center text-xs font-bold font-sans">1</div>
+                  <h2 className="text-sm tracking-[0.2em] font-bold uppercase text-foreground">ENTER EMAIL</h2>
+                </div>
+                <div className="space-y-4 max-w-xl">
+                  <Input 
+                    label="Email Address" 
+                    name="email" 
+                    type="email" 
+                    required 
+                    placeholder="your.email@example.com"
+                    value={email} 
+                    onChange={(e) => setEmail(e.target.value)} 
+                  />
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleEmailContinue}
+                      className="h-12 px-8 bg-foreground text-background text-xs tracking-[0.2em] uppercase font-bold rounded-md hover:bg-gold hover:text-ink transition-all duration-300"
+                    >
+                      Continue
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
-          </Section>
+          </div>
 
-          <Section title="Payment">
-            {!user && !z.string().email().safeParse(email).success ? (
-              <p className="text-sm text-muted-foreground py-4">Enter your email to continue.</p>
+          {/* ─── STEP 2: SHIPPING ADDRESS ─── */}
+          <div className="space-y-4">
+            {!completedSteps.email ? (
+              <div className="bg-neutral/10 border border-border/20 rounded-lg p-6 opacity-50 cursor-not-allowed">
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 rounded-full bg-neutral text-muted-foreground/60 flex items-center justify-center text-xs font-bold">2</div>
+                  <h2 className="text-sm tracking-[0.2em] font-semibold uppercase text-muted-foreground/70">SHIPPING ADDRESS</h2>
+                </div>
+              </div>
+            ) : activeStep !== "shipping" && completedSteps.shipping ? (
+              <div className="bg-neutral/40 border border-border/40 rounded-lg p-6 flex items-center justify-between transition-all duration-300">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground/80 font-bold">SHIPPING ADDRESS</div>
+                    <div className="text-sm font-semibold text-foreground mt-1">
+                      {formRef.current ? `${getFormValue(formRef.current, "firstName")} ${getFormValue(formRef.current, "lastName")}` : ""}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {formRef.current ? `${getFormValue(formRef.current, "address")}${getFormValue(formRef.current, "address2") ? ", " + getFormValue(formRef.current, "address2") : ""}, ${getFormValue(formRef.current, "city")}, ${getFormValue(formRef.current, "postalCode")}` : ""}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Phone: {formRef.current ? getFormValue(formRef.current, "phone") : ""}
+                    </div>
+                    <div className="text-xs text-muted-foreground/75 mt-0.5">
+                      Method: {shippingOptions.find(o => o.id === shippingMethod)?.label} ({shippingOptions.find(o => o.id === shippingMethod)?.price})
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveStep("shipping")}
+                  className="text-muted-foreground hover:text-foreground p-2 transition-colors focus:outline-none"
+                  title="Edit Shipping"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </button>
+              </div>
             ) : (
-              <>
-                <div>
-                  <StripeErrorBoundary onError={() => setStripeLoadFailed(true)}>
-                    <StripePaymentForm
-                      stripeKey={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || ""}
-                      total={total}
-                      clientSecret={clientSecret}
-                      onConfirmReady={handleConfirmReady}
-                    />
-                  </StripeErrorBoundary>
+              <div className="bg-background border border-border rounded-lg p-8 shadow-sm space-y-8 animate-fade-up">
+                <div className="flex items-center gap-3 border-b border-border/30 pb-4">
+                  <div className="w-6 h-6 rounded-full bg-foreground text-background flex items-center justify-center text-xs font-bold">2</div>
+                  <h2 className="text-sm tracking-[0.2em] font-bold uppercase text-foreground">SHIPPING ADDRESS</h2>
                 </div>
 
-                <div className="my-8 border-t border-border" />
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <h3 className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground/80 font-bold">Customer Details</h3>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <Input label="First name" name="firstName" required />
+                      <Input label="Last name" name="lastName" required />
+                    </div>
+                    <Input label="Mobile Number" name="phone" type="tel" required placeholder="+1 (555) 000-0000" />
+                  </div>
 
-                <div>
-                  <PayPalPayment
-                    items={cart.items as CheckoutItem[]}
-                    email={email}
-                    getAddress={getAddress}
-                    onSuccess={handlePayPalSuccess}
-                    onError={handlePayPalError}
-                    submitting={submitting}
-                    setSubmitting={setSubmitting}
-                  />
+                  <div className="space-y-4">
+                    <h3 className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground/80 font-bold">Address Details</h3>
+                    <Input label="Street Address" name="address" required placeholder="123 Main St" />
+                    <Input label="House / Apartment Number" name="address2" placeholder="Apt, Suite, Unit" />
+                    <div className="grid sm:grid-cols-3 gap-4">
+                      <Input label="City" name="city" required />
+                      <Input label="State / Province" name="state" />
+                      <Input label="Postal code" name="postalCode" required />
+                    </div>
+                    <Input label="Country" name="country" required defaultValue="United States" />
+                  </div>
+
+                  {/* Billing Address Option */}
+                  <div className="space-y-4 pt-2">
+                    <label className="flex items-center gap-3 text-sm cursor-pointer select-none">
+                      <input 
+                        type="checkbox" 
+                        checked={billingSame} 
+                        onChange={(e) => setBillingSame(e.target.checked)} 
+                        className="h-4.5 w-4.5 accent-foreground rounded border-border" 
+                      />
+                      <span className="text-sm font-medium text-foreground">Same as shipping address</span>
+                    </label>
+                    {!billingSame && (
+                      <div className="space-y-4 animate-fade-up pl-1.5 border-l border-border mt-3">
+                        <Input label="Billing address" name="billingAddress" required />
+                        <div className="grid sm:grid-cols-3 gap-4">
+                          <Input label="City" name="billingCity" required />
+                          <Input label="Postal code" name="billingPostalCode" required />
+                          <Input label="Country" name="billingCountry" required />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Shipping Methods */}
+                  <div className="space-y-4 pt-4 border-t border-border/45">
+                    <h3 className="text-[10px] tracking-[0.2em] uppercase text-muted-foreground/80 font-bold">Shipping Method</h3>
+                    <div className="grid md:grid-cols-3 gap-4">
+                      {shippingOptions.map((opt) => {
+                        const isSel = shippingMethod === opt.id;
+                        return (
+                          <div
+                            key={opt.id}
+                            onClick={() => setShippingMethod(opt.id)}
+                            className={`border p-4 rounded-lg cursor-pointer transition-all duration-300 flex flex-col justify-between ${
+                              isSel
+                                ? "border-foreground bg-foreground/[0.02] shadow-sm ring-1 ring-foreground/10"
+                                : "border-border hover:border-foreground/50 hover:bg-neutral/10"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-3.5">
+                              <span className="text-xs font-bold text-foreground tracking-wide">{opt.label}</span>
+                              <div className={`h-4.5 w-4.5 rounded-full border flex items-center justify-center ${isSel ? "border-foreground" : "border-border"}`}>
+                                {isSel && <div className="h-2.5 w-2.5 rounded-full bg-foreground" />}
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-[11px] text-muted-foreground">{opt.time}</p>
+                              <p className="text-xs font-semibold text-foreground mt-1.5">{opt.price}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="pt-4">
+                    <button
+                      type="button"
+                      onClick={handleShippingContinue}
+                      className="h-12 px-8 bg-foreground text-background text-xs tracking-[0.2em] uppercase font-bold rounded-md hover:bg-gold hover:text-ink transition-all duration-300"
+                    >
+                      Continue
+                    </button>
+                  </div>
                 </div>
-              </>
+              </div>
             )}
-          </Section>
+          </div>
+
+          {/* ─── STEP 3: PAYMENT ─── */}
+          <div className="space-y-4">
+            {!completedSteps.shipping ? (
+              <div className="bg-neutral/10 border border-border/20 rounded-lg p-6 opacity-50 cursor-not-allowed">
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 rounded-full bg-neutral text-muted-foreground/60 flex items-center justify-center text-xs font-bold">3</div>
+                  <h2 className="text-sm tracking-[0.2em] font-semibold uppercase text-muted-foreground/70">PAYMENT</h2>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-background border border-border rounded-lg p-8 shadow-sm space-y-6 animate-fade-up">
+                <div className="flex items-center gap-3 border-b border-border/30 pb-4">
+                  <div className="w-6 h-6 rounded-full bg-foreground text-background flex items-center justify-center text-xs font-bold">3</div>
+                  <h2 className="text-sm tracking-[0.2em] font-bold uppercase text-foreground">PAYMENT</h2>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="border border-border rounded-lg p-6 bg-neutral/10">
+                    <StripeErrorBoundary onError={() => setStripeLoadFailed(true)}>
+                      <StripePaymentForm
+                        stripeKey={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || ""}
+                        total={total}
+                        clientSecret={clientSecret}
+                        onConfirmReady={handleConfirmReady}
+                      />
+                    </StripeErrorBoundary>
+                  </div>
+
+                  <div className="my-8 flex items-center justify-between gap-4">
+                    <div className="h-px bg-border/40 flex-1" />
+                    <span className="text-[10px] tracking-widest text-muted-foreground uppercase font-bold">Or pay via PayPal</span>
+                    <div className="h-px bg-border/40 flex-1" />
+                  </div>
+
+                  <div className="border border-border rounded-lg p-6 bg-neutral/10">
+                    <PayPalPayment
+                      items={cart.items as CheckoutItem[]}
+                      email={email}
+                      getAddress={getAddress}
+                      onSuccess={handlePayPalSuccess}
+                      onError={handlePayPalError}
+                      submitting={submitting}
+                      setSubmitting={setSubmitting}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        <aside className="lg:sticky lg:top-24 lg:self-start">
-          <div className="bg-neutral p-7">
-            <p className="eyebrow mb-5">Order Summary</p>
-            <div className="space-y-4 max-h-72 overflow-y-auto pr-1">
+        <aside className="lg:sticky lg:top-24 lg:self-start space-y-6">
+          <div className="bg-neutral/40 border border-border/40 rounded-lg p-6 lg:p-8 space-y-6">
+            <h2 className="text-xs tracking-[0.25em] uppercase text-foreground font-bold border-b border-border/40 pb-4">Order Summary</h2>
+            <div className="space-y-4 max-h-[340px] overflow-y-auto pr-1 scrollbar-thin">
               {cart.detailed.map(({ item, product }) => {
                 const variant = item.variantId ? product.colorVariants?.find((v: any) => v.id === item.variantId) : undefined;
                 const itemImage = variant?.images?.[0] ?? product.images[0];
@@ -502,36 +725,69 @@ export function CheckoutForm() {
                 const unitComparePrice = priceInfo.isOnSale ? priceInfo.originalPrice : (variant?.comparePriceOverride !== undefined ? variant.comparePriceOverride : product.compare_price);
 
                 return (
-                  <div key={`${item.productId}-${item.variantId || ""}-${item.size}`} className="flex gap-3">
-                    <img src={itemImage} alt={product.name} className="w-14 h-16 object-cover" />
-                    <div className="flex-1 text-sm">
-                      <p className="font-serif text-base">{product.name}</p>
-                      <p className="text-xs text-muted-foreground">Size {item.size} · {itemColor} · Qty {item.quantity}</p>
+                  <div key={`${item.productId}-${item.variantId || ""}-${item.size}`} className="flex gap-4">
+                    <img src={itemImage} alt={product.name} className="w-16 h-20 object-cover rounded-md border border-border/20 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-serif text-sm font-semibold truncate text-foreground">{product.name}</p>
+                      <p className="text-xs text-muted-foreground/90 mt-1">Color: {itemColor}</p>
+                      <p className="text-xs text-muted-foreground/90">Size: {item.size} · Qty: {item.quantity}</p>
+                      <div className="mt-2.5">
+                        <ProductPrice
+                          product={{
+                            ...product,
+                            price: unitPrice * item.quantity,
+                            compare_price: unitComparePrice ? unitComparePrice * item.quantity : null,
+                          }}
+                          size="sm"
+                        />
+                      </div>
                     </div>
-                    <ProductPrice
-                      product={{
-                        ...product,
-                        price: unitPrice * item.quantity,
-                        compare_price: unitComparePrice ? unitComparePrice * item.quantity : null,
-                      }}
-                      size="sm"
-                    />
                   </div>
                 );
               })}
             </div>
-            <div className="h-px bg-border my-5" />
-            <Row label="Subtotal" value={`$${cart.subtotal}`} />
-            <Row label="Shipping" value="Complimentary" />
-            <div className="h-px bg-border my-5" />
-            <Row label="Total" value={`$${total}`} bold />
-            <button
-              type="submit"
-              disabled={submitting}
-              className="mt-6 w-full bg-foreground text-background py-4 text-[11px] tracking-[0.32em] uppercase hover:bg-gold hover:text-ink transition-colors disabled:opacity-60"
-            >
-              {submitting ? checkoutStep || "Processing..." : "Place Order"}
-            </button>
+
+            <div className="h-px bg-border/40" />
+
+            <div className="space-y-2.5 text-sm">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Subtotal</span>
+                <span>${cart.subtotal}</span>
+              </div>
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Shipping</span>
+                <span>Complimentary</span>
+              </div>
+              <div className="h-px bg-border/40 my-3" />
+              <div className="flex items-center justify-between text-foreground font-bold font-sans">
+                <span className="text-xs tracking-[0.2em] uppercase">Total</span>
+                <span className="font-serif text-xl">${total}</span>
+              </div>
+            </div>
+
+            {activeStep === "payment" && (
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-foreground text-background h-12 text-xs tracking-[0.25em] uppercase font-bold rounded-md hover:bg-gold hover:text-ink hover:shadow-md transition-all duration-300 disabled:opacity-60 flex items-center justify-center"
+              >
+                {submitting ? checkoutStep || "Processing..." : "Place Order"}
+              </button>
+            )}
+          </div>
+
+          <div className="bg-neutral/20 border border-border/20 rounded-lg p-5 grid grid-cols-2 gap-4 text-center">
+            {[
+              { icon: "🔒", label: "Secure Checkout" },
+              { icon: "🔑", label: "SSL Encrypted" },
+              { icon: "🔄", label: "Easy Returns" },
+              { icon: "💳", label: "Secure Payment" }
+            ].map((badge) => (
+              <div key={badge.label} className="flex flex-col items-center gap-1.5 p-2">
+                <span className="text-lg">{badge.icon}</span>
+                <span className="text-[10px] tracking-wider text-muted-foreground/90 font-medium uppercase">{badge.label}</span>
+              </div>
+            ))}
           </div>
         </aside>
       </form>
@@ -553,18 +809,21 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Input({ label, ...rest }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <label className="block">
-      <span className="block text-[10px] tracking-[0.3em] uppercase text-muted-foreground mb-2">{label}</span>
-      <input {...rest} className="w-full bg-background border border-border px-4 py-3 text-sm outline-none focus:border-foreground transition-colors" />
+    <label className="block w-full">
+      <span className="block text-[10px] tracking-[0.25em] uppercase text-muted-foreground mb-2 font-medium">{label}</span>
+      <input 
+        {...rest} 
+        className="w-full h-12 bg-background border border-border/70 rounded-md px-4 text-sm outline-none focus:border-foreground focus:ring-1 focus:ring-foreground/10 transition-all duration-300 placeholder:text-muted-foreground/45" 
+      />
     </label>
   );
 }
 
 function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
-    <div className="flex items-center justify-between py-1">
-      <span className={`text-sm ${bold ? "eyebrow" : "text-muted-foreground"}`}>{label}</span>
-      <span className={bold ? "font-serif text-xl" : "text-sm"}>{value}</span>
+    <div className="flex items-center justify-between py-1.5 text-sm">
+      <span className={`${bold ? "font-bold text-foreground tracking-wide uppercase text-xs" : "text-muted-foreground"}`}>{label}</span>
+      <span className={bold ? "font-serif text-lg font-bold text-foreground" : "text-muted-foreground"}>{value}</span>
     </div>
   );
 }
