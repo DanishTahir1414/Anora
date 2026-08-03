@@ -241,8 +241,8 @@ function ProductPage() {
   return (
     <div className="pt-8 lg:pt-12 pb-24 font-sans bg-background">
       {/* ─── 1. Premium Breadcrumbs ─── */}
-      <div className="px-5 lg:px-10 mb-8 text-[12px] tracking-[0.2em] uppercase text-muted-foreground/70 max-w-7xl mx-auto flex flex-wrap items-center gap-y-1.5">
-        <Link to="/" className="hover:text-foreground transition-colors duration-300">
+      <div className="px-5 lg:px-10 mb-6 text-[12px] font-normal tracking-normal uppercase text-muted-foreground/50 max-w-7xl mx-auto flex items-center gap-y-1.5 whitespace-nowrap overflow-x-auto scrollbar-none justify-start">
+        <Link to="/" className="hover:text-foreground hover:underline transition-colors duration-300">
           Home
         </Link>
         {categoryPathSlugs ? (
@@ -251,8 +251,8 @@ function ProductPage() {
             const href = `/shop/${pathSlugs.join("/")}`;
             return (
               <span key={item.slug} className="flex items-center">
-                <span className="mx-3 text-[9px] opacity-40">&gt;</span>
-                <Link to={href as any} className="hover:text-foreground transition-colors duration-300">
+                <span className="mx-2 text-[10px] text-muted-foreground/30 font-sans select-none">&gt;</span>
+                <Link to={href as any} className="hover:text-foreground hover:underline transition-colors duration-300">
                   {item.name}
                 </Link>
               </span>
@@ -260,26 +260,26 @@ function ProductPage() {
           })
         ) : (
           <>
-            <span className="mx-3 text-[9px] opacity-40">&gt;</span>
+            <span className="mx-2 text-[10px] text-muted-foreground/30 font-sans select-none">&gt;</span>
             <Link
               to={`/shop/${(product as any).category_slug || (product.category as string).toLowerCase()}` as any}
-              className="hover:text-foreground transition-colors duration-300"
+              className="hover:text-foreground hover:underline transition-colors duration-300"
             >
               {product.category}
             </Link>
             {product.subcategory && (
               <span className="flex items-center">
-                <span className="mx-3 text-[9px] opacity-40">&gt;</span>
-                <span className="text-foreground">{product.subcategory}</span>
+                <span className="mx-2 text-[10px] text-muted-foreground/30 font-sans select-none">&gt;</span>
+                <span className="text-muted-foreground/55">{product.subcategory}</span>
               </span>
             )}
           </>
         )}
-        <span className="mx-3 text-[9px] opacity-40">&gt;</span>
-        <span className="text-foreground font-bold">{product.name}</span>
+        <span className="mx-2 text-[10px] text-muted-foreground/30 font-sans select-none">&gt;</span>
+        <span className="text-foreground/90 font-semibold">{product.name}</span>
       </div>
 
-      <div className="px-5 lg:px-10 grid lg:grid-cols-2 gap-12 lg:gap-20 max-w-7xl mx-auto items-stretch">
+      <div className="px-5 lg:px-10 grid lg:grid-cols-[706px_1fr] gap-12 lg:gap-16 max-w-7xl mx-auto items-stretch">
         {/* ─── 2. Image Gallery ─── */}
         <div className="grid grid-cols-1 md:grid-cols-[90px_1fr] gap-6 md:gap-8 h-fit lg:sticky lg:top-28">
           {/* Thumbnails (Desktop) */}
@@ -310,7 +310,7 @@ function ProductPage() {
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
             onClick={() => setLightboxOpen(true)}
-            className="md:col-start-2 overflow-hidden aspect-[3/4] rounded-lg bg-neutral/40 cursor-crosshair relative shadow-inner border border-border/15"
+            className="md:col-start-2 overflow-hidden aspect-[3/4] lg:aspect-auto w-full lg:w-[584px] lg:h-[876px] rounded-lg bg-neutral/40 cursor-crosshair relative shadow-inner border border-border/15"
           >
             <img
               src={activeImages[imgIdx]}
