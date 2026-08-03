@@ -320,7 +320,7 @@ function ProductPage() {
               }`}
             />
             {!isOOS && priceInfo.isOnSale && priceInfo.discountPercent > 0 && (
-              <span className="absolute top-4 left-4 text-[9px] tracking-[0.2em] uppercase border border-gold/30 text-gold bg-background/95 px-3 py-1.5 backdrop-blur font-bold rounded-full shadow-sm leading-none z-10">
+              <span className="absolute top-4 left-4 inline-flex items-center justify-center text-[10px] font-extrabold tracking-[0.2em] uppercase border border-gold/30 text-gold bg-background/95 px-3 py-1.5 backdrop-blur rounded-full shadow-sm leading-none z-10 antialiased">
                 {priceInfo.badgeText}
               </span>
             )}
@@ -391,7 +391,7 @@ function ProductPage() {
             {/* Product Title */}
             <div>
               {product.badge && (
-                <span className="text-[9px] tracking-[0.25em] uppercase text-gold font-bold bg-gold/5 border border-gold/15 px-2.5 py-0.5 rounded-full inline-block mb-2">
+                <span className="inline-flex items-center justify-center text-[10px] font-extrabold tracking-[0.25em] uppercase text-gold bg-gold/5 border border-gold/15 px-3 py-1 rounded-full mb-3 leading-none antialiased">
                   {product.badge}
                 </span>
               )}

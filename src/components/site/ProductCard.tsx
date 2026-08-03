@@ -282,14 +282,14 @@ export function ProductCard({ product }: { product: Product }) {
 
           {/* Sale Percentage (Rounded pill, soft background, placed directly below price) */}
           {priceInfo.isOnSale && priceInfo.discountPercent > 0 && (
-            <span className="inline-block text-[9px] tracking-widest uppercase border border-gold/25 text-gold bg-gold/5 px-2.5 py-0.5 rounded-full mt-0.5 leading-none font-bold">
+            <span className="inline-flex items-center justify-center text-[10px] font-extrabold tracking-widest uppercase border border-gold/25 text-gold bg-gold/5 px-3 py-1 rounded-full mt-1.5 leading-none antialiased">
               {priceInfo.discountPercent}% OFF
             </span>
           )}
 
           {/* Product Tags (placed below the sale badge, small pills, soft background) */}
           {product.badge && (
-            <span className="inline-block text-[9px] tracking-widest uppercase border border-border/40 text-muted-foreground bg-neutral/10 px-2.5 py-0.5 rounded-full mt-1 leading-none font-bold">
+            <span className="inline-flex items-center justify-center text-[10px] font-extrabold tracking-widest uppercase border border-border/40 text-muted-foreground bg-neutral/10 px-3 py-1 rounded-full mt-2 leading-none antialiased">
               {product.badge}
             </span>
           )}
@@ -325,7 +325,13 @@ export function ProductCard({ product }: { product: Product }) {
                 <X className="h-5 w-5" />
               </button>
 
-              {product.badge && <span className="eyebrow text-gold mb-2">{product.badge}</span>}
+              {product.badge && (
+                <div className="mb-3.5">
+                  <span className="inline-flex items-center justify-center text-[10px] font-extrabold tracking-widest uppercase border border-gold/25 text-gold bg-gold/5 px-3 py-1 rounded-full leading-none antialiased">
+                    {product.badge}
+                  </span>
+                </div>
+              )}
               <h1 className="font-serif text-3xl font-light text-foreground">{product.name}</h1>
               <p className="text-xs text-muted-foreground tracking-widest uppercase mt-1">
                 {product.subcategory}
