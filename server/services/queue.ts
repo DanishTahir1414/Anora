@@ -90,6 +90,26 @@ export class QueueService {
   }
 
   async processPending(limit: number = config.queue.batchSize): Promise<number> {
+    // Recover stale jobs in processing state for over 15 minutes back to pending
+    try {
+      const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const { data: recovered, error: recoveryError } = await (this.supabase
+        .from("background_jobs") as any)
+        .update({ status: "pending", error: "Stale job recovered by queue sweeper" })
+        .eq("status", "processing")
+        .lt("started_at", fifteenMinutesAgo)
+        .select("id");
+
+      if (recovered && recovered.length > 0) {
+        logger.info("Queue Sweeper: Recovered stale background jobs back to pending", {
+          count: recovered.length,
+          jobIds: recovered.map((j: any) => j.id),
+        });
+      }
+    } catch (err) {
+      logger.error("Queue Sweeper: Failed to sweep stale jobs", { error: String(err) });
+    }
+
     // Process failed/retryable jobs first
     try {
       await this.retryFailed(limit);
@@ -137,10 +157,10 @@ export class QueueService {
   private async execute(job: JobRecord): Promise<boolean> {
     const jobId = job.id;
 
-    // Atomic claim — update to processing only if still pending
+    // Atomic claim — update to processing only if still pending, and log start time
     const { data: claimed, error: claimError } = await (this.supabase
       .from("background_jobs") as any)
-      .update({ status: "processing" })
+      .update({ status: "processing", started_at: new Date().toISOString() })
       .eq("id", jobId)
       .eq("status", "pending")
       .select()

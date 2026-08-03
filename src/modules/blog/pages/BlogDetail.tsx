@@ -164,7 +164,22 @@ export function BlogDetail({ post }: { post: BlogPostWithDetails }) {
               ) : (
                 <User className="h-4 w-4" />
               )}
-              <span className="font-medium text-foreground">{post.author?.name || "ANORA Atelier"}</span>
+              <span className="font-medium text-foreground">
+                {(() => {
+                  const name = post.author?.name || "ANORA Atelier";
+                  if (name.includes("ANORA")) {
+                    const parts = name.split("ANORA");
+                    return (
+                      <>
+                        {parts[0]}
+                        <span className="font-brand">ANORA</span>
+                        {parts[1]}
+                      </>
+                    );
+                  }
+                  return name;
+                })()}
+              </span>
             </div>
             <span>·</span>
             <div className="flex items-center gap-1.5">

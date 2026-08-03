@@ -22,6 +22,7 @@ import {
   X,
   BookOpen,
   Settings,
+  RotateCcw,
 } from "lucide-react";
 
 interface SidebarItem {
@@ -33,6 +34,7 @@ interface SidebarItem {
 const ITEMS: SidebarItem[] = [
   { label: "Dashboard", to: "/admin", icon: <LayoutDashboard className="h-4 w-4" /> },
   { label: "Orders", to: "/admin/orders", icon: <ListOrdered className="h-4 w-4" /> },
+  { label: "Refunds", to: "/admin/refunds", icon: <RotateCcw className="h-4 w-4" /> },
   { label: "Products", to: "/admin/products", icon: <PackagePlus className="h-4 w-4" /> },
   { label: "Categories", to: "/admin/categories", icon: <LayoutList className="h-4 w-4" /> },
   { label: "Inventory", to: "/admin/inventory", icon: <Warehouse className="h-4 w-4" /> },
@@ -69,19 +71,19 @@ const USER_ITEMS: SidebarItem[] = [
 const NAV_GROUPS = [
   {
     label: "Core",
-    items: ITEMS.slice(0, 6),
+    items: ITEMS.slice(0, 7),
   },
   {
     label: "Commerce",
-    items: ITEMS.slice(6, 9),
+    items: ITEMS.slice(7, 10),
   },
   {
     label: "Finance & Reports",
-    items: ITEMS.slice(9, 12),
+    items: ITEMS.slice(10, 13),
   },
   {
     label: "System",
-    items: ITEMS.slice(12),
+    items: ITEMS.slice(13),
   },
 ];
 

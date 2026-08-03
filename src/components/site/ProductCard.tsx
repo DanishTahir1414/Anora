@@ -266,10 +266,10 @@ export function ProductCard({ product }: { product: Product }) {
           <div className="flex items-baseline gap-2 mt-1 flex-wrap">
             {priceInfo.isOnSale ? (
               <>
-                <span className="text-[11px] text-muted-foreground line-through tracking-wider">
+                <span className="text-[11px] text-[#81807f] line-through tracking-wider">
                   USD {priceInfo.originalPrice}
                 </span>
-                <span className="text-xs font-semibold text-gold tracking-wider">
+                <span className="text-xs font-semibold text-black tracking-wider">
                   USD {priceInfo.salePrice}
                 </span>
               </>
@@ -282,14 +282,14 @@ export function ProductCard({ product }: { product: Product }) {
 
           {/* Sale Percentage (Rounded pill, soft background, placed directly below price) */}
           {priceInfo.isOnSale && priceInfo.discountPercent > 0 && (
-            <span className="inline-block text-[9px] tracking-widest uppercase border border-gold/25 text-gold bg-gold/5 px-2.5 py-0.5 rounded-full mt-0.5 leading-none">
+            <span className="inline-block text-[9px] tracking-widest uppercase border border-gold/25 text-gold bg-gold/5 px-2.5 py-0.5 rounded-full mt-0.5 leading-none font-bold">
               {priceInfo.discountPercent}% OFF
             </span>
           )}
 
           {/* Product Tags (placed below the sale badge, small pills, soft background) */}
           {product.badge && (
-            <span className="inline-block text-[9px] tracking-widest uppercase border border-border/40 text-muted-foreground bg-neutral/10 px-2.5 py-0.5 rounded-full mt-1 leading-none">
+            <span className="inline-block text-[9px] tracking-widest uppercase border border-border/40 text-muted-foreground bg-neutral/10 px-2.5 py-0.5 rounded-full mt-1 leading-none font-bold">
               {product.badge}
             </span>
           )}

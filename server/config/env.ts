@@ -158,11 +158,11 @@ class Environment {
   }
 
   get fromEmail(): string {
-    return this.get("FROM_EMAIL") || "orders@anora-elegance.com";
+    return this.get("FROM_EMAIL") || "onboarding@resend.dev";
   }
 
   get adminEmail(): string {
-    return this.get("ADMIN_EMAIL") || this.get("FROM_EMAIL") || "orders@anora-elegance.com";
+    return this.get("ADMIN_EMAIL") || this.get("FROM_EMAIL") || "onboarding@resend.dev";
   }
 
   get publicAppUrl(): string {

@@ -19,9 +19,14 @@ export function Footer() {
             {settings?.logo ? (
               <img src={settings.logo} alt={BRAND_NAME} className="h-8 w-auto object-contain" />
             ) : (
-              <span className="font-serif text-3xl tracking-[0.3em] text-foreground hover:text-gold transition-colors duration-300">
-                {BRAND_NAME}
-              </span>
+              <div className="flex flex-col items-start gap-1.5">
+                <span className="font-brand text-3xl tracking-[0.3em] text-foreground hover:text-gold transition-colors duration-300 leading-none">
+                  {BRAND_NAME}
+                </span>
+                <span className="text-[10px] tracking-[0.32em] uppercase text-muted-foreground select-none font-sans font-medium">
+                  NEW YORK
+                </span>
+              </div>
             )}
           </Link>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">

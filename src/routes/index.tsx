@@ -98,7 +98,7 @@ function Home() {
         )}
         <div className="absolute inset-0 bg-gradient-to-b from-ink/10 via-transparent to-ink/35" />
         <div className="relative h-full flex flex-col items-center justify-center text-center px-6 text-background animate-fade-up">
-          <h1 className="font-serif text-[clamp(3.5rem,10vw,8rem)] leading-[0.92] tracking-[0.06em]">
+          <h1 className="font-brand text-[clamp(3.5rem,10vw,8rem)] leading-[0.92] tracking-[0.06em]">
             {settings?.hero_heading || DEFAULT_SITE_SETTINGS.hero_heading}
           </h1>
           <div className="mt-4 h-px w-16 bg-gold/60" />
@@ -357,7 +357,7 @@ function Home() {
       <section className="bg-neutral/30 py-24 lg:py-32 border-t border-border/25">
         <div className="text-center px-5 mb-14">
           <span className="eyebrow">Follow Us</span>
-          <h2 className="mt-4 font-serif text-4xl md:text-5xl">@ANORA</h2>
+          <h2 className="mt-4 font-brand text-4xl md:text-5xl">@ANORA</h2>
           <p className="mt-4 text-sm text-muted-foreground max-w-md mx-auto">
             Quiet moments from the atelier, worn in the world.
           </p>

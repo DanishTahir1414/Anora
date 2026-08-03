@@ -27,7 +27,7 @@ export interface CheckoutAddress {
 }
 
 export interface CreateCheckoutSessionInput {
-  userId: string;
+  userId: string | null;
   email: string;
   items: CheckoutItemInput[];
   shippingAddress: CheckoutAddress;
@@ -75,6 +75,7 @@ export async function createPaymentIntent(
     browser?: string;
     ipAddress?: string;
     deviceType?: string;
+    couponCode?: string;
   },
 ): Promise<CreatePaymentIntentResult> {
   const container = getContainer();
@@ -91,7 +92,24 @@ export async function createPaymentIntent(
     throw new PaymentError(validation.error ?? "Cart validation failed");
   }
 
-  const totals = calculateTotals(validation.items);
+  // Server-side Coupon validation & application
+  let discountAmount = 0;
+  if (input.couponCode) {
+    const { validateCoupon } = await import("./cart-validation");
+    const totalsTemp = calculateTotals(validation.items);
+    const couponVal = await validateCoupon(input.couponCode, totalsTemp.subtotal);
+    if (couponVal.ok) {
+      if (couponVal.discountType === "percentage") {
+        discountAmount = totalsTemp.subtotal * (couponVal.discountValue! / 100);
+      } else if (couponVal.discountType === "fixed") {
+        discountAmount = couponVal.discountValue!;
+      }
+    } else {
+      throw new PaymentError(couponVal.error ?? "Invalid coupon code");
+    }
+  }
+
+  const totals = calculateTotals(validation.items, { discountAmount });
   const amountInCents = Math.round(totals.total * 100);
 
   const cartHash = validation.items
@@ -105,6 +123,11 @@ export async function createPaymentIntent(
     item_count: String(validation.items.length),
     currency: totals.currency,
   };
+
+  if (input.couponCode) {
+    metadata.coupon_code = input.couponCode;
+    metadata.discount_amount = String(discountAmount);
+  }
 
   if (input.checkoutRequestId) {
     metadata.checkout_request_id = input.checkoutRequestId;
@@ -143,7 +166,7 @@ export async function createPaymentIntent(
   } catch (stripeErr) {
     logger.error("Stripe PaymentIntent creation failed", {
       error: stripeErr instanceof Error ? stripeErr.message : String(stripeErr),
-      userId: input.userId,
+      userId: input.userId || undefined,
     });
     throw stripeErr;
   }
@@ -330,7 +353,7 @@ export async function createStripeCheckoutSession(
   sessionParams.set("customer_email", input.email);
   sessionParams.set("automatic_payment_methods[enabled]", "true");
   sessionParams.set("shipping_address_collection[allowed_countries][]", "US");
-  sessionParams.set("metadata[user_id]", input.userId);
+  sessionParams.set("metadata[user_id]", input.userId || "");
   sessionParams.set("metadata[email]", input.email);
   sessionParams.set("metadata[subtotal]", String(totals.subtotal));
   sessionParams.set("metadata[total]", String(totals.total));

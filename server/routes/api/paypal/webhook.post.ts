@@ -272,9 +272,79 @@ export default defineEventHandler(async (event) => {
         amount: resource?.amount,
       });
 
-      await finalizeWebhookEvent(supabase, parsed.id, "completed");
+      const captureId = resource?.capture_id as string | undefined;
+      const paypalRefundId = resource?.id as string | undefined;
+      let orderId: string | undefined;
+      let orderNumber = "—";
+
+      if (captureId) {
+        try {
+          const isProduction = env.paypalEnvironment === "production";
+          const apiBase = isProduction ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
+          const clientId = env.paypalClientId;
+          const secret = env.paypalSecret;
+
+          // 1. Get Access Token
+          const tokenResponse = await fetch(`${apiBase}/v1/oauth2/token`, {
+            method: "POST",
+            headers: {
+              Authorization: `Basic ${Buffer.from(`${clientId}:${secret}`).toString("base64")}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: "grant_type=client_credentials",
+          });
+          const tokenData = (await tokenResponse.json()) as { access_token?: string };
+
+          if (tokenData.access_token) {
+            // 2. Fetch Capture Details
+            const captureResponse = await fetch(`${apiBase}/v2/payments/captures/${captureId}`, {
+              headers: { Authorization: `Bearer ${tokenData.access_token}` }
+            });
+            const captureData = (await captureResponse.json()) as { custom_id?: string };
+            const paypalOrderId = captureData.custom_id;
+
+            if (paypalOrderId) {
+              const { data: order } = await (supabase as any)
+                .from("orders")
+                .select("id, order_number")
+                .eq("paypal_order_id", paypalOrderId)
+                .maybeSingle();
+
+              if (order) {
+                orderId = order.id;
+                orderNumber = order.order_number || "—";
+              }
+            }
+          }
+        } catch (err) {
+          logger.error("PayPal Webhook: Failed to resolve order via capture fetch", { error: String(err) });
+        }
+      }
+
+      if (orderId) {
+        const { data: refundRecord } = await (supabase as any)
+          .from("refunds")
+          .select("id, status, amount")
+          .eq("order_id", orderId)
+          .in("status", ["pending", "approved", "awaiting_return", "received", "inspection_passed", "processing"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (refundRecord) {
+          if (refundRecord.status !== "completed") {
+            await container.refund.completeRefund(
+              refundRecord.id,
+              "system",
+              paypalRefundId || refundRecord.stripe_refund_id
+            );
+          }
+        }
+      }
+
+      await finalizeWebhookEvent(supabase, parsed.id, "completed", orderId);
       logger.info("PayPal Webhook: Database event finalized", { eventId: parsed.id, status: "completed" });
-      return { received: true, status: "refunded" };
+      return { received: true, status: "refunded", order_id: orderId };
     }
 
     // Default fallback for other events

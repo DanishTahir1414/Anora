@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
 import { useAuth, ProtectedRoute } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
-import { cancelOrder, requestRefund } from "@/lib/admin-orders";
+import { cancelOrder } from "@/lib/admin-orders";
+import { submitRefundRequest } from "@/lib/refund-actions";
 import { formatAddress, getInvoicePdfUrl } from "@/lib/payments";
 import { toast } from "sonner";
 import {
@@ -567,26 +568,98 @@ function RequestRefundDialog({
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [description, setDescription] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
   const [error, setError] = useState("");
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const selectedFiles = Array.from(e.target.files);
+      const invalidFiles = selectedFiles.filter(file => {
+        const ext = file.name.split(".").pop()?.toLowerCase();
+        return !["jpg", "jpeg", "png", "webp", "mp4", "mov"].includes(ext || "");
+      });
+
+      if (invalidFiles.length > 0) {
+        setError(`Unsupported format: ${invalidFiles.map(f => f.name).join(", ")}. Allowed: JPG, JPEG, PNG, WEBP, MP4, MOV.`);
+        return;
+      }
+
+      const oversizedFiles = selectedFiles.filter(file => file.size > 50 * 1024 * 1024);
+      if (oversizedFiles.length > 0) {
+        setError(`Files exceed 50MB limit: ${oversizedFiles.map(f => f.name).join(", ")}.`);
+        return;
+      }
+
+      setError("");
+      setFiles(selectedFiles);
+    }
+  };
 
   async function handleSubmit() {
     if (!reason) return;
     setSubmitting(true);
     setError("");
+    setUploadProgress("");
     try {
-      const result = await requestRefund(orderId, reason, description || undefined);
-      if (!result.success) {
-        setError(result.error ?? "Could not submit refund request");
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        setError("Please sign in to submit a refund request");
+        setSubmitting(false);
         return;
       }
-      toast.success("Refund request submitted");
+
+      const uploadedUrls: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadProgress(`Uploading proof ${i + 1} of ${files.length}...`);
+
+        const fileUuid = Math.random().toString(36).substring(2) + Date.now().toString(36);
+        const fileExt = file.name.split(".").pop()?.toLowerCase();
+        const filePath = `${orderId}/${fileUuid}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("refund-attachments")
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from("refund-attachments")
+          .getPublicUrl(filePath);
+
+        uploadedUrls.push(urlData.publicUrl);
+      }
+
+      setUploadProgress("Submitting request details...");
+      const result = await submitRefundRequest({
+        data: {
+          orderId,
+          reason,
+          description: description || undefined,
+          attachments: uploadedUrls,
+          accessToken: token,
+        }
+      });
+
+      if (!result.success) {
+        setError("Could not submit refund request");
+        return;
+      }
+
+      toast.success("Refund request submitted successfully");
       setOpen(false);
+      setReason("");
+      setDescription("");
+      setFiles([]);
       onDone();
-    } catch {
-      setError("Could not submit refund request");
+    } catch (err: any) {
+      setError(err?.message || "Could not submit refund request");
     } finally {
       setSubmitting(false);
+      setUploadProgress("");
     }
   }
 
@@ -601,30 +674,60 @@ function RequestRefundDialog({
 
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-ink/40 px-4">
-          <div className="bg-background max-w-md w-full p-8">
+          <div className="bg-background max-w-md w-full p-8 border border-border/80 shadow-2xl">
             <p className="font-serif text-xl">Request a Refund</p>
             <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-              Tell us why you'd like a refund for this order.
+              Tell us why you'd like a refund for this order. Please upload parcel opening video and images as proof.
             </p>
 
-            <div className="mt-5 space-y-3">
-              <select
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="">Select a reason…</option>
-                {REFUND_REASONS.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Optional description…"
-                rows={3}
-                className="w-full bg-background border border-border px-3 py-2 text-sm outline-none focus:border-foreground transition-colors resize-none"
-              />
+            <div className="mt-5 space-y-4">
+              <div>
+                <label className="text-[10px] tracking-wider uppercase text-muted-foreground mb-1 block">Reason (Required)</label>
+                <select
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  className="w-full h-9 rounded-none border border-border bg-background px-3 text-sm focus:border-foreground outline-none transition-colors"
+                >
+                  <option value="">Select a reason…</option>
+                  {REFUND_REASONS.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] tracking-wider uppercase text-muted-foreground mb-1 block">Details</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Tell us more about the issues..."
+                  rows={3}
+                  className="w-full bg-background border border-border px-3 py-2 text-sm outline-none focus:border-foreground transition-colors resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] tracking-wider uppercase text-muted-foreground mb-1 block">Upload Proof (Images/Video - Max 50MB total)</label>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime"
+                  onChange={handleFileChange}
+                  className="w-full text-xs text-muted-foreground file:mr-4 file:py-2 file:px-4 file:border file:border-border/60 file:bg-background file:text-xs file:tracking-wider file:uppercase file:text-muted-foreground file:cursor-pointer hover:file:text-foreground hover:file:border-foreground"
+                />
+                {files.length > 0 && (
+                  <p className="text-xs text-emerald-600 mt-1">
+                    {files.length} file(s) selected: {files.map(f => f.name).join(", ")}
+                  </p>
+                )}
+              </div>
+
+              {uploadProgress && (
+                <p className="text-xs text-gold animate-pulse">
+                  {uploadProgress}
+                </p>
+              )}
+
               {error && (
                 <p className="text-[11px] tracking-wider uppercase text-red/80 bg-red/5 border border-red/20 px-3 py-2">
                   {error}
@@ -638,6 +741,7 @@ function RequestRefundDialog({
                   setOpen(false);
                   setReason("");
                   setDescription("");
+                  setFiles([]);
                   setError("");
                 }}
                 disabled={submitting}
@@ -682,7 +786,12 @@ function OrderDetailView({
   const cancellationReason = String(order.cancellation_reason ?? "");
 
   const cancellable = ["pending", "confirmed", "processing"].includes(status);
-  const canRequestRefund = status === "delivered" && refunds.every((r) => r.status !== "pending" && r.status !== "approved");
+  const isPaid = order.payment_status === "completed" || order.payment_status === "paid";
+  const isDeliveredOrCompleted = status === "delivered" || status === "completed";
+  const hasActiveRefund = refunds.some((r) => 
+    ["pending", "approved", "awaiting_return", "received", "inspection_passed", "processing"].includes(String(r.status))
+  );
+  const canRequestRefund = isPaid && isDeliveredOrCompleted && !hasActiveRefund;
 
   return (
     <div>
@@ -716,9 +825,9 @@ function OrderDetailView({
                     ? "text-emerald-600 border-emerald-600/30"
                     : status === "shipped"
                       ? "text-gold border-gold/30"
-                      : status === "cancelled"
-                        ? "text-red/70 border-red/30"
-                        : "text-muted-foreground border-border"
+                      : status === "cancelled" || status === "refunded"
+                      ? "text-red/70 border-red/30"
+                      : "text-muted-foreground border-border"
               }`}
             >
               {status || "pending"}
@@ -845,11 +954,31 @@ function OrderDetailView({
                           : "text-gold"
                     }
                   >
-                    {String(r.status ?? "")}
+                    {r.status === "completed"
+                      ? "Refunded"
+                      : r.status === "rejected"
+                        ? "Rejected"
+                        : r.status === "pending"
+                          ? "Requested"
+                          : r.status === "approved" || r.status === "awaiting_return"
+                            ? "Return Approved — Awaiting Shipment"
+                            : r.status === "received"
+                              ? "Items Received — Under Quality Inspection"
+                              : r.status === "inspection_passed"
+                                ? "Inspection Passed — Refund Processing"
+                                : r.status === "processing"
+                                  ? "Refund Processing"
+                                  : String(r.status ?? "")}
                   </span>
                 </p>
                 <p className="text-muted-foreground">Amount: ${Number(r.amount ?? 0).toFixed(2)}</p>
                 {!!r.reason && <p className="text-muted-foreground">Reason: {String(r.reason)}</p>}
+                {!!r.rejection_reason && <p className="text-red-500 font-medium text-xs mt-1">Rejection Reason: {String(r.rejection_reason)}</p>}
+                {!!r.more_info_notes && (
+                  <p className="text-amber-600 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs border border-amber-200 mt-2 font-medium">
+                    Concierge Clarification Requested: "{String(r.more_info_notes)}"
+                  </p>
+                )}
                 {!!r.processed_at && (
                   <p className="text-muted-foreground">
                     Processed: {new Date(String(r.processed_at)).toLocaleString()}

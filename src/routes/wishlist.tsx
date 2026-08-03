@@ -52,7 +52,7 @@ function WishlistPage() {
                   </div>
                 </Link>
                 {priceInfo.isOnSale && priceInfo.discountPercent > 0 && (
-                  <span className="absolute top-3 left-3 text-[9px] tracking-[0.18em] uppercase border border-gold/30 text-gold bg-background/95 px-2.5 py-1.5 backdrop-blur font-semibold rounded-full shadow-sm leading-none z-10">
+                  <span className="absolute top-3 left-3 text-[9px] tracking-[0.18em] uppercase border border-gold/30 text-gold bg-background/95 px-2.5 py-1.5 backdrop-blur font-bold rounded-full shadow-sm leading-none z-10">
                     {priceInfo.badgeText}
                   </span>
                 )}

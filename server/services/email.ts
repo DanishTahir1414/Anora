@@ -186,6 +186,70 @@ export class EmailService {
     });
   }
 
+  async sendRefundUpdate(
+    to: string,
+    data: {
+      customerName?: string;
+      orderNumber: string;
+      amount: number;
+      refundStatus: "processed" | "completed";
+      items: any[];
+    },
+    orderId?: string,
+  ): Promise<void> {
+    const { buildRefundUpdateHtml } = await import("../templates");
+    const html = buildRefundUpdateHtml({
+      customerName: data.customerName,
+      orderNumber: data.orderNumber,
+      amount: data.amount,
+      refundStatus: data.refundStatus,
+      items: data.items,
+    });
+
+    const statusLabel = data.refundStatus === "processed" ? "Approved" : "Completed";
+    const emailType = data.refundStatus === "processed" ? "refund_approved" : "refund_completed";
+
+    return this.sendWithLogging({
+      to,
+      subject: `Refund ${statusLabel} — Order #${data.orderNumber}`,
+      html,
+      emailType,
+      orderId,
+    });
+  }
+
+  async sendReturnUpdate(
+    to: string,
+    data: {
+      customerName?: string;
+      orderNumber: string;
+      returnStatus: "requested" | "approved" | "rejected";
+      reason?: string;
+      items: any[];
+    },
+    orderId?: string,
+  ): Promise<void> {
+    const { buildReturnUpdateHtml } = await import("../templates");
+    const html = buildReturnUpdateHtml({
+      customerName: data.customerName,
+      orderNumber: data.orderNumber,
+      returnStatus: data.returnStatus,
+      reason: data.reason,
+      items: data.items,
+    });
+
+    const statusLabel = data.returnStatus === "approved" ? "Approved" : data.returnStatus === "rejected" ? "Rejected" : "Requested";
+    const emailType = `return_${data.returnStatus}`;
+
+    return this.sendWithLogging({
+      to,
+      subject: `Return Request ${statusLabel} — Order #${data.orderNumber}`,
+      html,
+      emailType,
+      orderId,
+    });
+  }
+
   async sendAdminNotification(subject: string, html: string, orderId?: string): Promise<void> {
     return this.sendWithLogging({
       to: this.getAdminEmail(),

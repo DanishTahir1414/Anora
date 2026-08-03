@@ -8,6 +8,7 @@ import { InvoiceService } from "../services/invoice";
 import { EmailService, initEmailService } from "../services/email";
 import { QueueService } from "../services/queue";
 import type { JobRecord } from "../services/queue";
+import { RefundService } from "../services/refund";
 
 export class ServerContainer {
   private _supabase: ReturnType<typeof createClient> | null = null;
@@ -16,6 +17,7 @@ export class ServerContainer {
   private _invoice: InvoiceService | null = null;
   private _email: EmailService | null = null;
   private _queue: QueueService | null = null;
+  private _refund: RefundService | null = null;
   private _initialized = false;
 
   async initialize(): Promise<void> {
@@ -53,6 +55,10 @@ export class ServerContainer {
 
     // 6. Initialize invoice service
     this._invoice = new InvoiceService(this.supabase, this.storage);
+
+    // 6b. Initialize refund service
+    this._refund = new RefundService(this.supabase, this.stripe, this._email);
+    logger.info("Refund service initialized");
 
     // 7. Initialize queue with handlers
     this._queue = new QueueService(this.supabase);
@@ -236,6 +242,11 @@ export class ServerContainer {
   get email(): EmailService {
     if (!this._email) throw new Error("ServerContainer not initialized");
     return this._email;
+  }
+
+  get refund(): RefundService {
+    if (!this._refund) throw new Error("ServerContainer not initialized");
+    return this._refund;
   }
 
   get queue(): QueueService {

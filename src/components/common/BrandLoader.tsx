@@ -101,7 +101,7 @@ export function BrandLoader({ isLoading }: BrandLoaderProps) {
                 y="55%"
                 textAnchor="middle"
                 dominantBaseline="middle"
-                className="font-serif text-4xl sm:text-5xl tracking-[0.35em]"
+                className="font-brand text-4xl sm:text-5xl tracking-[0.35em]"
               >
                 {BRAND_NAME}
               </text>
@@ -128,7 +128,7 @@ export function BrandLoader({ isLoading }: BrandLoaderProps) {
             fill="none"
             stroke="currentColor"
             strokeWidth="0.75"
-            className="font-serif text-4xl sm:text-5xl tracking-[0.35em] opacity-10 animate-brand-fade-in"
+            className="font-brand text-4xl sm:text-5xl tracking-[0.35em] opacity-10 animate-brand-fade-in"
           >
             {BRAND_NAME}
           </text>
@@ -142,7 +142,7 @@ export function BrandLoader({ isLoading }: BrandLoaderProps) {
             fill="none"
             stroke="currentColor"
             strokeWidth="0.75"
-            className="font-serif text-4xl sm:text-5xl tracking-[0.35em] opacity-40 animate-brand-outline"
+            className="font-brand text-4xl sm:text-5xl tracking-[0.35em] opacity-40 animate-brand-outline"
           >
             {BRAND_NAME}
           </text>

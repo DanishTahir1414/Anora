@@ -254,15 +254,142 @@ export default defineEventHandler(async (event) => {
       return { received: true, status: "payment_failed" };
     }
 
-    if (stripeEvent.type === "charge.refunded") {
-      const charge = stripeEvent.data.object as any;
-      logger.info("Stripe Webhook: Refund received", {
+    if (stripeEvent.type === "charge.refunded" || stripeEvent.type === "refund.updated") {
+      const stripeObj = stripeEvent.data.object as any;
+      const stripeRefundId = stripeEvent.type === "refund.updated" ? stripeObj.id : (stripeObj.refunds?.data?.[0]?.id);
+      const paymentIntentId = stripeEvent.type === "refund.updated" ? stripeObj.payment_intent : stripeObj.payment_intent;
+      const stripeRefundDbId = stripeEvent.type === "refund.updated"
+        ? stripeObj.metadata?.refund_id
+        : (stripeObj.refunds?.data?.[0]?.metadata?.refund_id);
+      const refundStatus = stripeEvent.type === "refund.updated" ? stripeObj.status : (stripeObj.refunds?.data?.[0]?.status);
+
+      logger.info("Stripe Webhook: Refund event received", {
         eventId: stripeEvent.id,
-        chargeId: charge.id,
-        paymentIntentId: charge.payment_intent,
+        eventType: stripeEvent.type,
+        stripeRefundId,
+        paymentIntentId,
+        stripeRefundDbId,
+        refundStatus,
       });
 
-      await finalizeWebhookEvent(supabase, stripeEvent.id, "completed");
+      if (refundStatus !== "succeeded") {
+        logger.info("Stripe Webhook: Skipping refund completion because Stripe refund status is not succeeded", {
+          eventId: stripeEvent.id,
+          stripeRefundId,
+          refundStatus,
+        });
+        await finalizeWebhookEvent(supabase, stripeEvent.id, "completed");
+        return { received: true, status: `skipped_${refundStatus}` };
+      }
+
+      let refundRecord: any = null;
+      const maxRetries = 5;
+      let attempt = 0;
+
+      while (attempt < maxRetries) {
+        if (stripeRefundDbId) {
+          const { data } = await (supabase as any)
+            .from("refunds")
+            .select("*, orders(*)")
+            .eq("id", stripeRefundDbId)
+            .maybeSingle();
+          refundRecord = data;
+        }
+
+        if (!refundRecord && stripeRefundId) {
+          const { data } = await (supabase as any)
+            .from("refunds")
+            .select("*, orders(*)")
+            .eq("stripe_refund_id", stripeRefundId)
+            .maybeSingle();
+          refundRecord = data;
+        }
+
+        if (!refundRecord && paymentIntentId) {
+          const { data: order } = await (supabase as any)
+            .from("orders")
+            .select("id")
+            .eq("stripe_payment_intent_id", paymentIntentId)
+            .maybeSingle();
+
+          if (order) {
+            const { data } = await (supabase as any)
+              .from("refunds")
+              .select("*, orders(*)")
+              .eq("order_id", order.id)
+              .in("status", ["pending", "approved", "awaiting_return", "received", "inspection_passed", "processing"])
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            refundRecord = data;
+          }
+        }
+
+        if (refundRecord) {
+          break;
+        }
+
+        attempt++;
+        if (attempt < maxRetries) {
+          const backoff = Math.pow(2, attempt) * 100;
+          logger.info(`Stripe Webhook: Refund record not found. Retrying in ${backoff}ms... (Attempt ${attempt}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, backoff));
+        }
+      }
+
+      if (refundRecord) {
+        if (refundRecord.status === "completed") {
+          logger.info("Stripe Webhook: Refund already completed. Skipping.", { refundId: refundRecord.id });
+          await finalizeWebhookEvent(supabase, stripeEvent.id, "completed", refundRecord.order_id);
+          return { received: true, status: "completed" };
+        }
+
+        // Delegate execution to RefundService.completeRefund for transactional safety
+        try {
+          await container.refund.completeRefund(
+            refundRecord.id,
+            "system",
+            stripeRefundId || refundRecord.stripe_refund_id
+          );
+        } catch (completeErr: any) {
+          logger.error("Stripe Webhook: Failed to complete refund in completeRefund()", {
+            refundId: refundRecord.id,
+            error: completeErr.message,
+            stack: completeErr.stack,
+          });
+          throw completeErr; // Re-throw to fail the webhook execution appropriately
+        }
+
+        // Notify admin about refund completion
+        try {
+          const ordersData = Array.isArray(refundRecord.orders)
+            ? refundRecord.orders[0]
+            : refundRecord.orders;
+          const orderNumber = ordersData?.order_number || "—";
+          const adminHtml = `
+            <p>Stripe has confirmed the refund of $${parseFloat(refundRecord.amount).toFixed(2)} for Order #${orderNumber}.</p>
+            <p><strong>Refund Details:</strong></p>
+            <ul>
+              <li>Order Number: #${orderNumber}</li>
+              <li>Refund ID: ${refundRecord.id}</li>
+              <li>Amount Refunded: $${parseFloat(refundRecord.amount).toFixed(2)}</li>
+              <li>Stripe Refund ID: ${stripeRefundId}</li>
+            </ul>
+          `;
+          await container.email.sendAdminNotification(
+            `Refund Completed — Order #${orderNumber}`,
+            adminHtml,
+            refundRecord.order_id
+          );
+          logger.info("Stripe Webhook: Admin refund completion notification sent successfully", {
+            refundId: refundRecord.id,
+          });
+        } catch (adminEmailErr: any) {
+          logger.warn("Stripe Webhook: Failed to send admin notification email", { error: adminEmailErr.message });
+        }
+      }
+
+      await finalizeWebhookEvent(supabase, stripeEvent.id, "completed", refundRecord?.order_id);
       return { received: true, status: "refunded" };
     }
 

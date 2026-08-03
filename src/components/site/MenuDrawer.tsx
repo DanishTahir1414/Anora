@@ -43,9 +43,16 @@ export function MenuDrawer({ open, onClose }: Props) {
           <Link
             to="/"
             onClick={onClose}
-            className="font-serif text-2xl tracking-[0.3em] hover:text-gold transition-colors"
+            className="hover:opacity-85 transition-opacity"
           >
-            {BRAND_NAME}
+            <div className="flex flex-col items-start gap-1">
+              <span className="font-brand text-2xl tracking-[0.3em] hover:text-gold transition-colors leading-none">
+                {BRAND_NAME}
+              </span>
+              <span className="text-[9px] tracking-[0.32em] uppercase text-muted-foreground select-none font-sans font-medium">
+                NEW YORK
+              </span>
+            </div>
           </Link>
           <button
             onClick={onClose}

@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS public.blog_tags (
 );
 
 -- 4. blogs (Posts)
+DROP TABLE IF EXISTS public.blogs CASCADE;
 CREATE TABLE IF NOT EXISTS public.blogs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,

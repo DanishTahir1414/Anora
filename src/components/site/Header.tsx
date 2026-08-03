@@ -85,9 +85,14 @@ export function Header() {
             {settings?.logo ? (
               <img src={settings.logo} alt={BRAND_NAME} className="h-8 lg:h-9 w-auto object-contain" />
             ) : (
-              <span className="font-serif text-2xl lg:text-3xl tracking-[0.35em] text-foreground hover:text-gold transition-colors duration-300">
-                {BRAND_NAME}
-              </span>
+              <div className="flex flex-col items-center gap-1">
+                <span className="font-brand text-2xl lg:text-3xl tracking-[0.35em] text-foreground hover:text-gold transition-colors duration-300 leading-none">
+                  {BRAND_NAME}
+                </span>
+                <span className="text-[9px] tracking-[0.35em] uppercase text-muted-foreground select-none font-sans font-medium">
+                  NEW YORK
+                </span>
+              </div>
             )}
           </Link>
           <div className="flex items-center justify-end gap-4 lg:gap-5 text-foreground">
@@ -166,9 +171,14 @@ export function Header() {
               {settings?.logo ? (
                 <img src={settings.logo} alt={BRAND_NAME} className="h-6 w-auto object-contain" />
               ) : (
-                <span className="font-serif text-xl tracking-[0.3em] text-foreground hover:text-gold transition-colors duration-300">
-                  {BRAND_NAME}
-                </span>
+                <div className="flex flex-col items-start gap-0.5">
+                  <span className="font-brand text-xl tracking-[0.3em] text-foreground hover:text-gold transition-colors duration-300 leading-none">
+                    {BRAND_NAME}
+                  </span>
+                  <span className="text-[8px] tracking-[0.32em] uppercase text-muted-foreground select-none font-sans font-medium">
+                    NEW YORK
+                  </span>
+                </div>
               )}
             </Link>
           </div>

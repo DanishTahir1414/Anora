@@ -28,6 +28,7 @@ const PaymentIntentSchema = z.object({
   accessToken: z.string().optional(),
   idempotencyKey: z.string().optional(),
   checkoutRequestId: z.string().optional(),
+  couponCode: z.string().optional(),
 });
 
 const PayPalCreateSchema = z.object({
@@ -36,6 +37,7 @@ const PayPalCreateSchema = z.object({
   billingAddress: AddressSchema.optional(),
   email: z.string().email(),
   accessToken: z.string().optional(),
+  couponCode: z.string().optional(),
 });
 
 const PayPalCaptureSchema = z.object({
@@ -46,6 +48,8 @@ const PayPalCaptureSchema = z.object({
   shippingAddress: AddressSchema,
   billingAddress: AddressSchema.optional(),
   paymentMethod: z.string().default("paypal"),
+  couponCode: z.string().optional(),
+  discountAmount: z.number().optional(),
 });
 
 const StripeCheckoutSchema = z.object({
@@ -91,6 +95,7 @@ export const createPaymentIntent = createServerFn({ method: "POST" })
       accessToken,
       idempotencyKey,
       checkoutRequestId,
+      couponCode,
     } = data;
 
     const userId = await getUserId(accessToken);
@@ -105,13 +110,14 @@ export const createPaymentIntent = createServerFn({ method: "POST" })
       billingAddress,
       idempotencyKey,
       checkoutRequestId,
+      couponCode,
     });
   });
 
 export const createPayPalOrder = createServerFn({ method: "POST" })
   .validator(PayPalCreateSchema)
   .handler(async ({ data }) => {
-    const { email, items, shippingAddress, billingAddress, accessToken } = data;
+    const { email, items, shippingAddress, billingAddress, accessToken, couponCode } = data;
 
     // Optional token validation (non-blocking for guest)
     if (accessToken) {
@@ -120,7 +126,22 @@ export const createPayPalOrder = createServerFn({ method: "POST" })
 
     const { createPayPalOrder: serverCreatePayPalOrder, validateAndBuildLineItems } =
       await import("../../server/lib/payments");
+    const { validateCoupon } = await import("../../server/lib/cart-validation");
     const { validation, totals } = await validateAndBuildLineItems(items);
+
+    let discountAmount = 0;
+    if (couponCode) {
+      const couponVal = await validateCoupon(couponCode, totals.subtotal);
+      if (couponVal.ok) {
+        if (couponVal.discountType === "percentage") {
+          discountAmount = totals.subtotal * (couponVal.discountValue! / 100);
+        } else if (couponVal.discountType === "fixed") {
+          discountAmount = couponVal.discountValue!;
+        }
+      }
+    }
+
+    const discountedSubtotal = Math.max(0, totals.subtotal - discountAmount);
 
     return await serverCreatePayPalOrder({
       items: validation.items.map((v) => ({
@@ -129,7 +150,7 @@ export const createPayPalOrder = createServerFn({ method: "POST" })
         unitAmount: Math.round(v.unitPrice * 100),
         description: "",
       })),
-      subtotal: Math.round(totals.subtotal * 100),
+      subtotal: Math.round(discountedSubtotal * 100),
       shipping: Math.round(totals.shipping * 100),
       tax: Math.round(totals.tax * 100),
     });
@@ -175,11 +196,11 @@ export const createOrder = createServerFn({ method: "POST" })
 export const createOrderFromPayPal = createServerFn({ method: "POST" })
   .validator(PayPalCaptureSchema)
   .handler(async ({ data }) => {
-    const { paypalOrderId, accessToken, email, items, shippingAddress, billingAddress, paymentMethod } = data;
+    const { paypalOrderId, accessToken, email, items, shippingAddress, billingAddress, paymentMethod, couponCode, discountAmount } = data;
 
     const userId = await getUserId(accessToken);
 
-    const { capturePayPalOrder: serverCapturePayPal, validateAndBuildLineItems } =
+    const { capturePayPalOrder: serverCapturePayPal } =
       await import("../../server/lib/payments");
 
     const captureResult = await serverCapturePayPal(paypalOrderId);
@@ -187,32 +208,25 @@ export const createOrderFromPayPal = createServerFn({ method: "POST" })
       throw new Error("PayPal payment could not be verified.");
     }
 
-    const { validation: cartValidation } = await validateAndBuildLineItems(items);
-    const validatedTotal = cartValidation.items.reduce(
-      (sum: number, v: { unitPrice: number; quantity: number }) => sum + v.unitPrice * v.quantity,
-      0,
-    );
-
     const { createOrderFromPayPal: serverCreateFromPayPal } = await import("../../server/lib/order-lifecycle");
     return await serverCreateFromPayPal({
       userId,
       email,
       paypalOrderId,
-      items: cartValidation.items.map((v: { productId: string; variantId: string | null; size: string; quantity: number; unitPrice: number; productName: string; imageUrl?: string; color?: string; variantName?: string }) => ({
-        productId: v.productId,
-        variantId: v.variantId ?? null,
-        size: v.size ?? "",
-        quantity: v.quantity,
-        unitPrice: v.unitPrice,
-        productName: v.productName,
-        imageUrl: v.imageUrl || undefined,
-        color: v.color,
-        variantName: v.variantName,
+      items: items.map((i) => ({
+        productId: i.productId,
+        variantId: i.variantId ?? null,
+        size: i.size ?? "",
+        quantity: i.quantity,
+        unitPrice: 0, // will be refetched / validated from DB in pipeline
+        productName: "", // will be refetched / validated from DB in pipeline
       })),
-      shippingAddress: shippingAddress as Record<string, string>,
-      billingAddress: (billingAddress ?? shippingAddress) as Record<string, string>,
-      total: validatedTotal,
-      paymentMethod: paymentMethod || "paypal",
+      shippingAddress: shippingAddress,
+      billingAddress: billingAddress ?? shippingAddress,
+      total: 0, // will be refetched / validated from DB in pipeline
+      paymentMethod,
+      couponCode,
+      discountAmount,
     });
   });
 

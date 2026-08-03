@@ -64,6 +64,8 @@ export interface PayPalOrderCreationInput {
   billingAddress: Record<string, string>;
   total: number;
   paymentMethod: string;
+  couponCode?: string;
+  discountAmount?: number;
 }
 
 type EmailPayloadInput = {
@@ -215,6 +217,8 @@ async function verifyPaymentIntent(paymentIntentId: string): Promise<{
   amount?: number;
   currency?: string;
   checkoutRequestId?: string;
+  couponCode?: string;
+  discountAmount?: number;
   error?: string;
 }> {
   const { stripe, supabase } = getContainer();
@@ -324,6 +328,8 @@ async function verifyPaymentIntent(paymentIntentId: string): Promise<{
       amount: pi.amount_received ?? 0,
       currency: pi.currency ?? "usd",
       checkoutRequestId: metadata.checkout_request_id || undefined,
+      couponCode: metadata.coupon_code || undefined,
+      discountAmount: metadata.discount_amount ? parseFloat(metadata.discount_amount) : undefined,
     };
   } catch (err) {
     return {
@@ -407,6 +413,8 @@ export interface CheckoutPipelineParams {
   stripeSessionId?: string;
   paypalOrderId?: string;
   checkoutRequestId?: string | null;
+  couponCode?: string;
+  discountAmount?: number;
 }
 
 export async function runCheckoutPipeline(
@@ -516,6 +524,56 @@ export async function runCheckoutPipeline(
     const invoiceId = (result.invoice_id as string) ?? "";
 
     logger.info("Transaction Committed", { orderId, orderNumber, invoiceId });
+
+    // Server-side Coupon Verification & Redemption
+    if (params.couponCode) {
+      try {
+        const { data: coupon } = await (supabase.from("coupons") as any)
+          .select("id, max_uses, used_count")
+          .eq("code", params.couponCode.toUpperCase())
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (coupon) {
+          const discountAmt = params.discountAmount || 0;
+
+          // 1. Atomically increment coupon usage count
+          await (supabase.from("coupons") as any)
+            .update({ used_count: (coupon.used_count || 0) + 1 })
+            .eq("id", coupon.id);
+
+          // 2. Insert redemption log only if user is authenticated
+          if (params.userId) {
+            await (supabase.from("coupon_redemptions") as any).insert({
+              coupon_id: coupon.id,
+              user_id: params.userId,
+              order_id: orderId,
+              discount_amount: discountAmt,
+            });
+          }
+
+          // 3. Update orders table details
+          await (supabase.from("orders") as any)
+            .update({
+              coupon_code: params.couponCode.toUpperCase(),
+              discount_amount: discountAmt,
+            })
+            .eq("id", orderId);
+
+          logger.info("Coupon redeemed and order updated successfully", {
+            orderId,
+            couponCode: params.couponCode,
+            discountAmt,
+          });
+        }
+      } catch (err: any) {
+        logger.error("Failed to redeem coupon during checkout pipeline commit", {
+          error: err.message,
+          orderId,
+          couponCode: params.couponCode,
+        });
+      }
+    }
 
     // Fetch actual order details to get final subtotal, discount, total, shipping, etc.
     let subtotal = params.total;
@@ -721,7 +779,9 @@ export async function createOrderFromPaymentIntent(
     total,
     paymentMethod: verification.paymentMethod ?? "card",
     stripePaymentIntentId: paymentIntentId,
-    checkoutRequestId: checkoutRequestId ?? null,
+    checkoutRequestId,
+    couponCode: (verification as any).couponCode,
+    discountAmount: (verification as any).discountAmount,
   });
 }
 
@@ -810,5 +870,7 @@ export async function createOrderFromPayPal(
     total: input.total,
     paymentMethod: input.paymentMethod,
     paypalOrderId: input.paypalOrderId,
+    couponCode: input.couponCode,
+    discountAmount: input.discountAmount,
   });
 }

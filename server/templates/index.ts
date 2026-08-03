@@ -1092,3 +1092,36 @@ export function buildOrderCancelledHtml(data: OrderCancelledData): string {
   `;
   return wrap(body);
 }
+
+// ─── Branded Notification Email ──────────────────────────────────────────
+export interface NotificationEmailData {
+  title: string;
+  message: string;
+  customerName?: string;
+  customer?: CustomerNameInput | null;
+}
+
+export function buildNotificationEmailHtml(data: NotificationEmailData): string {
+  const resolvedName = getCustomerDisplayName(data.customer || { displayName: data.customerName });
+  const body = `
+    ${header()}
+    <tr>
+      <td class="content" style="padding:0 48px;background-color:${WHITE};">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:16px 0 32px;text-align:left;">
+              <h2 style="font-family:'Didot','Playfair Display','Times New Roman',serif;font-size:24px;color:${DARK};margin:0 0 16px;font-weight:400;letter-spacing:1px;">${escapeHtml(data.title)}</h2>
+              <p style="font-size:14px;color:${TEXT};margin:0 0 16px;line-height:1.6;">Dear ${escapeHtml(resolvedName)},</p>
+              <p style="font-size:14px;color:${TEXT};margin:0;line-height:1.6;">
+                ${data.message}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    ${footer()}
+  `;
+  return wrap(body);
+}
+

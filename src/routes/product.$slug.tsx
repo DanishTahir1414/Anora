@@ -320,7 +320,7 @@ function ProductPage() {
               }`}
             />
             {!isOOS && priceInfo.isOnSale && priceInfo.discountPercent > 0 && (
-              <span className="absolute top-4 left-4 text-[9px] tracking-[0.2em] uppercase border border-gold/30 text-gold bg-background/95 px-3 py-1.5 backdrop-blur font-semibold rounded-full shadow-sm leading-none z-10">
+              <span className="absolute top-4 left-4 text-[9px] tracking-[0.2em] uppercase border border-gold/30 text-gold bg-background/95 px-3 py-1.5 backdrop-blur font-bold rounded-full shadow-sm leading-none z-10">
                 {priceInfo.badgeText}
               </span>
             )}
@@ -383,7 +383,7 @@ function ProductPage() {
         <div className="lg:sticky lg:top-24 lg:self-start space-y-8">
           <div>
             {product.badge && (
-              <span className="text-[10px] tracking-[0.3em] uppercase text-gold font-semibold">
+              <span className="text-[10px] tracking-[0.3em] uppercase text-gold font-bold">
                 {product.badge}
               </span>
             )}
