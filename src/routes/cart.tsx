@@ -7,7 +7,7 @@ import { getProductPriceInfo } from "@/lib/products";
 import { ProductPrice } from "@/components/site/ProductPrice";
 
 export const Route = createFileRoute("/cart")({
-  head: () => ({ meta: [{ title: "Your Bag — ANORA" }] }),
+  head: () => ({ meta: [{ title: "Shopping Cart | ANORA New York" }] }),
   component: CartPage,
 });
 

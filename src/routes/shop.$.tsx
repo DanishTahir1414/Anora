@@ -19,9 +19,9 @@ export const Route = createFileRoute("/shop/$")({
     const name = categorySlug.charAt(0).toUpperCase() + categorySlug.slice(1).replace(/-/g, " ");
     return {
       meta: [
-        { title: `${name} — ANORA` },
+        { title: `${name} | ANORA New York` },
         { name: "description", content: `Explore the ANORA ${name} collection.` },
-        { property: "og:title", content: `${name} — ANORA` },
+        { property: "og:title", content: `${name} | ANORA New York` },
       ],
     };
   },

@@ -6,7 +6,7 @@ import { getProductPriceInfo, type Product } from "@/lib/products";
 import { ProductPrice } from "@/components/site/ProductPrice";
 
 export const Route = createFileRoute("/wishlist")({
-  head: () => ({ meta: [{ title: "Wishlist — ANORA" }] }),
+  head: () => ({ meta: [{ title: "Wishlist | ANORA New York" }] }),
   component: WishlistPage,
 });
 

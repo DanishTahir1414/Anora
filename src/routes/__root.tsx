@@ -127,14 +127,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "ANORA — Elegance Crafted For Every Moment" },
+      { title: "ANORA New York | Luxury Women's Fashion" },
       {
         name: "description",
         content:
           "ANORA is a luxury house of clothing and jewellery — quiet, considered pieces crafted in our atelier for every moment of a lifetime.",
       },
       { name: "author", content: "ANORA" },
-      { property: "og:title", content: "ANORA — Elegance Crafted For Every Moment" },
+      { property: "og:title", content: "ANORA New York | Luxury Women's Fashion" },
       {
         property: "og:description",
         content:

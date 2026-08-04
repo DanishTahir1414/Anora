@@ -17,13 +17,13 @@ import { useProductsCatalog, useParentCategories } from "@/lib/products-query";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "ANORA — Elegance Crafted For Every Moment" },
+      { title: "ANORA New York | Luxury Women's Fashion" },
       {
         name: "description",
         content:
           "Discover ANORA's atelier of luxury clothing and jewellery — quiet pieces designed to last a lifetime.",
       },
-      { property: "og:title", content: "ANORA" },
+      { property: "og:title", content: "ANORA New York | Luxury Women's Fashion" },
       {
         property: "og:description",
         content: "Luxury clothing and jewellery, crafted with timeless elegance.",

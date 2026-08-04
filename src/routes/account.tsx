@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/account")({
-  head: () => ({ meta: [{ title: "My Account — ANORA" }] }),
+  head: () => ({ meta: [{ title: "My Orders | ANORA New York" }] }),
   component: AccountPage,
 });
 
@@ -54,6 +54,14 @@ function AccountInner() {
   const [saving, setSaving] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Record<string, unknown> | null>(null);
   const [orderLoading, setOrderLoading] = useState(false);
+
+  useEffect(() => {
+    if (tab === "orders" || tab === "order-detail") {
+      document.title = "My Orders | ANORA New York";
+    } else {
+      document.title = "My Account | ANORA New York";
+    }
+  }, [tab]);
 
   const [editFirst, setEditFirst] = useState("");
   const [editLast, setEditLast] = useState("");

@@ -25,7 +25,7 @@ export const Route = createFileRoute("/checkout")({
     payment_intent: search.payment_intent,
     redirect_status: search.redirect_status,
   }),
-  head: () => ({ meta: [{ title: "Checkout — ANORA" }] }),
+  head: () => ({ meta: [{ title: "Secure Checkout | ANORA New York" }] }),
   component: CheckoutPage,
 });
 

@@ -24,7 +24,7 @@ export const Route = createFileRoute("/product/$slug")({
   },
   head: () => ({
     meta: [
-      { title: "ANORA" },
+      { title: "Buy Luxury Women's Fashion Online | ANORA New York" },
       { name: "description", content: "ANORA atelier piece" },
     ],
   }),
@@ -105,7 +105,7 @@ function ProductPage() {
   // Update page title dynamically once details load
   useEffect(() => {
     if (product) {
-      document.title = `${product.name} — ANORA`;
+      document.title = `Buy ${product.name} Online | ANORA New York`;
     }
   }, [product]);
 
