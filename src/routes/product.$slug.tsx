@@ -418,7 +418,7 @@ function ProductPage() {
                 </>
               ) : (
                 <span className="font-sans text-2xl font-bold text-[#000000] tracking-wide leading-none">
-                  ${(active.id ? (product.colorVariants?.find((v) => v.id === active.id)?.priceOverride ?? product.price) : product.price).toLocaleString()}
+                  ${priceInfo.salePrice.toLocaleString()}
                 </span>
               )}
             </div>

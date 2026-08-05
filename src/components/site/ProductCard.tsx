@@ -275,7 +275,7 @@ export function ProductCard({ product }: { product: Product }) {
               </>
             ) : (
               <span className="text-xs text-foreground tracking-wider">
-                USD {priceInfo.originalPrice}
+                USD {priceInfo.salePrice}
               </span>
             )}
           </div>

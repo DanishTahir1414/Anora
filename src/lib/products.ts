@@ -71,43 +71,33 @@ export function getProductPriceInfo(product: {
   colorVariants?: ColorVariant[];
   selectedVariantId?: string;
 }, selectedColor?: string): ProductPriceInfo {
-  // Determine if sale is active
-  const discountPercent = (product.sale_active && product.discount_percent) ? product.discount_percent : 0;
-  const isOnSale = product.sale_active && discountPercent > 0;
-
   // Find variant if selected
   const variant = selectedColor ? product.colorVariants?.find((v) => v.color.toLowerCase() === selectedColor.toLowerCase()) : undefined;
 
-  // Determine original base price (non-discounted price)
-  let basePrice: number;
-  if (variant) {
-    basePrice = variant.priceOverride !== undefined ? variant.priceOverride : product.price;
-  } else {
-    // Backward compatibility check for parent products saved under the old system
-    basePrice = (product.sale_active && product.compare_price && Number(product.compare_price) > Number(product.price))
-      ? Number(product.compare_price)
-      : Number(product.price);
-  }
+  // Determine selling price (price) and original compare price (comparePrice)
+  const price = variant?.priceOverride !== undefined ? variant.priceOverride : product.price;
+  const comparePrice = variant?.comparePriceOverride !== undefined ? variant.comparePriceOverride : (product.compare_price ?? null);
 
-  if (isOnSale) {
-    const salePrice = basePrice * (1 - discountPercent / 100);
+  // Validation Rule: If compare_price > price, show discount
+  if (comparePrice !== null && Number(comparePrice) > Number(price)) {
+    const originalPrice = Number(comparePrice);
+    const salePrice = Number(price);
+    const discountPercent = Math.round(((originalPrice - salePrice) / originalPrice) * 100);
+
     return {
       isOnSale: true,
-      originalPrice: basePrice,
-      salePrice: salePrice,
+      originalPrice,
+      salePrice,
       discountPercent,
       badgeText: `-${discountPercent}%`,
     };
   }
 
-  // Not on sale
-  const comparePrice = variant?.comparePriceOverride !== undefined ? variant.comparePriceOverride : product.compare_price;
-  const originalPrice = Number(comparePrice || basePrice);
-  const salePrice = Number(basePrice);
-
+  // Otherwise, hide compare price completely (no sale)
+  const salePrice = Number(price);
   return {
     isOnSale: false,
-    originalPrice,
+    originalPrice: salePrice,
     salePrice,
     discountPercent: 0,
     badgeText: "",
