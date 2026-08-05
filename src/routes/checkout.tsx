@@ -747,6 +747,8 @@ export function CheckoutForm() {
                             ...product,
                             price: unitPrice * item.quantity,
                             compare_price: unitComparePrice ? unitComparePrice * item.quantity : null,
+                            sale_active: false,
+                            discount_percent: 0,
                           }}
                           size="sm"
                         />
