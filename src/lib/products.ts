@@ -74,11 +74,28 @@ export function getProductPriceInfo(product: {
   // Find variant if selected
   const variant = selectedColor ? product.colorVariants?.find((v) => v.color.toLowerCase() === selectedColor.toLowerCase()) : undefined;
 
-  // Determine selling price (price) and original compare price (comparePrice)
+  // Determine base price (price) and compare price (comparePrice)
   const price = variant?.priceOverride !== undefined ? variant.priceOverride : product.price;
   const comparePrice = variant?.comparePriceOverride !== undefined ? variant.comparePriceOverride : (product.compare_price ?? null);
 
-  // Validation Rule: If compare_price > price, show discount
+  // Check if Sale is active (takes priority)
+  const isSaleActive = product.sale_active && product.discount_percent !== undefined && product.discount_percent > 0;
+
+  if (isSaleActive) {
+    const discountPercent = product.discount_percent!;
+    const originalPrice = Number(price);
+    const salePrice = originalPrice - (originalPrice * discountPercent / 100);
+
+    return {
+      isOnSale: true,
+      originalPrice,
+      salePrice,
+      discountPercent,
+      badgeText: `-${discountPercent}%`,
+    };
+  }
+
+  // Otherwise check legacy compare at logic
   if (comparePrice !== null && Number(comparePrice) > Number(price)) {
     const originalPrice = Number(comparePrice);
     const salePrice = Number(price);
@@ -93,7 +110,7 @@ export function getProductPriceInfo(product: {
     };
   }
 
-  // Otherwise, hide compare price completely (no sale)
+  // Otherwise not on sale
   const salePrice = Number(price);
   return {
     isOnSale: false,
