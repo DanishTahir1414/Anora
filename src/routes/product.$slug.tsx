@@ -206,6 +206,8 @@ function ProductPage() {
     }
   ];
 
+  const hasColors = !!(product.colorVariants && product.colorVariants.length > 0);
+
   const activeSizes = active.sizes;
   const activeSizeStock = active.sizeStock;
   const activeStock = active.stock;
@@ -443,7 +445,7 @@ function ProductPage() {
           <div className="h-px w-full bg-border/20" />
 
           {/* Color Selection */}
-          {colors.length > 1 && (
+          {hasColors && colors.length > 1 && (
             <div className="space-y-3">
               <span className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground font-semibold block">
                 Color: <span className="text-foreground font-bold ml-1">{activeColor}</span>
@@ -497,7 +499,7 @@ function ProductPage() {
             </div>
           )}
 
-          {colors.length <= 1 && (
+          {hasColors && colors.length <= 1 && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground/80">
               <span className="text-[10px] tracking-[0.24em] uppercase text-foreground/75 font-semibold">Color:</span>
               <span className="font-medium text-foreground">{activeColor}</span>

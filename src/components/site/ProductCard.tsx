@@ -266,16 +266,16 @@ export function ProductCard({ product }: { product: Product }) {
           <div className="flex items-baseline gap-2 mt-1 flex-wrap">
             {priceInfo.isOnSale ? (
               <>
-                <span className="text-[11px] text-[#81807f] line-through tracking-wider">
-                  USD {priceInfo.originalPrice}
+                <span className="text-[11px] text-[#81807f] line-through tracking-wider font-sans">
+                  ${priceInfo.originalPrice.toLocaleString()}
                 </span>
-                <span className="text-xs font-semibold text-black tracking-wider">
-                  USD {priceInfo.salePrice}
+                <span className="text-xs font-semibold text-black tracking-wider font-sans">
+                  ${priceInfo.salePrice.toLocaleString()}
                 </span>
               </>
             ) : (
-              <span className="text-xs text-foreground tracking-wider">
-                USD {priceInfo.salePrice}
+              <span className="text-xs text-foreground tracking-wider font-sans">
+                ${priceInfo.salePrice.toLocaleString()}
               </span>
             )}
           </div>
