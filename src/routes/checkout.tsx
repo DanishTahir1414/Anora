@@ -102,7 +102,6 @@ export function CheckoutForm() {
   const shippingOptions = useMemo(() => [
     { id: "standard" as const, label: "Standard Shipping", time: "5–7 Business Days", price: "Complimentary" },
     { id: "express" as const, label: "Express Delivery", time: "2–4 Business Days", price: "$20.00" },
-    { id: "intl" as const, label: "International Shipping", time: "5–10 Business Days", price: "$12.00" },
   ], []);
 
   const handleEmailContinue = useCallback(() => {
