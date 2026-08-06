@@ -16,9 +16,12 @@ export function Footer() {
             to="/"
             className="hover:opacity-85 transition-opacity inline-block"
           >
-            {settings?.logo ? (
-              <img src={settings.logo} alt={BRAND_NAME} className="h-8 w-auto object-contain" />
-            ) : (
+            <div className="flex items-center gap-1 -ml-3 md:-ml-4 lg:-ml-6">
+              <img
+                src="/logo.png"
+                alt={`${BRAND_NAME} Logo`}
+                className="h-[90px] w-[90px] md:h-[110px] md:w-[110px] lg:h-[140px] lg:w-[140px] rounded-full object-contain bg-transparent shrink-0"
+              />
               <div className="flex flex-col items-start gap-1.5">
                 <span className="font-brand text-3xl tracking-[0.3em] text-foreground hover:text-gold transition-colors duration-300 leading-none">
                   {BRAND_NAME}
@@ -27,7 +30,7 @@ export function Footer() {
                   NEW YORK
                 </span>
               </div>
-            )}
+            </div>
           </Link>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
             Luxury clothing and jewellery, crafted with timeless elegance from our atelier to your
