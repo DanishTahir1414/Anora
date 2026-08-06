@@ -1,4 +1,4 @@
-import { Link, useLocation } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { Heart, Search, ShoppingBag, User, Menu, X, Home } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useWishlist } from "@/lib/store";
@@ -21,6 +21,7 @@ export function Header() {
   const wish = useWishlist();
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     setMounted(true);
@@ -36,6 +37,18 @@ export function Header() {
   const currentPath = location.pathname;
   const isHome = currentPath === "/";
   const isCart = currentPath === "/cart";
+
+  const handleLogoClick = (e: React.MouseEvent) => {
+    if (isHome) {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      e.preventDefault();
+      navigate({ to: "/" }).then(() => {
+        window.scrollTo({ top: 0 });
+      });
+    }
+  };
   const isAccount = ["/account", "/login", "/register", "/forgot-password"].some((p) =>
     currentPath.startsWith(p)
   );
@@ -81,6 +94,7 @@ export function Header() {
           <Link
             to="/"
             className="justify-self-center hover:opacity-85 transition-opacity"
+            onClick={handleLogoClick}
           >
             {settings?.logo ? (
               <img src={settings.logo} alt={BRAND_NAME} className="h-8 lg:h-9 w-auto object-contain" />
@@ -167,6 +181,7 @@ export function Header() {
             <Link
               to="/"
               className="hover:opacity-85 transition-opacity"
+              onClick={handleLogoClick}
             >
               {settings?.logo ? (
                 <img src={settings.logo} alt={BRAND_NAME} className="h-6 w-auto object-contain" />
