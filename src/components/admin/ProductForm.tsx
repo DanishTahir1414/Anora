@@ -358,7 +358,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
   }, [open]);
 
   // Synchronize top Colors section with active variants
-  useEffect(() => {
+  function syncVariantColors() {
     if (variants.length === 0) return;
 
     setForm((prev) => {
@@ -407,7 +407,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
         colors: combinedColors,
       };
     });
-  }, [variants]);
+  }
 
   // Keep category_id and subcategory_id in sync with the category hierarchy
   useEffect(() => {
@@ -1360,6 +1360,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
                               <Input
                                 value={v.name}
                                 onChange={(e) => updateVariant(idx, "name", e.target.value)}
+                                onBlur={syncVariantColors}
                                 className="h-8 text-sm"
                               />
                             </div>
@@ -1370,11 +1371,13 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
                                   type="color"
                                   value={v.color_hex}
                                   onChange={(e) => updateVariant(idx, "color_hex", e.target.value)}
+                                  onBlur={syncVariantColors}
                                   className="h-8 w-8 border p-0.5"
                                 />
                                 <Input
                                   value={v.color_hex}
                                   onChange={(e) => updateVariant(idx, "color_hex", e.target.value)}
+                                  onBlur={syncVariantColors}
                                   className="h-8 text-xs font-mono"
                                 />
                               </div>
@@ -1529,11 +1532,11 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
                           </div>
 
                           {/* Variant size stock */}
-                          {sizeInventoryEnabled && form.sizes.length > 0 && (
+                          {sizeInventoryEnabled && (form.sizes.length > 0 || v.sizes.length > 0) && (
                             <div className="border-t border-border/40 pt-3">
                               <p className="text-xs font-semibold mb-2">Variant Sizes Stock</p>
                               <div className="grid grid-cols-6 gap-2">
-                                {form.sizes.map((sz) => (
+                                {(form.sizes.length > 0 ? form.sizes : v.sizes).map((sz) => (
                                   <div key={sz} className="space-y-1">
                                     <Label className="text-[10px] text-center block">{sz}</Label>
                                     <Input
