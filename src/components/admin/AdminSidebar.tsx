@@ -1,5 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth-context";
+import { useRef, useEffect } from "react";
 import { BRAND_NAME } from "@/lib/brand";
 import {
   LayoutDashboard,
@@ -92,9 +93,22 @@ interface AdminSidebarProps {
   className?: string;
 }
 
+let persistedScrollTop = 0;
+
 export function AdminSidebar({ onClose, className }: AdminSidebarProps) {
   const location = useLocation();
   const { signOut } = useAuth();
+  const navRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (navRef.current) {
+      navRef.current.scrollTop = persistedScrollTop;
+    }
+  }, []);
+
+  const handleScroll = (e: React.UIEvent<HTMLElement>) => {
+    persistedScrollTop = e.currentTarget.scrollTop;
+  };
 
   function isActive(to: string) {
     if (to === "/admin") return location.pathname === "/admin";
@@ -123,7 +137,11 @@ export function AdminSidebar({ onClose, className }: AdminSidebarProps) {
         )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-4 px-3 min-h-0 space-y-5">
+      <nav
+        ref={navRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto py-4 px-3 min-h-0 space-y-5"
+      >
         {NAV_GROUPS.map((group) => (
           <div key={group.label}>
             <p className="text-[9px] tracking-[0.35em] uppercase text-muted-foreground/40 font-medium px-2 mb-1.5">
