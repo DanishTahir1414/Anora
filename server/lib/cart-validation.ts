@@ -206,25 +206,10 @@ export async function validateCartItems(input: CartItemInput[]): Promise<CartVal
     const size = item.size ?? "";
 
     const activeVariants = productVariantsMap.get(item.productId) ?? [];
+    const hasActualColors = activeVariants.some(v => v.color_hex && v.name !== 'Default');
+    const requiresColorVariant = activeVariants.length > 0 && hasActualColors;
 
-    if (activeVariants.length === 0) {
-      if (item.expectedUnitPrice != null) {
-        let dbPrice = Number(product.price);
-        if (product.sale_active && product.compare_price && Number(product.compare_price) > Number(product.price)) {
-          dbPrice = Number(product.compare_price);
-        }
-        if (product.sale_active && product.discount_percent && product.discount_percent > 0) {
-          dbPrice = dbPrice * (1 - product.discount_percent / 100);
-        }
-        const priceError = validatePrice(dbPrice, item.expectedUnitPrice);
-        if (priceError) {
-          errors.push(priceError);
-          continue;
-        }
-      }
-    }
-
-    if (activeVariants.length > 0) {
+    if (requiresColorVariant) {
       if (!item.variantId) {
         errors.push({
           code: "VARIANT_NOT_FOUND",
@@ -252,6 +237,15 @@ export async function validateCartItems(input: CartItemInput[]): Promise<CartVal
       }
 
       const variantSizes = variant.sizes ?? product.sizes;
+      const actualSizesExist = variantSizes && variantSizes.length > 0 && !(variantSizes.length === 1 && variantSizes[0] === "OS");
+      if (actualSizesExist && !size) {
+        errors.push({
+          code: "SIZE_NOT_FOUND",
+          message: `Size selection is required for ${product.name}.`,
+        });
+        continue;
+      }
+
       const sizeListError = validateSizeInList(size, variantSizes, product.name);
       if (sizeListError) {
         errors.push(sizeListError);
@@ -307,15 +301,95 @@ export async function validateCartItems(input: CartItemInput[]): Promise<CartVal
       continue;
     }
 
+    // Fall through: No color variant is required for this product.
     if (item.variantId) {
+      // If a variantId is passed, validate using the variant details
+      const variant = variantMap.get(item.variantId);
+      if (variant && variant.product_id === item.productId && variant.is_active) {
+        const variantSizes = variant.sizes ?? product.sizes;
+        const actualSizesExist = variantSizes && variantSizes.length > 0 && !(variantSizes.length === 1 && variantSizes[0] === "OS");
+        if (actualSizesExist && !size) {
+          errors.push({
+            code: "SIZE_NOT_FOUND",
+            message: `Size selection is required for ${product.name}.`,
+          });
+          continue;
+        }
+
+        const sizeListError = validateSizeInList(size, variantSizes, product.name);
+        if (sizeListError) {
+          errors.push(sizeListError);
+          continue;
+        }
+
+        const basePrice = variant.price ?? product.price;
+        let unitPrice = Number(basePrice);
+        if (product.sale_active && product.discount_percent && product.discount_percent > 0) {
+          unitPrice = unitPrice * (1 - product.discount_percent / 100);
+        }
+        if (item.expectedUnitPrice != null) {
+          const priceError = validatePrice(unitPrice, item.expectedUnitPrice);
+          if (priceError) {
+            errors.push(priceError);
+            continue;
+          }
+        }
+
+        const effectiveSizeStock = variant.size_stock ?? product.size_stock;
+        const sizeStockError = validateSizeStock(size, effectiveSizeStock, product.name);
+        if (sizeStockError) {
+          errors.push(sizeStockError);
+          continue;
+        }
+
+        const { quantity: maxAvailable } = getAvailableStock(
+          { stock: variant.stock, size_stock: effectiveSizeStock },
+          size,
+        );
+
+        const qtyError = validateQuantity(item.quantity, maxAvailable, product.name);
+        if (qtyError) {
+          errors.push(qtyError);
+          continue;
+        }
+
+        const lineSubtotal = Number(unitPrice) * item.quantity;
+        subtotal += lineSubtotal;
+        validated.push({
+          productId: item.productId,
+          variantId: item.variantId,
+          size,
+          productName: product.name,
+          unitPrice: Number(unitPrice),
+          quantity: item.quantity,
+          maxAvailable,
+          subtotal: lineSubtotal,
+          imageUrl: (item.variantId && variantImageMap.get(item.variantId)) || imageMap.get(item.productId),
+          color: variant.name !== "Default" ? variant.name : undefined,
+          variantName: variant.name !== "Default" ? variant.name : undefined,
+        });
+        continue;
+      } else {
+        errors.push({
+          code: "VARIANT_NOT_FOUND",
+          message: `Product ${product.name} does not have active variants.`,
+        });
+        continue;
+      }
+    }
+
+    // No variantId passed, and color variant is not required. Validate using product base details:
+    const productSizes = product.sizes;
+    const actualSizesExist = productSizes && productSizes.length > 0 && !(productSizes.length === 1 && productSizes[0] === "OS");
+    if (actualSizesExist && !size) {
       errors.push({
-        code: "VARIANT_NOT_FOUND",
-        message: `Product ${product.name} does not have variants.`,
+        code: "SIZE_NOT_FOUND",
+        message: `Size selection is required for ${product.name}.`,
       });
       continue;
     }
 
-    const sizeListError = validateSizeInList(size, product.sizes, product.name);
+    const sizeListError = validateSizeInList(size, productSizes, product.name);
     if (sizeListError) {
       errors.push(sizeListError);
       continue;
@@ -343,6 +417,14 @@ export async function validateCartItems(input: CartItemInput[]): Promise<CartVal
       unitPrice = unitPrice * (1 - product.discount_percent / 100);
     }
 
+    if (item.expectedUnitPrice != null) {
+      const priceError = validatePrice(unitPrice, item.expectedUnitPrice);
+      if (priceError) {
+        errors.push(priceError);
+        continue;
+      }
+    }
+
     const lineSubtotal = unitPrice * item.quantity;
     subtotal += lineSubtotal;
     validated.push({
@@ -350,7 +432,7 @@ export async function validateCartItems(input: CartItemInput[]): Promise<CartVal
       variantId: null,
       size,
       productName: product.name,
-      unitPrice: unitPrice,
+      unitPrice: Number(unitPrice),
       quantity: item.quantity,
       maxAvailable,
       subtotal: lineSubtotal,
