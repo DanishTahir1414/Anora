@@ -98,11 +98,7 @@ function Home() {
         )}
         <div className="absolute inset-0 bg-gradient-to-b from-ink/10 via-transparent to-ink/35" />
         <div className="relative h-full flex flex-col items-center justify-center text-center px-6 text-background animate-fade-up">
-          <h1 className="font-brand text-[clamp(3.5rem,10vw,8rem)] leading-[0.92] tracking-[0.06em]">
-            {settings?.hero_heading || DEFAULT_SITE_SETTINGS.hero_heading}
-          </h1>
-          <div className="mt-4 h-px w-16 bg-gold/60" />
-          <p className="mt-6 max-w-md text-sm md:text-base text-background/85 italic font-serif">
+          <p className="max-w-md text-sm md:text-base text-background/85 italic font-serif">
             {settings?.hero_sub_heading || DEFAULT_SITE_SETTINGS.hero_sub_heading}
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">

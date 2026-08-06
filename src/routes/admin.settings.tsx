@@ -239,31 +239,17 @@ function WebsiteSettingsPage() {
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] tracking-widest uppercase text-muted-foreground mb-2">
-                    Hero Heading
-                  </label>
-                  <input
-                    type="text"
-                    value={heroHeading}
-                    onChange={(e) => setHeroHeading(e.target.value)}
-                    placeholder="e.g. A STUDY IN SILK & GOLD"
-                    className="w-full bg-background border border-border px-3 py-2 text-sm outline-none focus:border-gold transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] tracking-widest uppercase text-muted-foreground mb-2">
-                    Hero Sub Heading
-                  </label>
-                  <input
-                    type="text"
-                    value={heroSubHeading}
-                    onChange={(e) => setHeroSubHeading(e.target.value)}
-                    placeholder="e.g. Slow tailored ceremonial dress..."
-                    className="w-full bg-background border border-border px-3 py-2 text-sm outline-none focus:border-gold transition-colors"
-                  />
-                </div>
+              <div>
+                <label className="block text-[10px] tracking-widest uppercase text-muted-foreground mb-2">
+                  Hero Sub Heading
+                </label>
+                <input
+                  type="text"
+                  value={heroSubHeading}
+                  onChange={(e) => setHeroSubHeading(e.target.value)}
+                  placeholder="e.g. Slow tailored ceremonial dress..."
+                  className="w-full bg-background border border-border px-3 py-2 text-sm outline-none focus:border-gold transition-colors"
+                />
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
