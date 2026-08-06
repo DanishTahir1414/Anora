@@ -97,7 +97,7 @@ function Home() {
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-b from-ink/10 via-transparent to-ink/35" />
-        <div className="relative h-full flex flex-col items-center justify-center text-center px-6 text-background animate-fade-up">
+        <div className="relative top-[10vh] h-full flex flex-col items-center justify-center text-center px-6 text-background animate-fade-up">
           <p className="max-w-md text-sm md:text-base text-background/85 italic font-serif">
             {settings?.hero_sub_heading || DEFAULT_SITE_SETTINGS.hero_sub_heading}
           </p>
