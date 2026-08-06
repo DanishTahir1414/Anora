@@ -167,6 +167,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
     is_active: boolean;
     sort_order: number;
   }[]>([]);
+  const [newlyCreatedVariantIds, setNewlyCreatedVariantIds] = useState<string[]>([]);
 
   async function addVariant() {
     let newId: string | undefined = undefined;
@@ -191,7 +192,10 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
           .select("id")
           .single();
         if (error) throw error;
-        if (data) newId = data.id;
+        if (data) {
+          newId = data.id;
+          setNewlyCreatedVariantIds((prev) => [...prev, data.id]);
+        }
       } catch (err: any) {
         toast.error(`Failed to add variant to database: ${err.message}`);
         return;
@@ -478,6 +482,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
 
   useEffect(() => {
     if (open && productId) {
+      setNewlyCreatedVariantIds([]);
       setLoadingData(true);
       getAdminProduct(productId)
         .then(async (data: AdminProductResponse) => {
@@ -566,6 +571,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
         })
         .catch(() => setLoadingData(false));
     } else if (open) {
+      setNewlyCreatedVariantIds([]);
       setEnableColors(true);
       setSizeInventoryEnabled(true);
       setForm({
@@ -1540,7 +1546,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
                                         const total = Object.values(nextStock).reduce((sum, val) => sum + val, 0);
                                         updateVariant(idx, "stock", String(total));
                                       }}
-                                      disabled={isEdit}
+                                      disabled={isEdit && !newlyCreatedVariantIds.includes(v.id || "")}
                                       className="h-7 text-center text-xs disabled:opacity-60"
                                     />
                                   </div>
