@@ -232,7 +232,11 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
         return;
       }
     }
-    setVariants((prev) => prev.filter((_, i) => i !== index));
+    setVariants((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      syncVariantColors(next);
+      return next;
+    });
   }
 
   function updateVariant(index: number, key: string, value: any) {
@@ -358,27 +362,39 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
   }, [open]);
 
   // Synchronize top Colors section with active variants
-  function syncVariantColors() {
-    if (variants.length === 0) return;
+  const prevVariantColorNamesRef = useRef<Set<string>>(new Set());
+
+  function syncVariantColors(variantsList: typeof variants = variants) {
+    if (variantsList.length === 0) {
+      const staleNames = prevVariantColorNamesRef.current;
+      if (staleNames.size > 0) {
+        setForm((prev) => ({
+          ...prev,
+          colors: prev.colors.filter((c) => !staleNames.has(c.name.trim().toLowerCase())),
+        }));
+      }
+      prevVariantColorNamesRef.current = new Set();
+      return;
+    }
+
+    const variantColors = variantsList.map((v) => ({
+      name: v.name.trim(),
+      hex: v.color_hex.trim(),
+    }));
+    const variantColorNames = new Set(variantColors.map((vc) => vc.name.toLowerCase()));
+    const staleNames = prevVariantColorNamesRef.current;
 
     setForm((prev) => {
-      // Find all variant colors
-      const variantColors = variants.map((v) => ({
-        name: v.name.trim(),
-        hex: v.color_hex.trim(),
-      }));
+      // Drop colors that were variant-linked before but no longer match any current variant (removed/renamed)
+      const filtered = prev.colors.filter((c) => {
+        const lower = c.name.trim().toLowerCase();
+        if (staleNames.has(lower) && !variantColorNames.has(lower)) return false;
+        return true;
+      });
 
-      // Find variant color names for quick lookup
-      const variantColorNames = new Set(variantColors.map((vc) => vc.name.toLowerCase()));
-
-      // Keep manually added colors that don't match any variant color name
-      const manualColors = prev.colors.filter(
-        (c) => !variantColorNames.has(c.name.trim().toLowerCase())
-      );
-
-      // Combine manually added colors and variant colors, avoiding duplicates by name
-      const combinedColors: ColorEntry[] = [...manualColors];
-      const addedNames = new Set(manualColors.map((c) => c.name.toLowerCase()));
+      // Combine remaining colors and variant colors, avoiding duplicates by name
+      const combinedColors: ColorEntry[] = [...filtered];
+      const addedNames = new Set(combinedColors.map((c) => c.name.toLowerCase()));
 
       for (const vc of variantColors) {
         if (!addedNames.has(vc.name.toLowerCase())) {
@@ -407,6 +423,8 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
         colors: combinedColors,
       };
     });
+
+    prevVariantColorNamesRef.current = variantColorNames;
   }
 
   // Keep category_id and subcategory_id in sync with the category hierarchy
@@ -1360,7 +1378,7 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
                               <Input
                                 value={v.name}
                                 onChange={(e) => updateVariant(idx, "name", e.target.value)}
-                                onBlur={syncVariantColors}
+                                onBlur={() => syncVariantColors()}
                                 className="h-8 text-sm"
                               />
                             </div>
@@ -1371,13 +1389,13 @@ export function ProductForm({ open, onClose, onSaved, productId }: Props) {
                                   type="color"
                                   value={v.color_hex}
                                   onChange={(e) => updateVariant(idx, "color_hex", e.target.value)}
-                                  onBlur={syncVariantColors}
+                                  onBlur={() => syncVariantColors()}
                                   className="h-8 w-8 border p-0.5"
                                 />
                                 <Input
                                   value={v.color_hex}
                                   onChange={(e) => updateVariant(idx, "color_hex", e.target.value)}
-                                  onBlur={syncVariantColors}
+                                  onBlur={() => syncVariantColors()}
                                   className="h-8 text-xs font-mono"
                                 />
                               </div>
