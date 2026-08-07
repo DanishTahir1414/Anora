@@ -433,6 +433,15 @@ export function getWishlistSnapshot() {
 export function setCustomerUser(userId: string | null) {
   hydrate();
   currentUserId = userId;
+  if (userId === null) {
+    cartItems = cartItems.map((item) => ({
+      ...item,
+      source: "local" as const,
+    }));
+    persist();
+    rebuildSnapshots();
+    notify();
+  }
 }
 
 export async function validateCartStock(items: CartItem[] = cartItems): Promise<CartItem[]> {
@@ -650,6 +659,7 @@ export async function mergeGuestCartToUser(userId: string) {
     .select("id, product_id, variant_id, size, quantity")
     .eq("user_id", userId);
 
+  if (currentUserId !== userId) return cartItems;
   if (error) return cartItems;
 
   // If local cart was cleared while we read from DB (e.g., by checkout
@@ -660,6 +670,7 @@ export async function mergeGuestCartToUser(userId: string) {
   if (freshLocal.length === 0 && cartItems.length > 0) {
     cartItems = [];
     await supabase.from("cart_items").delete().eq("user_id", userId);
+    if (currentUserId !== userId) return cartItems;
     persist();
     rebuildSnapshots();
     notify();
@@ -670,6 +681,7 @@ export async function mergeGuestCartToUser(userId: string) {
   cartItems = freshLocal;
 
   await loadProductsByIds(cartItems.map((i) => i.productId));
+  if (currentUserId !== userId) return cartItems;
 
   const localMap = new Map<string, CartItem>();
   for (const item of cartItems) {
@@ -724,6 +736,7 @@ export async function mergeGuestCartToUser(userId: string) {
 
   cartItems = Array.from(merged.values());
   await syncCartWithServer();
+  if (currentUserId !== userId) return cartItems;
   rebuildSnapshots();
   return cartItems;
 }
@@ -785,6 +798,7 @@ export async function syncWishlistOnLogin(userId: string) {
     .from("wishlists")
     .select("product_id, variant_id")
     .eq("user_id", userId);
+  if (currentUserId !== userId) return wishIds;
   if (error) return wishIds;
   const dbKeys = ((data ?? []) as any[]).map((row) =>
     row.variant_id ? `${row.product_id}|${row.variant_id}` : row.product_id
@@ -801,6 +815,7 @@ export async function syncWishlistOnLogin(userId: string) {
     }),
     { onConflict: "user_id,product_id,variant_id" },
   );
+  if (currentUserId !== userId) return wishIds;
   persist();
   rebuildSnapshots();
   notify();
@@ -809,10 +824,10 @@ export async function syncWishlistOnLogin(userId: string) {
     (id) => !productRegistry.has(id) && !catalog.find((p) => p.id === id)
   );
   if (missingIds.length > 0) {
-    void loadProductsByIds(missingIds).then(() => {
-      rebuildSnapshots();
-      notify();
-    });
+    await loadProductsByIds(missingIds);
+    if (currentUserId !== userId) return wishIds;
+    rebuildSnapshots();
+    notify();
   }
 
   return wishIds;

@@ -32,13 +32,13 @@ function RegisterPage() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!loading && user && !user.is_anonymous) {
       window.location.href = redirectTo;
     }
   }, [user, loading, redirectTo]);
 
   if (loading) return null;
-  if (user) return null;
+  if (user && !user.is_anonymous) return null;
 
   if (done) {
     return (

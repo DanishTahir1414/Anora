@@ -30,6 +30,10 @@ async function downloadInvoice(invoiceId: string): Promise<boolean> {
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData.session?.access_token;
+    if (!token) {
+      toast.error("Please sign in to download your invoice.");
+      return false;
+    }
 
     const result = await getInvoicePdfUrl({
       data: {
@@ -90,22 +94,14 @@ function OrderSuccess() {
     async function fetchByOrderId() {
       if (!orderId) return null;
 
-      let query = supabase
-        .from("orders")
-        .select(
-          `id, order_number, status, subtotal, total, payment_status, payment_method,
-           shipping_address, billing_address, created_at,
-           order_items (id, product_id, name, price, quantity, image_url, attributes),
-           invoices (id, invoice_number, status, total_amount),
-           order_timeline (id, event_type, description, created_at)`,
-        )
-        .eq("id", orderId);
+      const { data, error } = await supabase.rpc("get_success_order_details", {
+        p_order_id: orderId
+      });
 
-      if (user) {
-        query = query.eq("user_id", user.id);
+      if (error) {
+        console.error("Error fetching success order details:", error);
+        return null;
       }
-
-      const { data } = await query.maybeSingle();
 
       return data;
     }

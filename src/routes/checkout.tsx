@@ -85,11 +85,31 @@ class StripeErrorBoundary extends React.Component<
 
 export function CheckoutForm() {
   const cart = useCart();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { success, canceled, payment_intent, redirect_status } = Route.useSearch();
   const formRef = useRef<HTMLFormElement | null>(null);
   const [email, setEmail] = useState(() => user?.email ?? "");
+  const [signingInAnonymously, setSigningInAnonymously] = useState(false);
+
+  // Trigger anonymous sign-in if guest and not currently authenticating
+  useEffect(() => {
+    if (!authLoading && !user && !signingInAnonymously) {
+      setSigningInAnonymously(true);
+      supabase.auth.signInAnonymously()
+        .then(({ error }) => {
+          if (error) {
+            console.error("Anonymous sign-in failed:", error);
+            toast.error("Failed to initialize guest session. Please try again.");
+          }
+          setSigningInAnonymously(false);
+        })
+        .catch((err) => {
+          console.error("Anonymous sign-in error:", err);
+          setSigningInAnonymously(false);
+        });
+    }
+  }, [user, authLoading, signingInAnonymously]);
   const [billingSame, setBillingSame] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [activeStep, setActiveStep] = useState<"email" | "shipping" | "payment">("email");
@@ -397,7 +417,7 @@ export function CheckoutForm() {
 
   const total = cart.subtotal;
 
-  if (!isMounted || cart.isRestoring) {
+  if (!isMounted || cart.isRestoring || authLoading || signingInAnonymously) {
     return (
       <div className="px-5 lg:px-10 py-16 max-w-6xl mx-auto">
         <div className="text-center mb-10">

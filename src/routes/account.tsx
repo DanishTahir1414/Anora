@@ -90,11 +90,16 @@ function AccountInner() {
         }
       });
 
+    const query = supabase
+      .from("orders")
+      .select("id, order_number, total, status, payment_status, created_at");
+
+    const ordersQuery = user.email
+      ? query.or(`user_id.eq.${user.id},and(user_id.is.null,email.eq.${user.email})`)
+      : query.eq("user_id", user.id);
+
     Promise.resolve(
-      supabase
-        .from("orders")
-        .select("id, order_number, total, status, payment_status, created_at")
-        .eq("user_id", user.id)
+      ordersQuery
         .order("created_at", { ascending: false })
         .then(({ data }) => {
           if (data) setOrders(data);

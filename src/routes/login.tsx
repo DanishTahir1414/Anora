@@ -31,7 +31,7 @@ function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const shouldRedirect = !loading && user && !confirmed;
+  const shouldRedirect = !loading && user && !user.is_anonymous && !confirmed;
 
   useEffect(() => {
     if (shouldRedirect) {
@@ -40,7 +40,7 @@ function LoginPage() {
   }, [shouldRedirect, redirectTo]);
 
   if (loading) return null;
-  if (user && !confirmed) return null;
+  if (user && !user.is_anonymous && !confirmed) return null;
 
   const isLoggedInAndConfirmed = user && confirmed;
 
