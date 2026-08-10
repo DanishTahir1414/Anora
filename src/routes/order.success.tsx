@@ -94,16 +94,16 @@ function OrderSuccess() {
     async function fetchByOrderId() {
       if (!orderId) return null;
 
-      const { data, error } = await supabase.rpc("get_success_order_details", {
+      const { data, error } = await supabase.rpc("get_order_details", {
         p_order_id: orderId
       });
 
       if (error) {
-        console.error("Error fetching success order details:", error);
+        console.error("Error fetching order details:", error);
         return null;
       }
 
-      return data;
+      return (data as { order?: Record<string, unknown> })?.order ?? data;
     }
 
     async function fetchBySessionId() {
@@ -235,7 +235,7 @@ function OrderSuccess() {
 
   const displayOrderNumber = (order?.order_number as string) ?? orderNumber ?? "";
   const displayInvoiceNumber = invoiceNumber ?? "";
-  const items = (order?.order_items as Array<Record<string, unknown>>) ?? [];
+  const items = ((order?.items ?? order?.order_items) as Array<Record<string, unknown>>) ?? [];
   const invoice = (order?.invoices as Array<Record<string, unknown>>)?.[0] ?? null;
   const shippingAddr = order?.shipping_address as Record<string, string> | null;
 

@@ -142,7 +142,7 @@ export function Header() {
               )}
             </Link>
             <div className="relative flex items-center">
-              {user ? (
+              {user && !user.is_anonymous ? (
                 <>
                   <button
                     onClick={() => setAccountOpen((v) => !v)}
@@ -150,7 +150,7 @@ export function Header() {
                     className="grid place-items-center h-[30px] w-[30px] hover:text-gold transition-all duration-300 hover:scale-105"
                   >
                     <span className="text-[11px] font-serif font-bold tracking-wide">
-                      {(user.email ?? "A")[0].toUpperCase()}
+                      {user.email?.trim()?.[0]?.toUpperCase() ?? "A"}
                     </span>
                   </button>
                   <AccountDropdown open={accountOpen} onClose={() => setAccountOpen(false)} />
@@ -231,7 +231,7 @@ export function Header() {
               )}
             </Link>
             <div className="relative flex items-center">
-              {user ? (
+              {user && !user.is_anonymous ? (
                 <>
                   <button
                     onClick={() => setAccountOpen((v) => !v)}
@@ -239,7 +239,7 @@ export function Header() {
                     className="grid place-items-center h-[30px] w-[30px] hover:text-gold transition-all duration-300"
                   >
                     <span className="text-[11px] font-serif font-bold tracking-wide">
-                      {(user.email ?? "A")[0].toUpperCase()}
+                      {user.email?.trim()?.[0]?.toUpperCase() ?? "A"}
                     </span>
                   </button>
                   <AccountDropdown open={accountOpen} onClose={() => setAccountOpen(false)} />

@@ -136,7 +136,7 @@ export function useAdminOrders(
       let query = supabase
         .from("orders")
         .select(
-          "id, order_number, total, status, payment_status, created_at, shipping_address, user_id, email, profiles(first_name, last_name, email)",
+          "id, order_number, total, status, payment_status, created_at, shipping_address, billing_address, user_id, email",
           {
             count: "exact",
           },
@@ -146,7 +146,7 @@ export function useAdminOrders(
         const sanitized = search.replace(/[^a-zA-Z0-9 @._-]/g, "");
         if (sanitized) {
           query = query.or(
-            `order_number.ilike.%${sanitized}%,shipping_address->>firstName.ilike.%${sanitized}%,shipping_address->>lastName.ilike.%${sanitized}%`,
+            `order_number.ilike.%${sanitized}%,email.ilike.%${sanitized}%,shipping_address->>firstName.ilike.%${sanitized}%,shipping_address->>lastName.ilike.%${sanitized}%`,
           );
         }
       }
@@ -165,16 +165,55 @@ export function useAdminOrders(
 
       if (err) throw err;
 
+      const userIds = [
+        ...new Set(
+          (data ?? [])
+            .map((order: any) => order.user_id)
+            .filter(Boolean),
+        ),
+      ];
+
+      let profileMap = new Map<string, { first_name?: string | null; last_name?: string | null; email?: string | null; phone?: string | null }>();
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name, email, phone")
+          .in("id", userIds);
+
+        if (profiles) {
+          profileMap = new Map(profiles.map((p) => [p.id, p]));
+        }
+      }
+
       const orders: OrderRow[] = (data ?? []).map((row: any) => {
-        const addr =
+        const shippingAddr =
           typeof row.shipping_address === "object" && row.shipping_address !== null
             ? (row.shipping_address as Record<string, string>)
             : {};
-        const profile = row.profiles;
-        const profileName = profile ? [profile.first_name, profile.last_name].filter(Boolean).join(" ") : "";
-        const shippingName = [addr.firstName, addr.lastName].filter(Boolean).join(" ");
-        const customer_name = profileName || shippingName || "—";
-        const customer_email = profile?.email || row.email || addr.email || "—";
+        const billingAddr =
+          typeof row.billing_address === "object" && row.billing_address !== null
+            ? (row.billing_address as Record<string, string>)
+            : {};
+        const profile = row.user_id ? profileMap.get(row.user_id) : null;
+
+        const firstName =
+          profile?.first_name ||
+          shippingAddr?.firstName ||
+          shippingAddr?.first_name ||
+          billingAddr?.firstName ||
+          billingAddr?.first_name ||
+          "";
+
+        const lastName =
+          profile?.last_name ||
+          shippingAddr?.lastName ||
+          shippingAddr?.last_name ||
+          billingAddr?.lastName ||
+          billingAddr?.last_name ||
+          "";
+
+        const customer_name = [firstName, lastName].filter(Boolean).join(" ") || "—";
+        const customer_email = profile?.email || row.email || shippingAddr?.email || billingAddr?.email || "—";
 
         return {
           id: row.id,
