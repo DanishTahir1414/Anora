@@ -61,24 +61,6 @@ function Home() {
     return list.length >= 4 ? list : [...list, ...products.filter((p) => !p.badge).slice(4 - list.length, 8 - list.length)].slice(0, 4);
   }, [products]);
 
-  const trendingProducts = useMemo(() => {
-    return [...products]
-      .sort((a, b) => b.popularity_score - a.popularity_score)
-      .slice(0, 4);
-  }, [products]);
-
-  const recommendedProducts = useMemo(() => {
-    return products
-      .filter((p) => p.sale_active === true || p.featured === true)
-      .slice(0, 4);
-  }, [products]);
-
-  const recentlyAddedProducts = useMemo(() => {
-    return [...products]
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 4);
-  }, [products]);
-
   const heroSrc = settings ? (settings.hero_image || hero) : null;
 
   return (
@@ -247,96 +229,6 @@ function Home() {
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14">
               {bestSellers.map((p) => (
-                <ProductCard key={p.id} product={p as any} />
-              ))}
-            </div>
-            <div className="mt-12 text-center sm:hidden">
-              <Link to="/shop" className="text-[11px] tracking-[0.32em] uppercase hover-underline">
-                View All
-              </Link>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ─── Trending ─── */}
-      {trendingProducts.length > 0 && (
-        <section className="px-5 lg:px-10 py-24 lg:py-32 bg-neutral/30 border-y border-border/20">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-end justify-between mb-14">
-              <div>
-                <span className="eyebrow">Trending</span>
-                <h2 className="mt-3 font-serif text-4xl md:text-5xl">Atelier Favorites</h2>
-              </div>
-              <Link
-                to="/shop"
-                className="hidden sm:inline text-[11px] tracking-[0.32em] uppercase hover-underline"
-              >
-                View All
-              </Link>
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14">
-              {trendingProducts.map((p) => (
-                <ProductCard key={p.id} product={p as any} />
-              ))}
-            </div>
-            <div className="mt-12 text-center sm:hidden">
-              <Link to="/shop" className="text-[11px] tracking-[0.32em] uppercase hover-underline">
-                View All
-              </Link>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ─── Recommended ─── */}
-      {recommendedProducts.length > 0 && (
-        <section className="px-5 lg:px-10 py-24 lg:py-32">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-end justify-between mb-14">
-              <div>
-                <span className="eyebrow">Recommended</span>
-                <h2 className="mt-3 font-serif text-4xl md:text-5xl">Curated For You</h2>
-              </div>
-              <Link
-                to="/shop"
-                className="hidden sm:inline text-[11px] tracking-[0.32em] uppercase hover-underline"
-              >
-                View All
-              </Link>
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14">
-              {recommendedProducts.map((p) => (
-                <ProductCard key={p.id} product={p as any} />
-              ))}
-            </div>
-            <div className="mt-12 text-center sm:hidden">
-              <Link to="/shop" className="text-[11px] tracking-[0.32em] uppercase hover-underline">
-                View All
-              </Link>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ─── Recently Added ─── */}
-      {recentlyAddedProducts.length > 0 && (
-        <section className="px-5 lg:px-10 py-24 lg:py-32 bg-neutral/10 border-t border-border/20">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-end justify-between mb-14">
-              <div>
-                <span className="eyebrow">Recently Added</span>
-                <h2 className="mt-3 font-serif text-4xl md:text-5xl">Fresh from the atelier</h2>
-              </div>
-              <Link
-                to="/shop"
-                className="hidden sm:inline text-[11px] tracking-[0.32em] uppercase hover-underline"
-              >
-                View All
-              </Link>
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14">
-              {recentlyAddedProducts.map((p) => (
                 <ProductCard key={p.id} product={p as any} />
               ))}
             </div>
