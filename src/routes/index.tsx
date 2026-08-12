@@ -29,6 +29,21 @@ export const Route = createFileRoute("/")({
         content: "Luxury clothing and jewellery, crafted with timeless elegance.",
       },
     ],
+    links: [{ rel: "canonical", href: "https://anora.com/" }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "ANORA",
+          url: "https://anora.com/",
+          logo: "https://anora.com/favicon.ico",
+          description:
+            "Discover ANORA's atelier of luxury clothing and jewellery — quiet pieces designed to last a lifetime.",
+        }),
+      },
+    ],
   }),
   component: Home,
 });

@@ -9,6 +9,7 @@ export const Route = createFileRoute("/terms")({
         content: "Terms governing the use of the ANORA website and services.",
       },
     ],
+    links: [{ rel: "canonical", href: "https://anora.com/terms" }],
   }),
   component: Terms,
 });

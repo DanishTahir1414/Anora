@@ -9,6 +9,7 @@ export const Route = createFileRoute("/shop/")({
       { title: "Shop — ANORA" },
       { name: "description", content: "Browse the full ANORA atelier — clothing and jewellery." },
     ],
+    links: [{ rel: "canonical", href: "https://anora.com/shop" }],
   }),
   component: ShopAll,
 });

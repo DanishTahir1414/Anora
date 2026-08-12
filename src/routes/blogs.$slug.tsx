@@ -3,11 +3,12 @@ import { BlogDetail } from "@/modules/blog";
 import { useBlogPostQuery } from "@/lib/products-query";
 
 export const Route = createFileRoute("/blogs/$slug")({
-  head: () => ({
+  head: ({ params }) => ({
     meta: [
       { title: "Journal — ANORA" },
       { name: "description", content: "Stories from the ANORA atelier" },
     ],
+    links: [{ rel: "canonical", href: `https://anora.com/blogs/${params.slug}` }],
   }),
   component: BlogPostWrapper,
 });

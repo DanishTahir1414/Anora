@@ -14,7 +14,12 @@ export const Route = createFileRoute("/login")({
     redirectTo: typeof search.redirectTo === "string" ? search.redirectTo : undefined,
     confirmed: typeof search.confirmed === "string" ? search.confirmed : undefined,
   }),
-  head: () => ({ meta: [{ title: "Sign In — ANORA" }] }),
+  head: () => ({
+    meta: [
+      { title: "Sign In — ANORA" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
   component: LoginPage,
 });
 

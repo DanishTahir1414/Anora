@@ -6,6 +6,7 @@ export const Route = createFileRoute("/privacy")({
       { title: "Privacy Policy — ANORA" },
       { name: "description", content: "How ANORA collects, uses, and protects your information." },
     ],
+    links: [{ rel: "canonical", href: "https://anora.com/privacy" }],
   }),
   component: Privacy,
 });

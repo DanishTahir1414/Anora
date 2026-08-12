@@ -23,6 +23,7 @@ export const Route = createFileRoute("/shop/$")({
         { name: "description", content: `Explore the ANORA ${name} collection.` },
         { property: "og:title", content: `${name} | ANORA New York` },
       ],
+      links: [{ rel: "canonical", href: `https://anora.com/shop/${splat}` }],
     };
   },
   component: ShopNestedCategory,

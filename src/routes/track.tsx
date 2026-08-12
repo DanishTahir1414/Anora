@@ -396,6 +396,7 @@ export const Route = createFileRoute("/track")({
         name: "description",
         content: "Track your ANORA premium order status and timeline in real-time.",
       },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: TrackPage,

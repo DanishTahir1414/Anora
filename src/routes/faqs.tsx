@@ -13,6 +13,7 @@ export const Route = createFileRoute("/faqs")({
           "Answers to the most common questions about ANORA orders, shipping, returns, and jewellery care.",
       },
     ],
+    links: [{ rel: "canonical", href: "https://anora.com/faqs" }],
   }),
   component: FaqsPage,
 });

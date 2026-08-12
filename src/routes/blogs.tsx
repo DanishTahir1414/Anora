@@ -13,6 +13,7 @@ export const Route = createFileRoute("/blogs")({
       { property: "og:title", content: "Journal — ANORA" },
       { property: "og:description", content: "Stories from the ANORA atelier — craft, material, and the quiet pleasures of dress." },
     ],
+    links: [{ rel: "canonical", href: "https://anora.com/blogs" }],
   }),
   component: BlogList,
 });

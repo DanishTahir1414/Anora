@@ -12,6 +12,7 @@ export const Route = createFileRoute("/contact")({
         content: "Reach the ANORA atelier — WhatsApp, email, and our flagship address.",
       },
     ],
+    links: [{ rel: "canonical", href: "https://anora.com/contact" }],
   }),
   component: Contact,
 });

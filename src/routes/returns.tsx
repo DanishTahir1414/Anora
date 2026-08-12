@@ -10,6 +10,7 @@ export const Route = createFileRoute("/returns")({
         content: "ANORA's exchange and return policy — 14-day returns on unworn pieces.",
       },
     ],
+    links: [{ rel: "canonical", href: "https://anora.com/returns" }],
   }),
   component: ExchangeReturns,
 });

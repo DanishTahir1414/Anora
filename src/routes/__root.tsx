@@ -37,8 +37,14 @@ function SafeShellWrapper({ children }: { children: ReactNode }) {
       <AuthProvider>
         <StoreProvider>
           <div className="flex min-h-screen flex-col bg-background text-foreground">
+            <a
+              href="#main-content"
+              className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:bg-background focus:px-4 focus:py-2 focus:border focus:border-gold"
+            >
+              Skip to content
+            </a>
             <Header />
-            <main className="flex-1">{children}</main>
+            <main id="main-content" className="flex-1">{children}</main>
             <Footer />
             <Toaster />
           </div>
@@ -164,6 +170,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://www.paypalobjects.com" },
       { rel: "dns-prefetch", href: "https://js.stripe.com" },
       { rel: "dns-prefetch", href: "https://www.paypal.com" },
+      // Supabase API & CDN preconnect
+      { rel: "preconnect", href: "https://zqapvgxlnzpmdcwqlfyt.supabase.co", crossOrigin: "" },
     ],
   }),
   shellComponent: RootShell,
@@ -214,13 +222,19 @@ function RootComponent() {
       <AuthProvider>
         <StoreProvider>
           <div className="flex min-h-screen flex-col bg-background text-foreground">
+            <a
+              href="#main-content"
+              className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:bg-background focus:px-4 focus:py-2 focus:border focus:border-gold"
+            >
+              Skip to content
+            </a>
             {!isAdmin && (
               <>
                 <Header />
                 <WhatsAppButton />
               </>
             )}
-            <main className={isAdmin ? "" : "flex-1"}>
+            <main id="main-content" className={isAdmin ? "" : "flex-1"}>
               <Outlet />
             </main>
             {!isAdmin && <Footer />}

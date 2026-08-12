@@ -22,11 +22,12 @@ export const Route = createFileRoute("/product/$slug")({
       color: typeof search.color === "string" ? search.color : undefined,
     };
   },
-  head: () => ({
+  head: ({ params }) => ({
     meta: [
       { title: "Buy Luxury Women's Fashion Online | ANORA New York" },
       { name: "description", content: "ANORA atelier piece" },
     ],
+    links: [{ rel: "canonical", href: `https://anora.com/product/${params.slug}` }],
   }),
   component: ProductPage,
 });
@@ -171,6 +172,103 @@ function ProductPage() {
 
   // ─── Mobile swipe ───
   const touchStart = useRef<number>(0);
+
+  const jsonLdData = useMemo(() => {
+    if (!product) return null;
+    const finalPrice = priceInfo
+      ? priceInfo.isOnSale
+        ? priceInfo.salePrice
+        : priceInfo.originalPrice
+      : product.price;
+    const isAvailable = ((active?.stock ?? product.stock) || 0) > 0;
+
+    const productSchema = {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      name: product.name,
+      image: product.images && product.images.length > 0 ? product.images : undefined,
+      description: product.description || undefined,
+      sku: active?.sku || product.sku || undefined,
+      brand: {
+        "@type": "Brand",
+        name: "ANORA",
+      },
+      offers: {
+        "@type": "Offer",
+        url: `https://anora.com/product/${product.slug}`,
+        priceCurrency: "USD",
+        price: String(finalPrice),
+        availability: isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      },
+    };
+
+    const breadcrumbs: { "@type": string; position: number; name: string; item: string }[] = [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: "https://anora.com/",
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Shop",
+        item: "https://anora.com/shop",
+      },
+    ];
+
+    if (categoryPathSlugs && categoryPathSlugs.length > 0) {
+      categoryPathSlugs.forEach((item) => {
+        breadcrumbs.push({
+          "@type": "ListItem",
+          position: breadcrumbs.length + 1,
+          name: item.name,
+          item: `https://anora.com/shop/${item.slug}`,
+        });
+      });
+    } else if (product.category) {
+      breadcrumbs.push({
+        "@type": "ListItem",
+        position: 3,
+        name: product.category.charAt(0).toUpperCase() + product.category.slice(1),
+        item: `https://anora.com/shop/${product.category.toLowerCase()}`,
+      });
+    }
+
+    breadcrumbs.push({
+      "@type": "ListItem",
+      position: breadcrumbs.length + 1,
+      name: product.name,
+      item: `https://anora.com/product/${product.slug}`,
+    });
+
+    const breadcrumbSchema = {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: breadcrumbs,
+    };
+
+    return { productSchema, breadcrumbSchema };
+  }, [product, priceInfo, active, categoryPathSlugs]);
+
+  // Inject Product and Breadcrumb JSON-LD schemas into document head
+  useEffect(() => {
+    if (!jsonLdData) return;
+    const scriptId = "product-jsonld";
+    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
+    if (!script) {
+      script = document.createElement("script");
+      script.id = scriptId;
+      script.type = "application/ld+json";
+      document.head.appendChild(script);
+    }
+    script.textContent = JSON.stringify([jsonLdData.productSchema, jsonLdData.breadcrumbSchema]);
+
+    return () => {
+      const el = document.getElementById(scriptId);
+      if (el) el.remove();
+    };
+  }, [jsonLdData]);
 
   // Conditional early returns
   if (isLoading) {
