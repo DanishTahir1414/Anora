@@ -84,7 +84,9 @@ export function Header() {
         <div className="hidden sm:grid mx-auto grid-cols-3 items-center px-5 lg:px-10 h-16 lg:h-20">
           <div className="flex items-center gap-4">
             <button
-              aria-label="Open menu"
+              aria-label={menuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={menuOpen}
+              aria-controls="mobile-nav"
               onClick={() => setMenuOpen(true)}
               className="text-foreground hover:text-gold transition-all duration-300 hover:scale-105"
             >
@@ -172,7 +174,9 @@ export function Header() {
         <div className="sm:hidden flex items-center justify-between h-14 px-4 border-b border-border/40 bg-background/90 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <button
-              aria-label="Open menu"
+              aria-label={menuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={menuOpen}
+              aria-controls="mobile-nav"
               onClick={() => setMenuOpen(true)}
               className="text-foreground hover:text-gold transition-all duration-300"
             >
@@ -258,7 +262,9 @@ export function Header() {
         </div>
       </header>
 
-      <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <nav id="mobile-nav" aria-label="Mobile navigation">
+        <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
+      </nav>
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
     </>
   );

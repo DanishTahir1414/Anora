@@ -1,16 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
-import hero from "@/assets/hero.jpg";
+import hero from "@/assets/hero.webp";
 import { useSiteSettings, DEFAULT_SITE_SETTINGS } from "@/lib/site-settings";
-import catClothing from "@/assets/cat-clothing.jpg";
-import catJewellery from "@/assets/cat-jewellery.jpg";
-import p1 from "@/assets/p1.jpg";
-import p2 from "@/assets/p2.jpg";
-import p3 from "@/assets/p3.jpg";
-import p4 from "@/assets/p4.jpg";
-import p5 from "@/assets/p5.jpg";
-import p6 from "@/assets/p6.jpg";
+import catClothing from "@/assets/cat-clothing.webp";
+import catJewellery from "@/assets/cat-jewellery.webp";
+import p1 from "@/assets/p1.webp";
+import p2 from "@/assets/p2.webp";
+import p3 from "@/assets/p3.webp";
+import p4 from "@/assets/p4.webp";
+import p5 from "@/assets/p5.webp";
+import p6 from "@/assets/p6.webp";
 import { ProductCard } from "@/components/site/ProductCard";
 import { useProductsCatalog, useParentCategories } from "@/lib/products-query";
 
@@ -80,6 +80,7 @@ function Home() {
 
   return (
     <>
+      <h1 className="sr-only">ANORA New York | Luxury Women's Fashion</h1>
       {/* ─── Hero ─── */}
       <section className="relative h-[90vh] min-h-[640px] overflow-hidden bg-neutral">
         {heroSrc && (
@@ -277,6 +278,7 @@ function Home() {
                 src={post.img}
                 alt={post.alt}
                 loading="lazy"
+                decoding="async"
                 className="h-full w-full object-cover transition-all duration-[1200ms] group-hover:scale-110"
               />
               <div className="absolute inset-0 bg-ink/0 group-hover:bg-ink/30 transition-all duration-500 flex items-center justify-center">
@@ -314,8 +316,14 @@ function Home() {
             }}
             className="mt-10 flex border-b border-foreground/30 focus-within:border-gold transition-colors duration-300 max-w-xs mx-auto"
           >
+            <label htmlFor="homepage-newsletter-email" className="sr-only">
+              Email address
+            </label>
             <input
+              id="homepage-newsletter-email"
+              name="email"
               type="email"
+              autoComplete="email"
               required
               placeholder="Your email"
               value={newsletterEmail}
@@ -358,6 +366,7 @@ function CategoryCard({
         src={img}
         alt={title}
         loading="lazy"
+        decoding="async"
         className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1400ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-105"
       />
       <div className="absolute inset-0 bg-gradient-to-t from-ink/55 via-ink/10 to-transparent" />

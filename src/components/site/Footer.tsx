@@ -90,8 +90,14 @@ export function Footer() {
             }}
             className="flex border-b border-foreground/30 focus-within:border-gold transition-colors duration-300"
           >
+            <label htmlFor="footer-newsletter-email" className="sr-only">
+              Email address
+            </label>
             <input
+              id="footer-newsletter-email"
+              name="email"
               type="email"
+              autoComplete="email"
               required
               placeholder="Your email"
               value={email}

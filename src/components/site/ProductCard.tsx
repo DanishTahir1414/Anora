@@ -99,6 +99,7 @@ export function ProductCard({ product }: { product: Product }) {
                           src={img}
                           alt={`${product.name} - image ${idx + 1}`}
                           loading={idx === 0 ? "eager" : "lazy"}
+                          decoding="async"
                           className="w-full h-full object-cover"
                         />
                       </Link>
@@ -123,6 +124,7 @@ export function ProductCard({ product }: { product: Product }) {
                   src={product.images[0]}
                   alt={product.name}
                   loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
               </Link>
@@ -136,6 +138,7 @@ export function ProductCard({ product }: { product: Product }) {
                 src={product.images[0]}
                 alt={product.name}
                 loading="lazy"
+                decoding="async"
                 className="absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-105 group-hover:opacity-0"
               />
               <img
