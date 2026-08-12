@@ -62,25 +62,25 @@ function Contact() {
           <Info
             icon={<MessageCircle className="h-4 w-4" />}
             label="WhatsApp"
-            value={settings?.phone || DEFAULT_SITE_SETTINGS.phone || "+1 (347) 325-6525"}
-            href={settings?.whatsapp_url || DEFAULT_SITE_SETTINGS.whatsapp_url || "https://wa.me/15555555555"}
+            value={settings?.phone ?? DEFAULT_SITE_SETTINGS.phone ?? "+1 (212) 555-0199"}
+            href={settings?.whatsapp_url ?? DEFAULT_SITE_SETTINGS.whatsapp_url ?? "https://wa.me/13473256525?text=Hello%20ANORA"}
           />
           <Info
             icon={<Mail className="h-4 w-4" />}
             label="Email"
-            value={settings?.email || DEFAULT_SITE_SETTINGS.email}
-            href={settings?.email ? `mailto:${settings.email}` : `mailto:${DEFAULT_SITE_SETTINGS.email}`}
+            value={settings?.email ?? DEFAULT_SITE_SETTINGS.email ?? "care@anora.com"}
+            href={`mailto:${settings?.email ?? DEFAULT_SITE_SETTINGS.email ?? "care@anora.com"}`}
           />
           <Info
             icon={<Phone className="h-4 w-4" />}
             label="Phone"
-            value={settings?.phone || DEFAULT_SITE_SETTINGS.phone}
-            href={settings?.phone ? `tel:${settings.phone.replace(/[^+\d]/g, "")}` : `tel:${DEFAULT_SITE_SETTINGS.phone?.replace(/[^+\d]/g, "")}`}
+            value={settings?.phone ?? DEFAULT_SITE_SETTINGS.phone ?? "+1 (212) 555-0199"}
+            href={`tel:${(settings?.phone ?? DEFAULT_SITE_SETTINGS.phone ?? "+1 (212) 555-0199").replace(/[^+\d]/g, "")}`}
           />
           <Info
             icon={<MapPin className="h-4 w-4" />}
             label="Atelier"
-            value={settings?.address || DEFAULT_SITE_SETTINGS.address}
+            value={settings?.address ?? DEFAULT_SITE_SETTINGS.address ?? "12 Atelier Lane, SoHo, New York, NY 10012"}
           />
 
           <div className="overflow-hidden">

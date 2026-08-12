@@ -29,7 +29,15 @@ export const Route = createFileRoute("/")({
         content: "Luxury clothing and jewellery, crafted with timeless elegance.",
       },
     ],
-    links: [{ rel: "canonical", href: "https://anora.com/" }],
+    links: [
+      { rel: "canonical", href: "https://anora.com/" },
+      {
+        rel: "preload",
+        as: "image",
+        href: hero,
+        fetchPriority: "high",
+      },
+    ],
     scripts: [
       {
         type: "application/ld+json",
@@ -76,7 +84,7 @@ function Home() {
     return list.length >= 4 ? list : [...list, ...products.filter((p) => !p.badge).slice(4 - list.length, 8 - list.length)].slice(0, 4);
   }, [products]);
 
-  const heroSrc = settings ? (settings.hero_image || hero) : null;
+  const heroSrc = settings?.hero_image || hero;
 
   return (
     <>

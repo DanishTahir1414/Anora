@@ -104,7 +104,7 @@ export const StripePaymentForm = memo(function StripePaymentForm({
       mode: "payment" as const,
       amount: Math.max(1, Math.round(total * 100)),
       currency: "usd",
-      appearance: { theme: "stripe" },
+      appearance: { theme: "stripe" as const },
     };
   }, [total]);
 

@@ -31,11 +31,13 @@ export function ProductCard({ product }: { product: Product }) {
 
   const firstAvailableSize = useMemo(() => {
     if (isOOS) return null;
-    return availability.sizes.find((s) => {
-      const qty = sizeStock[s];
-      const disabled = hasSizeStock && qty !== undefined && qty === 0;
-      return !disabled;
-    }) ?? null;
+    return (
+      availability.sizes.find((s) => {
+        const qty = sizeStock[s];
+        const disabled = hasSizeStock && qty !== undefined && qty === 0;
+        return !disabled;
+      }) ?? null
+    );
   }, [availability.sizes, sizeStock, hasSizeStock, isOOS]);
 
   const [size, setSize] = useState<string | null>(firstAvailableSize);
@@ -55,7 +57,10 @@ export function ProductCard({ product }: { product: Product }) {
   const handleAddDirectly = (sizeValue: string) => {
     if (sizeValue && !product.sizes.includes(sizeValue)) {
       if (process.env.NODE_ENV === "development") {
-        console.error(`Validation Failure: Selected size "${sizeValue}" does not exist on product.`, product);
+        console.error(
+          `Validation Failure: Selected size "${sizeValue}" does not exist on product.`,
+          product,
+        );
       }
       return;
     }
@@ -70,7 +75,7 @@ export function ProductCard({ product }: { product: Product }) {
       return;
     }
     cart.add(product.id, sizeValue, 1, activeVariantId);
-    toast.success("Added to bag", { description: `${product.name} · ${sizeValue || 'One Size'}` });
+    toast.success("Added to bag", { description: `${product.name} · ${sizeValue || "One Size"}` });
   };
 
   return (
@@ -94,7 +99,11 @@ export function ProductCard({ product }: { product: Product }) {
                 >
                   {product.images.map((img, idx) => (
                     <div key={idx} className="w-full h-full shrink-0 snap-start relative">
-                      <Link to="/product/$slug" params={{ slug: product.slug }} className="block w-full h-full">
+                      <Link
+                        to="/product/$slug"
+                        params={{ slug: product.slug }}
+                        className="block w-full h-full"
+                      >
                         <img
                           src={img}
                           alt={`${product.name} - image ${idx + 1}`}
@@ -119,7 +128,11 @@ export function ProductCard({ product }: { product: Product }) {
                 </div>
               </>
             ) : (
-              <Link to="/product/$slug" params={{ slug: product.slug }} className="block w-full h-full">
+              <Link
+                to="/product/$slug"
+                params={{ slug: product.slug }}
+                className="block w-full h-full"
+              >
                 <img
                   src={product.images[0]}
                   alt={product.name}
@@ -185,7 +198,9 @@ export function ProductCard({ product }: { product: Product }) {
           {!isOOS && (
             <div
               className={`absolute bottom-3.5 left-3.5 z-30 flex items-center bg-white/25 backdrop-blur-md border border-white/20 shadow-lg transition-[width,max-width,padding,transform] duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] rounded-full overflow-hidden ${
-                isExpanded ? "px-3 py-1.5 max-w-[calc(100%-1.75rem)] h-10 w-full" : "w-10 h-10 justify-center"
+                isExpanded
+                  ? "px-3 py-1.5 max-w-[calc(100%-1.75rem)] h-10 w-full"
+                  : "w-10 h-10 justify-center"
               }`}
               onMouseEnter={() => {
                 if (hasSizes) setIsExpanded(true);
@@ -222,7 +237,8 @@ export function ProductCard({ product }: { product: Product }) {
                 >
                   {availability.sizes.map((s) => {
                     const qty = sizeStock[s];
-                    const disabled = availability.stock === 0 || (hasSizeStock && qty !== undefined && qty === 0);
+                    const disabled =
+                      availability.stock === 0 || (hasSizeStock && qty !== undefined && qty === 0);
                     return (
                       <button
                         key={s}
@@ -404,7 +420,10 @@ export function ProductCard({ product }: { product: Product }) {
                   }
                   if (!product.sizes.includes(chosen)) {
                     if (process.env.NODE_ENV === "development") {
-                      console.error(`Validation Failure: Selected size "${chosen}" does not exist on product.`, product);
+                      console.error(
+                        `Validation Failure: Selected size "${chosen}" does not exist on product.`,
+                        product,
+                      );
                     }
                     return;
                   }
@@ -424,7 +443,9 @@ export function ProductCard({ product }: { product: Product }) {
                     toast.error(validation.reason ?? "This size is out of stock");
                     return;
                   }
-                  const activeVariant = product.colorVariants?.find((v) => v.color === availability.color) ?? { sku: product.sku };
+                  const activeVariant = product.colorVariants?.find(
+                    (v) => v.color === availability.color,
+                  ) ?? { sku: product.sku };
                   const targetSku = activeVariant.sku ?? product.sku;
                   if (!targetSku) {
                     if (process.env.NODE_ENV === "development") {
