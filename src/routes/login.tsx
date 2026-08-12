@@ -21,7 +21,11 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const { user, loading, signIn } = useAuth();
   const search = Route.useSearch();
-  const redirectTo = search.redirectTo ?? "/account";
+  const rawRedirect = search.redirectTo;
+  const redirectTo =
+    typeof rawRedirect === "string" && rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
+      ? rawRedirect
+      : "/account";
   const confirmed = search.confirmed;
 
   const [email, setEmail] = useState("");
@@ -39,8 +43,12 @@ function LoginPage() {
     }
   }, [shouldRedirect, redirectTo]);
 
-  if (loading) return null;
-  if (user && !user.is_anonymous && !confirmed) return null;
+  if (loading) {
+    return <div className="px-5 lg:px-10 py-20 max-w-md mx-auto min-h-[520px]" aria-busy="true" />;
+  }
+  if (user && !user.is_anonymous && !confirmed) {
+    return <div className="px-5 lg:px-10 py-20 max-w-md mx-auto min-h-[520px]" aria-busy="true" />;
+  }
 
   const isLoggedInAndConfirmed = user && confirmed;
 
