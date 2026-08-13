@@ -109,7 +109,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       detailed: cartSnapshot.detailed,
       syncCartWithServer,
       validateCartStock,
-      isRestoring,
+      isRestoring: isRestoring || (cartSnapshot.items.length > 0 && cartSnapshot.detailed.some((d) => !d.product || d.product.name === "")),
     }),
     [cartSnapshot, isRestoring],
   );

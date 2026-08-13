@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Minus, Plus, X } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCart } from "@/lib/cart-context";
 import { toast } from "sonner";
 import { getProductPriceInfo } from "@/lib/products";
@@ -20,9 +20,46 @@ function CartPage() {
   const cart = useCart();
   const [code, setCode] = useState("");
   const [discount, setDiscount] = useState(0);
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const shipping = cart.subtotal > 0 ? 0 : 0;
   const total = Math.max(0, cart.subtotal - discount + shipping);
+
+  if (!isMounted || cart.isRestoring) {
+    return (
+      <div className="px-5 lg:px-10 py-16 max-w-6xl mx-auto animate-pulse">
+        <div className="text-center mb-12">
+          <div className="h-3 w-20 bg-neutral/65 mx-auto rounded" />
+          <div className="h-10 w-48 bg-neutral/80 mx-auto mt-4 rounded font-serif" />
+        </div>
+        <div className="grid lg:grid-cols-[1fr_360px] gap-12">
+          <div className="space-y-6">
+            {[1, 2].map((i) => (
+              <div key={i} className="py-6 flex gap-5 border-b border-border">
+                <div className="w-24 h-32 bg-neutral/70 rounded" />
+                <div className="flex-1 space-y-4">
+                  <div className="h-6 w-1/3 bg-neutral/75 rounded" />
+                  <div className="h-4 w-1/4 bg-neutral/55 rounded" />
+                  <div className="h-8 w-1/5 bg-neutral/35 rounded mt-4" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="bg-neutral/20 p-8 h-fit rounded space-y-6">
+            <div className="h-6 w-1/2 bg-neutral/60 rounded" />
+            <div className="space-y-3">
+              <div className="h-4 bg-neutral/45 rounded" />
+              <div className="h-4 bg-neutral/45 rounded" />
+            </div>
+            <div className="h-10 bg-neutral/60 rounded mt-4" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (cart.detailed.length === 0) {
     return (

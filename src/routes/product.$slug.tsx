@@ -234,7 +234,11 @@ function ProductPage() {
       "@context": "https://schema.org",
       "@type": "Product",
       name: product.name,
-      image: product.images && product.images.length > 0 ? product.images : undefined,
+      image: (active?.images && active.images.length > 0)
+        ? active.images.map((img) => (img.startsWith("http") ? img : `${SITE_URL}${img}`))
+        : (product.images && product.images.length > 0)
+          ? product.images.map((img) => (img.startsWith("http") ? img : `${SITE_URL}${img}`))
+          : [`${SITE_URL}/logo.png`],
       description: product.description || undefined,
       sku: active?.sku || product.sku || undefined,
       brand: {

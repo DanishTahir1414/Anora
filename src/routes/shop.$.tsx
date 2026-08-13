@@ -209,7 +209,7 @@ function ShopNestedCategory() {
         {dbProducts.length === 0 ? (
           <div className="py-20 text-center max-w-md mx-auto px-6">
             <span className="eyebrow text-gold">{heading}</span>
-            <h1 className="font-serif text-4xl mt-4">Coming Soon</h1>
+            <h2 className="font-serif text-4xl mt-4">Coming Soon</h2>
             <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
               We are preparing products for this category. Please check back soon.
             </p>
@@ -268,7 +268,7 @@ function ShopNestedCategory() {
         {dbProducts.length === 0 ? (
           <div className="py-20 text-center max-w-md mx-auto px-6">
             <span className="eyebrow text-gold">{heading}</span>
-            <h1 className="font-serif text-4xl mt-4">Coming Soon</h1>
+            <h2 className="font-serif text-4xl mt-4">Coming Soon</h2>
             <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
               We are preparing products for this category. Please check back soon.
             </p>
