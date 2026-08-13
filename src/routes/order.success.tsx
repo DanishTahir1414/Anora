@@ -7,7 +7,9 @@ import { formatAddress, getInvoicePdfUrl } from "@/lib/payments";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/order/success")({
-  validateSearch: (search: Record<string, string | undefined>): {
+  validateSearch: (
+    search: Record<string, string | undefined>,
+  ): {
     session_id?: string;
     orderNumber?: string;
     invoiceNumber?: string;
@@ -18,7 +20,9 @@ export const Route = createFileRoute("/order/success")({
     invoiceNumber: search.invoiceNumber,
     orderId: search.orderId,
   }),
-  head: () => ({ meta: [{ title: "Order Confirmed — ANORA" }] }),
+  head: () => ({
+    meta: [{ title: "Order Confirmed — ANORA" }, { name: "robots", content: "noindex, nofollow" }],
+  }),
   component: OrderSuccessPage,
 });
 
@@ -95,7 +99,7 @@ function OrderSuccess() {
       if (!orderId) return null;
 
       const { data, error } = await supabase.rpc("get_order_details", {
-        p_order_id: orderId
+        p_order_id: orderId,
       });
 
       if (error) {

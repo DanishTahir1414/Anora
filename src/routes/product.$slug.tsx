@@ -11,6 +11,9 @@ import { toast } from "sonner";
 import type { Product } from "@/lib/products";
 import { useProductDetailQuery, useProductsCatalog } from "@/lib/products-query";
 import { useActiveCategories } from "@/lib/categories";
+import { getProductBySlug } from "@/lib/products-db";
+import { mapDbProductToStatic } from "@/lib/product-mapper";
+import { SITE_URL } from "@/lib/config";
 
 interface ProductSearch {
   color?: string;
@@ -22,13 +25,56 @@ export const Route = createFileRoute("/product/$slug")({
       color: typeof search.color === "string" ? search.color : undefined,
     };
   },
-  head: ({ params }) => ({
-    meta: [
-      { title: "Buy Luxury Women's Fashion Online | ANORA New York" },
-      { name: "description", content: "ANORA atelier piece" },
-    ],
-    links: [{ rel: "canonical", href: `https://anora.com/product/${params.slug}` }],
-  }),
+  loader: async ({ params }) => {
+    try {
+      const dbResult = await getProductBySlug(params.slug);
+      if (!dbResult || !dbResult.product) return null;
+      const parentSlug = dbResult.parent_category?.slug ?? "clothing";
+      const subName = dbResult.category?.name ?? "";
+      const product = mapDbProductToStatic(
+        dbResult.product,
+        dbResult.images,
+        parentSlug,
+        subName,
+        dbResult.variants,
+      );
+      return product;
+    } catch {
+      return null;
+    }
+  },
+  head: ({ params, loaderData }: { params: { slug: string }; loaderData?: unknown }) => {
+    const product = loaderData as Product | null | undefined;
+    const title = product
+      ? `${product.name} | ANORA New York`
+      : "Buy Luxury Women's Fashion Online | ANORA New York";
+    const desc = product
+      ? product.short_description || product.description || "ANORA atelier piece"
+      : "ANORA atelier piece";
+    const imageUrl =
+      product && product.images && product.images.length > 0
+        ? product.images[0]
+        : `${SITE_URL}/logo.png`;
+    return {
+      meta: [
+        { title },
+        { name: "description", content: desc },
+        { name: "robots", content: "index, follow" },
+        { property: "og:title", content: title },
+        { property: "og:description", content: desc },
+        { property: "og:url", content: `${SITE_URL}/product/${params.slug}` },
+        { property: "og:type", content: "product" },
+        { property: "og:image", content: imageUrl },
+        { property: "og:site_name", content: "ANORA" },
+        { property: "og:locale", content: "en_US" },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: title },
+        { name: "twitter:description", content: desc },
+        { name: "twitter:image", content: imageUrl },
+      ],
+      links: [{ rel: "canonical", href: `${SITE_URL}/product/${params.slug}` }],
+    };
+  },
   component: ProductPage,
 });
 
@@ -80,7 +126,7 @@ function ProductPage() {
     function getPath(
       nodes: any[],
       targetId: string,
-      current: { name: string; slug: string }[] = []
+      current: { name: string; slug: string }[] = [],
     ): { name: string; slug: string }[] | null {
       for (const node of nodes) {
         const item = { name: node.name, slug: node.slug };
@@ -100,7 +146,9 @@ function ProductPage() {
 
   const related = useMemo(() => {
     if (!product) return [];
-    return catalog.filter((p) => p.id !== product.id && p.category === product.category).slice(0, 4);
+    return catalog
+      .filter((p) => p.id !== product.id && p.category === product.category)
+      .slice(0, 4);
   }, [catalog, product]);
 
   // Update page title dynamically once details load
@@ -132,7 +180,7 @@ function ProductPage() {
         }
       }
     }
-  }, [activeColor, active?.sizes, active?.sizeStock, size]);
+  }, [activeColor, active, size]);
 
   useEffect(() => {
     if (!product) return;
@@ -195,7 +243,7 @@ function ProductPage() {
       },
       offers: {
         "@type": "Offer",
-        url: `https://anora.com/product/${product.slug}`,
+        url: `${SITE_URL}/product/${product.slug}`,
         priceCurrency: "USD",
         price: String(finalPrice),
         availability: isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
@@ -207,13 +255,13 @@ function ProductPage() {
         "@type": "ListItem",
         position: 1,
         name: "Home",
-        item: "https://anora.com/",
+        item: `${SITE_URL}/`,
       },
       {
         "@type": "ListItem",
         position: 2,
         name: "Shop",
-        item: "https://anora.com/shop",
+        item: `${SITE_URL}/shop`,
       },
     ];
 
@@ -223,7 +271,7 @@ function ProductPage() {
           "@type": "ListItem",
           position: breadcrumbs.length + 1,
           name: item.name,
-          item: `https://anora.com/shop/${item.slug}`,
+          item: `${SITE_URL}/shop/${item.slug}`,
         });
       });
     } else if (product.category) {
@@ -231,7 +279,7 @@ function ProductPage() {
         "@type": "ListItem",
         position: 3,
         name: product.category.charAt(0).toUpperCase() + product.category.slice(1),
-        item: `https://anora.com/shop/${product.category.toLowerCase()}`,
+        item: `${SITE_URL}/shop/${product.category.toLowerCase()}`,
       });
     }
 
@@ -239,7 +287,7 @@ function ProductPage() {
       "@type": "ListItem",
       position: breadcrumbs.length + 1,
       name: product.name,
-      item: `https://anora.com/product/${product.slug}`,
+      item: `${SITE_URL}/product/${product.slug}`,
     });
 
     const breadcrumbSchema = {
@@ -250,25 +298,6 @@ function ProductPage() {
 
     return { productSchema, breadcrumbSchema };
   }, [product, priceInfo, active, categoryPathSlugs]);
-
-  // Inject Product and Breadcrumb JSON-LD schemas into document head
-  useEffect(() => {
-    if (!jsonLdData) return;
-    const scriptId = "product-jsonld";
-    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
-    if (!script) {
-      script = document.createElement("script");
-      script.id = scriptId;
-      script.type = "application/ld+json";
-      document.head.appendChild(script);
-    }
-    script.textContent = JSON.stringify([jsonLdData.productSchema, jsonLdData.breadcrumbSchema]);
-
-    return () => {
-      const el = document.getElementById(scriptId);
-      if (el) el.remove();
-    };
-  }, [jsonLdData]);
 
   // Conditional early returns
   if (isLoading) {
@@ -294,14 +323,15 @@ function ProductPage() {
 
   const colors = product.colorVariants?.map((v) => ({
     name: v.color,
-    hex: v.color_hex || (v.color === "Ivory" ? "#f5f0e8" : v.color === "Blush" ? "#f5d6d6" : "#ccc"),
+    hex:
+      v.color_hex || (v.color === "Ivory" ? "#f5f0e8" : v.color === "Blush" ? "#f5d6d6" : "#ccc"),
     stock: v.stock,
   })) ?? [
     {
       name: product.color,
       hex: "#f5f0e8",
       stock: product.stock,
-    }
+    },
   ];
 
   const hasColors = !!(product.colorVariants && product.colorVariants.length > 0);
@@ -315,9 +345,10 @@ function ProductPage() {
   const activeColorValue = active.color;
   const activeId = active.id;
 
-  const productTotalStock = product.colorVariants && product.colorVariants.length > 0
-    ? product.colorVariants.reduce((sum, v) => sum + (v.stock ?? 0), 0)
-    : product.stock;
+  const productTotalStock =
+    product.colorVariants && product.colorVariants.length > 0
+      ? product.colorVariants.reduce((sum, v) => sum + (v.stock ?? 0), 0)
+      : product.stock;
   const productTotalOOS = productTotalStock === 0;
 
   const hasSizeStock = activeSizeStock && Object.keys(activeSizeStock).length > 0;
@@ -340,9 +371,20 @@ function ProductPage() {
 
   return (
     <div className="pt-8 lg:pt-12 pb-24 font-sans bg-background">
+      {jsonLdData && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify([jsonLdData.productSchema, jsonLdData.breadcrumbSchema]),
+          }}
+        />
+      )}
       {/* ─── 1. Premium Breadcrumbs ─── */}
       <div className="px-5 lg:px-10 mb-6 text-[12px] font-normal tracking-normal uppercase text-muted-foreground/50 max-w-7xl mx-auto flex items-center gap-y-1.5 whitespace-nowrap overflow-x-auto scrollbar-none justify-start">
-        <Link to="/" className="hover:text-foreground hover:underline transition-colors duration-300">
+        <Link
+          to="/"
+          className="hover:text-foreground hover:underline transition-colors duration-300"
+        >
           Home
         </Link>
         {categoryPathSlugs ? (
@@ -351,8 +393,13 @@ function ProductPage() {
             const href = `/shop/${pathSlugs.join("/")}`;
             return (
               <span key={item.slug} className="flex items-center">
-                <span className="mx-2 text-[10px] text-muted-foreground/30 font-sans select-none">&gt;</span>
-                <Link to={href as any} className="hover:text-foreground hover:underline transition-colors duration-300">
+                <span className="mx-2 text-[10px] text-muted-foreground/30 font-sans select-none">
+                  &gt;
+                </span>
+                <Link
+                  to={href as "/shop"}
+                  className="hover:text-foreground hover:underline transition-colors duration-300"
+                >
                   {item.name}
                 </Link>
               </span>
@@ -360,22 +407,30 @@ function ProductPage() {
           })
         ) : (
           <>
-            <span className="mx-2 text-[10px] text-muted-foreground/30 font-sans select-none">&gt;</span>
+            <span className="mx-2 text-[10px] text-muted-foreground/30 font-sans select-none">
+              &gt;
+            </span>
             <Link
-              to={`/shop/${(product as any).category_slug || (product.category as string).toLowerCase()}` as any}
+              to={
+                `/shop/${(product as unknown as Record<string, unknown>).category_slug || (product.category as string).toLowerCase()}` as "/shop"
+              }
               className="hover:text-foreground hover:underline transition-colors duration-300"
             >
               {product.category}
             </Link>
             {product.subcategory && (
               <span className="flex items-center">
-                <span className="mx-2 text-[10px] text-muted-foreground/30 font-sans select-none">&gt;</span>
+                <span className="mx-2 text-[10px] text-muted-foreground/30 font-sans select-none">
+                  &gt;
+                </span>
                 <span className="text-muted-foreground/55">{product.subcategory}</span>
               </span>
             )}
           </>
         )}
-        <span className="mx-2 text-[10px] text-muted-foreground/30 font-sans select-none">&gt;</span>
+        <span className="mx-2 text-[10px] text-muted-foreground/30 font-sans select-none">
+          &gt;
+        </span>
         <span className="text-foreground/90 font-semibold">{product.name}</span>
       </div>
 
@@ -536,7 +591,9 @@ function ProductPage() {
 
             {/* Short Description */}
             <p className="text-sm text-muted-foreground/80 leading-relaxed font-sans max-w-xl">
-              {product.description ? product.description.split('\n')[0] : "A classic, elegant piece designed with premium craftsmanship for a lifetime of luxury styling."}
+              {product.description
+                ? product.description.split("\n")[0]
+                : "A classic, elegant piece designed with premium craftsmanship for a lifetime of luxury styling."}
             </p>
           </div>
 
@@ -580,7 +637,11 @@ function ProductPage() {
                         className="absolute inset-1 rounded-full overflow-hidden transition-transform duration-300 shadow-inner"
                         style={
                           isTexture
-                            ? { backgroundImage: `url(${color.hex})`, backgroundSize: "cover", backgroundPosition: "center" }
+                            ? {
+                                backgroundImage: `url(${color.hex})`,
+                                backgroundSize: "cover",
+                                backgroundPosition: "center",
+                              }
                             : { backgroundColor: color.hex }
                         }
                       >
@@ -599,7 +660,9 @@ function ProductPage() {
 
           {hasColors && colors.length <= 1 && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground/80">
-              <span className="text-[10px] tracking-[0.24em] uppercase text-foreground/75 font-semibold">Color:</span>
+              <span className="text-[10px] tracking-[0.24em] uppercase text-foreground/75 font-semibold">
+                Color:
+              </span>
               <span className="font-medium text-foreground">{activeColor}</span>
             </div>
           )}
@@ -608,7 +671,9 @@ function ProductPage() {
           {activeSizes.length > 0 && !(activeSizes.length === 1 && activeSizes[0] === "OS") && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground font-semibold">Size</span>
+                <span className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground font-semibold">
+                  Size
+                </span>
                 <button
                   type="button"
                   onClick={() => setGuideOpen(true)}
@@ -620,7 +685,10 @@ function ProductPage() {
               <div className="flex flex-wrap gap-2">
                 {activeSizes.map((s) => {
                   const qty = activeSizeStock?.[s];
-                  const disabled = productTotalOOS || activeStock === 0 || (hasSizeStock && qty !== undefined && qty === 0);
+                  const disabled =
+                    productTotalOOS ||
+                    activeStock === 0 ||
+                    (hasSizeStock && qty !== undefined && qty === 0);
                   return (
                     <button
                       key={s}
@@ -648,7 +716,9 @@ function ProductPage() {
 
           {/* Quantity Selector */}
           <div className="space-y-3">
-            <span className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground font-semibold block">Quantity</span>
+            <span className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground font-semibold block">
+              Quantity
+            </span>
             <div className="flex items-center border border-border h-10 w-28 rounded-md overflow-hidden bg-background">
               <button
                 type="button"
@@ -658,7 +728,9 @@ function ProductPage() {
               >
                 <Minus className="h-3.5 w-3.5" />
               </button>
-              <span className="flex-1 text-center text-xs font-semibold text-foreground select-none">{qty}</span>
+              <span className="flex-1 text-center text-xs font-semibold text-foreground select-none">
+                {qty}
+              </span>
               <button
                 type="button"
                 aria-label="increase"
@@ -723,7 +795,9 @@ function ProductPage() {
               }}
               className="flex-1 h-11 flex items-center justify-center gap-2 border border-border rounded-md hover:border-foreground hover:bg-foreground/5 transition-all duration-300 focus:outline-none text-xs tracking-wider uppercase font-medium text-muted-foreground hover:text-foreground"
             >
-              <Heart className={`h-4 w-4 ${wish.has(product.id, activeId) ? "fill-gold text-gold" : ""}`} />
+              <Heart
+                className={`h-4 w-4 ${wish.has(product.id, activeId) ? "fill-gold text-gold" : ""}`}
+              />
               {wish.has(product.id, activeId) ? "Wishlisted" : "Add to Wishlist"}
             </button>
 
@@ -733,7 +807,7 @@ function ProductPage() {
                 if (navigator.share) {
                   navigator
                     .share({ title: product.name, url: window.location.href })
-                    .catch(() => { });
+                    .catch(() => {});
                 } else {
                   navigator.clipboard.writeText(window.location.href);
                   toast("Link copied to clipboard");
@@ -762,8 +836,7 @@ function ProductPage() {
                 </p>
               )}
               <p className="mt-1">
-                <span className="font-semibold text-foreground">Colour:</span>{" "}
-                {activeColorValue}
+                <span className="font-semibold text-foreground">Colour:</span> {activeColorValue}
               </p>
             </AccordionItem>
 
@@ -773,7 +846,9 @@ function ProductPage() {
               onToggle={() => setOpenAccordion(openAccordion === "care" ? null : "care")}
             >
               <p>
-                Store in the protective pouch provided. Avoid direct contact with perfume, hairspray, makeup, and water. Polish regularly with a soft lint-free cloth to maintain its original luster.
+                Store in the protective pouch provided. Avoid direct contact with perfume,
+                hairspray, makeup, and water. Polish regularly with a soft lint-free cloth to
+                maintain its original luster.
               </p>
             </AccordionItem>
 
@@ -803,7 +878,9 @@ function ProductPage() {
               onToggle={() => setOpenAccordion(openAccordion === "shipping" ? null : "shipping")}
             >
               <p>
-                ANORA offers complimentary express courier delivery worldwide. Orders are processed within 24 hours of placement and arrive at your doorstep in 3 to 5 business days. Real-time tracking is provided with every shipment.
+                ANORA offers complimentary express courier delivery worldwide. Orders are processed
+                within 24 hours of placement and arrive at your doorstep in 3 to 5 business days.
+                Real-time tracking is provided with every shipment.
               </p>
             </AccordionItem>
 
@@ -813,7 +890,9 @@ function ProductPage() {
               onToggle={() => setOpenAccordion(openAccordion === "returns" ? null : "returns")}
             >
               <p>
-                We accept returns and exchanges on all unworn items within 14 days of receipt. Items must be in original condition with all tags and protective packing intact. Easy return pick-ups can be arranged through your account dashboard.
+                We accept returns and exchanges on all unworn items within 14 days of receipt. Items
+                must be in original condition with all tags and protective packing intact. Easy
+                return pick-ups can be arranged through your account dashboard.
               </p>
             </AccordionItem>
           </div>
@@ -932,7 +1011,8 @@ function ProductPage() {
               </tbody>
             </table>
             <p className="text-xs text-muted-foreground mt-6 font-sans">
-              Measurements are body measurements. For the best fit, we recommend comparing with a piece you already own.
+              Measurements are body measurements. For the best fit, we recommend comparing with a
+              piece you already own.
             </p>
           </div>
         </div>
@@ -940,8 +1020,6 @@ function ProductPage() {
     </div>
   );
 }
-
-
 
 function AccordionItem({
   title,
@@ -964,10 +1042,10 @@ function AccordionItem({
         <span className="text-[11px] tracking-[0.24em] uppercase font-semibold text-foreground hover:text-gold transition-colors duration-300">
           {title}
         </span>
-        <ChevronDown 
+        <ChevronDown
           className={`h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-transform duration-350 ${
             isOpen ? "rotate-180 text-foreground" : ""
-          }`} 
+          }`}
         />
       </button>
       <div
@@ -1045,11 +1123,7 @@ function RelatedCarousel({ products }: { products: Product[] }) {
   const clonedItems = useMemo(() => {
     if (!shouldSlider) return products;
     const K = visibleCards;
-    return [
-      ...products.slice(-K),
-      ...products,
-      ...products.slice(0, K),
-    ];
+    return [...products.slice(-K), ...products, ...products.slice(0, K)];
   }, [products, visibleCards, shouldSlider]);
 
   const slideNext = () => {
@@ -1154,7 +1228,7 @@ function RelatedCarousel({ products }: { products: Product[] }) {
   const baseTranslation = -currentIndex * (100 / clonedItems.length);
   const dragTranslation = containerWidth > 0 ? (dragOffset / containerWidth) * 100 : 0;
   const scaleFactor = clonedItems.length / visibleCards;
-  const translateX = baseTranslation + (dragTranslation / scaleFactor);
+  const translateX = baseTranslation + dragTranslation / scaleFactor;
 
   if (!shouldSlider) {
     return (
@@ -1200,7 +1274,9 @@ function RelatedCarousel({ products }: { products: Product[] }) {
         onMouseDown={handleMouseDown}
         style={{
           transform: `translate3d(${translateX}%, 0, 0)`,
-          transition: isTransitioning ? "transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)" : "none",
+          transition: isTransitioning
+            ? "transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)"
+            : "none",
           width: `${scaleFactor * 100}%`,
         }}
       >

@@ -48,6 +48,7 @@ export interface Product {
   metadata?: Record<string, unknown>;
   selectedVariantId?: string;
   category_id?: string;
+  short_description?: string | null;
 }
 
 export interface ProductPriceInfo {

@@ -35,7 +35,7 @@ import {
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
-    meta: [{ title: "Admin Dashboard — ANORA" }],
+    meta: [{ title: "Admin Dashboard — ANORA" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: AdminPage,
 });
@@ -205,21 +205,13 @@ function formatRelativeTime(ms: number): string {
   return `${hours} hours ago`;
 }
 
-function SectionHeader({
-  label,
-  description,
-}: {
-  label: string;
-  description?: string;
-}) {
+function SectionHeader({ label, description }: { label: string; description?: string }) {
   return (
     <div className="mb-5">
       <p className="text-[10px] tracking-[0.35em] uppercase text-muted-foreground/70 font-medium">
         {label}
       </p>
-      {description && (
-        <p className="text-xs text-muted-foreground/50 mt-0.5">{description}</p>
-      )}
+      {description && <p className="text-xs text-muted-foreground/50 mt-0.5">{description}</p>}
     </div>
   );
 }
@@ -358,7 +350,10 @@ function AdminPage() {
 
           {/* Products */}
           <section>
-            <SectionHeader label="Products & Catalogue" description="Inventory and catalogue status" />
+            <SectionHeader
+              label="Products & Catalogue"
+              description="Inventory and catalogue status"
+            />
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <CardGrid cards={PRODUCT_CARDS} summary={summary} loading={false} />
             </div>

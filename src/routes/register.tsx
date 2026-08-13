@@ -6,12 +6,16 @@ import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
 
 export const Route = createFileRoute("/register")({
-  validateSearch: (search: Record<string, unknown>): {
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): {
     redirectTo?: string;
   } => ({
     redirectTo: typeof search.redirectTo === "string" ? search.redirectTo : undefined,
   }),
-  head: () => ({ meta: [{ title: "Create Account — ANORA" }] }),
+  head: () => ({
+    meta: [{ title: "Create Account — ANORA" }, { name: "robots", content: "noindex, nofollow" }],
+  }),
   component: RegisterPage,
 });
 

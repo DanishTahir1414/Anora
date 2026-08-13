@@ -7,7 +7,9 @@ import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
 
 export const Route = createFileRoute("/reset-password")({
-  head: () => ({ meta: [{ title: "Reset Password — ANORA" }] }),
+  head: () => ({
+    meta: [{ title: "Reset Password — ANORA" }, { name: "robots", content: "noindex, nofollow" }],
+  }),
   component: ResetPasswordPage,
 });
 
@@ -59,7 +61,8 @@ function ResetPasswordPage() {
     }
 
     toast.success("Password updated", {
-      description: "Your password has been updated successfully. Redirecting you to the login page...",
+      description:
+        "Your password has been updated successfully. Redirecting you to the login page...",
     });
 
     setRedirecting(true);

@@ -2,14 +2,33 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ProductCard } from "@/components/site/ProductCard";
 import { useActiveCategories } from "@/lib/categories";
 import { useProductsCatalog } from "@/lib/products-query";
+import { SITE_URL } from "@/lib/config";
 
 export const Route = createFileRoute("/shop/")({
   head: () => ({
     meta: [
-      { title: "Shop — ANORA" },
+      { title: "Shop Luxury Women's Fashion | ANORA New York" },
       { name: "description", content: "Browse the full ANORA atelier — clothing and jewellery." },
+      { name: "robots", content: "index, follow" },
+      { property: "og:title", content: "Shop Luxury Women's Fashion | ANORA New York" },
+      {
+        property: "og:description",
+        content: "Browse the full ANORA atelier — clothing and jewellery.",
+      },
+      { property: "og:url", content: `${SITE_URL}/shop` },
+      { property: "og:type", content: "website" },
+      { property: "og:image", content: `${SITE_URL}/logo.png` },
+      { property: "og:site_name", content: "ANORA" },
+      { property: "og:locale", content: "en_US" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Shop Luxury Women's Fashion | ANORA New York" },
+      {
+        name: "twitter:description",
+        content: "Browse the full ANORA atelier — clothing and jewellery.",
+      },
+      { name: "twitter:image", content: `${SITE_URL}/logo.png` },
     ],
-    links: [{ rel: "canonical", href: "https://anora.com/shop" }],
+    links: [{ rel: "canonical", href: `${SITE_URL}/shop` }],
   }),
   component: ShopAll,
 });

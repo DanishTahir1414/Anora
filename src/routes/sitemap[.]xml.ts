@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 
 import { supabase } from "@/lib/supabase";
+import { SITE_URL } from "@/lib/config";
 
 interface SitemapEntry {
   path: string;
@@ -13,7 +14,7 @@ export const Route = createFileRoute("/sitemap.xml")({
   server: {
     handlers: {
       GET: async () => {
-        const BASE_URL = process.env.PUBLIC_APP_URL ?? "http://localhost:5173";
+        const BASE_URL = SITE_URL;
         const entries: SitemapEntry[] = [
           { path: "/", changefreq: "weekly", priority: "1.0" },
           { path: "/shop", changefreq: "weekly", priority: "0.9" },
@@ -28,8 +29,7 @@ export const Route = createFileRoute("/sitemap.xml")({
         ];
 
         // Fetch dynamic blog posts from Supabase database
-        const { data: posts } = await (supabase
-          .from("blogs") as any)
+        const { data: posts } = await (supabase.from("blogs") as any)
           .select("slug")
           .eq("status", "published");
 
@@ -39,6 +39,22 @@ export const Route = createFileRoute("/sitemap.xml")({
               path: `/blogs/${p.slug}`,
               changefreq: "weekly",
               priority: "0.6",
+            });
+          });
+        }
+
+        // Fetch dynamic products from Supabase database
+        const { data: dbProducts } = await (supabase.from("products") as any)
+          .select("slug")
+          .eq("is_active", true)
+          .eq("status", "active");
+
+        if (dbProducts) {
+          dbProducts.forEach((p: { slug: string }) => {
+            entries.push({
+              path: `/product/${p.slug}`,
+              changefreq: "weekly",
+              priority: "0.8",
             });
           });
         }

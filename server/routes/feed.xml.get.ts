@@ -1,5 +1,6 @@
 import { defineEventHandler, setHeader } from "h3";
 import { initContainer } from "../container";
+import { env } from "../config/env";
 
 export default defineEventHandler(async (event) => {
   const container = await initContainer();
@@ -16,7 +17,7 @@ export default defineEventHandler(async (event) => {
     throw error;
   }
 
-  const siteUrl = "https://anora.com"; // Target application URL
+  const siteUrl = env.publicAppUrl; // Target application URL
   let rssXml = `<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
 <channel>

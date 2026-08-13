@@ -13,6 +13,7 @@ import p5 from "@/assets/p5.webp";
 import p6 from "@/assets/p6.webp";
 import { ProductCard } from "@/components/site/ProductCard";
 import { useProductsCatalog, useParentCategories } from "@/lib/products-query";
+import { SITE_URL } from "@/lib/config";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -23,14 +24,27 @@ export const Route = createFileRoute("/")({
         content:
           "Discover ANORA's atelier of luxury clothing and jewellery — quiet pieces designed to last a lifetime.",
       },
+      { name: "robots", content: "index, follow" },
       { property: "og:title", content: "ANORA New York | Luxury Women's Fashion" },
       {
         property: "og:description",
         content: "Luxury clothing and jewellery, crafted with timeless elegance.",
       },
+      { property: "og:url", content: `${SITE_URL}/` },
+      { property: "og:type", content: "website" },
+      { property: "og:image", content: `${SITE_URL}/logo.png` },
+      { property: "og:site_name", content: "ANORA" },
+      { property: "og:locale", content: "en_US" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "ANORA New York | Luxury Women's Fashion" },
+      {
+        name: "twitter:description",
+        content: "Luxury clothing and jewellery, crafted with timeless elegance.",
+      },
+      { name: "twitter:image", content: `${SITE_URL}/logo.png` },
     ],
     links: [
-      { rel: "canonical", href: "https://anora.com/" },
+      { rel: "canonical", href: `${SITE_URL}/` },
       {
         rel: "preload",
         as: "image",
@@ -41,15 +55,31 @@ export const Route = createFileRoute("/")({
     scripts: [
       {
         type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "Organization",
-          name: "ANORA",
-          url: "https://anora.com/",
-          logo: "https://anora.com/favicon.ico",
-          description:
-            "Discover ANORA's atelier of luxury clothing and jewellery — quiet pieces designed to last a lifetime.",
-        }),
+        children: JSON.stringify([
+          {
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            name: "ANORA",
+            url: `${SITE_URL}/`,
+            logo: `${SITE_URL}/favicon.ico`,
+            description:
+              "Discover ANORA's atelier of luxury clothing and jewellery — quiet pieces designed to last a lifetime.",
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "ANORA",
+            url: `${SITE_URL}/`,
+            potentialAction: {
+              "@type": "SearchAction",
+              target: {
+                "@type": "EntryPoint",
+                urlTemplate: `${SITE_URL}/shop?q={search_term_string}`,
+              },
+              "query-input": "required name=search_term_string",
+            },
+          },
+        ]),
       },
     ],
   }),
@@ -72,16 +102,28 @@ function Home() {
   const { data: settings } = useSiteSettings();
 
   // Group products into sections dynamically
-  const featuredProducts = useMemo(() => products.filter((p) => p.featured === true).slice(0, 4), [products]);
+  const featuredProducts = useMemo(
+    () => products.filter((p) => p.featured === true).slice(0, 4),
+    [products],
+  );
 
   const newArrivals = useMemo(() => {
     const list = products.filter((p) => p.is_new === true || p.badge === "New").slice(0, 4);
-    return list.length >= 4 ? list : [...list, ...products.filter((p) => !p.badge).slice(0, 4 - list.length)].slice(0, 4);
+    return list.length >= 4
+      ? list
+      : [...list, ...products.filter((p) => !p.badge).slice(0, 4 - list.length)].slice(0, 4);
   }, [products]);
 
   const bestSellers = useMemo(() => {
-    const list = products.filter((p) => p.is_best_seller === true || p.badge === "Best Seller").slice(0, 4);
-    return list.length >= 4 ? list : [...list, ...products.filter((p) => !p.badge).slice(4 - list.length, 8 - list.length)].slice(0, 4);
+    const list = products
+      .filter((p) => p.is_best_seller === true || p.badge === "Best Seller")
+      .slice(0, 4);
+    return list.length >= 4
+      ? list
+      : [
+          ...list,
+          ...products.filter((p) => !p.badge).slice(4 - list.length, 8 - list.length),
+        ].slice(0, 4);
   }, [products]);
 
   const heroSrc = settings?.hero_image || hero;
@@ -110,7 +152,11 @@ function Home() {
           <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
             {(settings?.hero_button_1_text || DEFAULT_SITE_SETTINGS.hero_button_1_text) && (
               <Link
-                to={(settings?.hero_button_1_link || DEFAULT_SITE_SETTINGS.hero_button_1_link || "/shop") as any}
+                to={
+                  (settings?.hero_button_1_link ||
+                    DEFAULT_SITE_SETTINGS.hero_button_1_link ||
+                    "/shop") as any
+                }
                 className="bg-background text-foreground px-10 py-4 text-[11px] tracking-[0.32em] uppercase hover:bg-gold hover:text-ink transition-all duration-300 text-center"
               >
                 {settings?.hero_button_1_text || DEFAULT_SITE_SETTINGS.hero_button_1_text}
@@ -118,7 +164,11 @@ function Home() {
             )}
             {(settings?.hero_button_2_text || DEFAULT_SITE_SETTINGS.hero_button_2_text) && (
               <Link
-                to={(settings?.hero_button_2_link || DEFAULT_SITE_SETTINGS.hero_button_2_link || "/shop") as any}
+                to={
+                  (settings?.hero_button_2_link ||
+                    DEFAULT_SITE_SETTINGS.hero_button_2_link ||
+                    "/shop") as any
+                }
                 className="border border-background text-background px-10 py-4 text-[11px] tracking-[0.32em] uppercase hover:bg-background hover:text-foreground transition-all duration-300 text-center"
               >
                 {settings?.hero_button_2_text || DEFAULT_SITE_SETTINGS.hero_button_2_text}

@@ -8,8 +8,9 @@ import {
   useCategoryProducts,
   toProductProps,
   type CategoryNode,
-  type CategoryInfo
+  type CategoryInfo,
 } from "@/lib/categories";
+import { SITE_URL } from "@/lib/config";
 
 export const Route = createFileRoute("/shop/$")({
   head: ({ params }) => {
@@ -17,13 +18,26 @@ export const Route = createFileRoute("/shop/$")({
     const segments = splat.split("/").filter(Boolean);
     const categorySlug = segments[segments.length - 1] ?? "clothing";
     const name = categorySlug.charAt(0).toUpperCase() + categorySlug.slice(1).replace(/-/g, " ");
+    const formattedTitle = `Luxury ${name} | ANORA New York`;
+    const formattedDesc = `Explore the ANORA ${name} collection — meticulously crafted luxury and quiet elegance.`;
     return {
       meta: [
-        { title: `${name} | ANORA New York` },
-        { name: "description", content: `Explore the ANORA ${name} collection.` },
-        { property: "og:title", content: `${name} | ANORA New York` },
+        { title: formattedTitle },
+        { name: "description", content: formattedDesc },
+        { name: "robots", content: "index, follow" },
+        { property: "og:title", content: formattedTitle },
+        { property: "og:description", content: formattedDesc },
+        { property: "og:url", content: `${SITE_URL}/shop/${splat}` },
+        { property: "og:type", content: "website" },
+        { property: "og:image", content: `${SITE_URL}/logo.png` },
+        { property: "og:site_name", content: "ANORA" },
+        { property: "og:locale", content: "en_US" },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: formattedTitle },
+        { name: "twitter:description", content: formattedDesc },
+        { name: "twitter:image", content: `${SITE_URL}/logo.png` },
       ],
-      links: [{ rel: "canonical", href: `https://anora.com/shop/${splat}` }],
+      links: [{ rel: "canonical", href: `${SITE_URL}/shop/${splat}` }],
     };
   },
   component: ShopNestedCategory,
@@ -41,7 +55,7 @@ function findNodeBySlug(nodes: CategoryNode[], slug: string): CategoryNode | nul
 }
 
 function collectDescendants(node: CategoryNode): CategoryNode[] {
-  let list: CategoryNode[] = [];
+  const list: CategoryNode[] = [];
   if (node.children) {
     for (const child of node.children) {
       list.push(child);
@@ -51,7 +65,11 @@ function collectDescendants(node: CategoryNode): CategoryNode[] {
   return list;
 }
 
-function getCategoryPath(nodes: CategoryNode[], targetId: string, currentPath: string[] = []): string[] | null {
+function getCategoryPath(
+  nodes: CategoryNode[],
+  targetId: string,
+  currentPath: string[] = [],
+): string[] | null {
   for (const node of nodes) {
     if (node.id === targetId) {
       return [...currentPath, node.slug];
@@ -92,7 +110,7 @@ function ShopNestedCategory() {
   const subs = useMemo(() => ["All", ...children.map((c) => c.name)], [children]);
 
   const getDescendantSlugs = (node: CategoryNode): string[] => {
-    let slugs = [node.slug];
+    const slugs = [node.slug];
     if (node.children && node.children.length > 0) {
       for (const child of node.children) {
         slugs.push(...getDescendantSlugs(child));
@@ -105,7 +123,7 @@ function ShopNestedCategory() {
     if (subFilter === "All") return dbProducts;
     const selectedChild = children.find((c) => c.name === subFilter);
     if (!selectedChild) return dbProducts;
-    
+
     const descendantSlugs = getDescendantSlugs(selectedChild);
     return dbProducts.filter((p) => descendantSlugs.includes(p.category_slug));
   }, [subFilter, dbProducts, children]);
@@ -153,11 +171,10 @@ function ShopNestedCategory() {
           <span className="eyebrow">The Atelier</span>
           <h1 className="mt-4 font-serif text-5xl md:text-6xl">{heading}</h1>
           <p className="mt-5 text-muted-foreground">
-            {tagline || 
-              (categorySlug === "clothing" 
+            {tagline ||
+              (categorySlug === "clothing"
                 ? "Silks, cashmere and ceremonial dress — slow tailored in our atelier."
-                : "Recycled 18k gold and considered stones, finished entirely by hand.")
-            }
+                : "Recycled 18k gold and considered stones, finished entirely by hand.")}
           </p>
         </div>
 
@@ -194,8 +211,7 @@ function ShopNestedCategory() {
             <span className="eyebrow text-gold">{heading}</span>
             <h1 className="font-serif text-4xl mt-4">Coming Soon</h1>
             <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
-              We are preparing products for this category.
-              Please check back soon.
+              We are preparing products for this category. Please check back soon.
             </p>
             <Link
               to="/shop"
@@ -254,8 +270,7 @@ function ShopNestedCategory() {
             <span className="eyebrow text-gold">{heading}</span>
             <h1 className="font-serif text-4xl mt-4">Coming Soon</h1>
             <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
-              We are preparing products for this category.
-              Please check back soon.
+              We are preparing products for this category. Please check back soon.
             </p>
             <Link
               to="/shop"

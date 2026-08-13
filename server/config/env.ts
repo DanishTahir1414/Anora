@@ -166,7 +166,11 @@ class Environment {
   }
 
   get publicAppUrl(): string {
-    return this.get("PUBLIC_APP_URL") || this.get("VITE_PUBLIC_APP_URL") || "http://localhost:3000";
+    const url =
+      this.get("VITE_PUBLIC_APP_URL") ||
+      this.get("PUBLIC_APP_URL") ||
+      "https://anora.com";
+    return url.replace(/\/+$/, "");
   }
 
   toJSON(): Record<string, string> {

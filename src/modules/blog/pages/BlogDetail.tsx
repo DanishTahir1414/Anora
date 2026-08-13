@@ -1,12 +1,23 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
-import { Clock, Calendar, Share2, Copy, Twitter, Facebook, ArrowLeft, ArrowRight, User } from "lucide-react";
+import {
+  Clock,
+  Calendar,
+  Share2,
+  Copy,
+  Twitter,
+  Facebook,
+  ArrowLeft,
+  ArrowRight,
+  User,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { BlogService } from "../services/blog.service";
 import { RichTextRenderer } from "../components/RichTextRenderer";
 import { TableOfContents } from "../components/TableOfContents";
 import type { BlogPostWithDetails } from "../types";
 import { toast } from "sonner";
+import { SITE_URL } from "@/lib/config";
 
 export function BlogDetail({ post }: { post: BlogPostWithDetails }) {
   const blogService = useMemo(() => new BlogService(supabase), []);
@@ -80,44 +91,44 @@ export function BlogDetail({ post }: { post: BlogPostWithDetails }) {
     "@graph": [
       {
         "@type": "NewsArticle",
-        "headline": post.title,
-        "description": post.excerpt || "",
-        "image": post.cover_image || "",
-        "datePublished": post.published_at || post.created_at,
-        "dateModified": post.last_updated_at || post.created_at,
-        "author": {
+        headline: post.title,
+        description: post.excerpt || "",
+        image: post.cover_image || "",
+        datePublished: post.published_at || post.created_at,
+        dateModified: post.last_updated_at || post.created_at,
+        author: {
           "@type": "Person",
-          "name": post.author?.name || "ANORA Staff",
+          name: post.author?.name || "ANORA Staff",
         },
-        "publisher": {
+        publisher: {
           "@type": "Organization",
-          "name": "ANORA",
-          "logo": {
+          name: "ANORA",
+          logo: {
             "@type": "ImageObject",
-            "url": "https://anora.com/logo.png",
+            url: `${SITE_URL}/logo.png`,
           },
         },
       },
       {
         "@type": "BreadcrumbList",
-        "itemListElement": [
+        itemListElement: [
           {
             "@type": "ListItem",
-            "position": 1,
-            "name": "Home",
-            "item": "https://anora.com",
+            position: 1,
+            name: "Home",
+            item: `${SITE_URL}`,
           },
           {
             "@type": "ListItem",
-            "position": 2,
-            "name": "Journal",
-            "item": "https://anora.com/blogs",
+            position: 2,
+            name: "Journal",
+            item: `${SITE_URL}/blogs`,
           },
           {
             "@type": "ListItem",
-            "position": 3,
-            "name": post.title,
-            "item": `https://anora.com/blogs/${post.slug}`,
+            position: 3,
+            name: post.title,
+            item: `${SITE_URL}/blogs/${post.slug}`,
           },
         ],
       },
@@ -193,7 +204,10 @@ export function BlogDetail({ post }: { post: BlogPostWithDetails }) {
         <div className="px-5 lg:px-10 max-w-5xl mx-auto mb-16">
           <div className="aspect-[16/9] overflow-hidden bg-neutral border border-border/20">
             <img
-              src={post.cover_image || "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?q=80&w=1000"}
+              src={
+                post.cover_image ||
+                "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?q=80&w=1000"
+              }
               alt={post.title}
               className="w-full h-full object-cover"
             />
@@ -318,14 +332,19 @@ export function BlogDetail({ post }: { post: BlogPostWithDetails }) {
                 >
                   <div className="overflow-hidden w-28 sm:w-36 aspect-[4/3] bg-neutral shrink-0 border border-border/20">
                     <img
-                      src={b.cover_image || "https://images.unsplash.com/photo-1558603668-6570496b66f8?q=80&w=1000"}
+                      src={
+                        b.cover_image ||
+                        "https://images.unsplash.com/photo-1558603668-6570496b66f8?q=80&w=1000"
+                      }
                       alt={b.title}
                       loading="lazy"
                       className="h-full w-full object-cover transition-transform duration-[1200ms] group-hover:scale-103"
                     />
                   </div>
                   <div>
-                    <span className="text-[9px] tracking-widest uppercase text-gold">{b.category?.name}</span>
+                    <span className="text-[9px] tracking-widest uppercase text-gold">
+                      {b.category?.name}
+                    </span>
                     <h3 className="font-serif text-lg leading-tight mt-1.5 group-hover:text-gold transition-colors line-clamp-2">
                       {b.title}
                     </h3>

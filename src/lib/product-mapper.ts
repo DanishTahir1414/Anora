@@ -71,5 +71,6 @@ export function mapDbProductToStatic(
     metadata: {
       low_stock: db.stock > 0 && db.stock <= db.low_stock_threshold,
     },
+    short_description: db.short_description,
   };
 }

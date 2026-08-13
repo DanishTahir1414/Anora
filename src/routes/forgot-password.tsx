@@ -4,7 +4,9 @@ import { useAuth } from "@/lib/auth-context";
 import { mapForgotPasswordError } from "@/lib/auth-errors";
 
 export const Route = createFileRoute("/forgot-password")({
-  head: () => ({ meta: [{ title: "Reset Password — ANORA" }] }),
+  head: () => ({
+    meta: [{ title: "Reset Password — ANORA" }, { name: "robots", content: "noindex, nofollow" }],
+  }),
   component: ForgotPasswordPage,
 });
 
@@ -40,8 +42,7 @@ function ForgotPasswordPage() {
           Password reset email sent.
         </p>
         <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
-          If an account exists for this email address, you'll receive a password reset link
-          shortly.
+          If an account exists for this email address, you'll receive a password reset link shortly.
         </p>
         <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
           Please also check your Spam or Junk folder.
