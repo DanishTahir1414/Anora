@@ -356,3 +356,17 @@ export const getInvoicePdfUrl = createServerFn({ method: "POST" })
 
     return { signedUrl, invoiceNumber: invoiceRec.invoice_number };
   });
+
+const CalculateTaxSchema = z.object({
+  items: z.array(CheckoutItemSchema).min(1),
+  shippingAddress: AddressSchema,
+  couponCode: z.string().optional(),
+});
+
+export const calculateTax = createServerFn({ method: "POST" })
+  .validator(CalculateTaxSchema)
+  .handler(async ({ data }) => {
+    const { items, shippingAddress, couponCode } = data;
+    const { calculateStripeTaxOnServer } = await import("../../server/lib/payments");
+    return await calculateStripeTaxOnServer({ items, shippingAddress, couponCode });
+  });

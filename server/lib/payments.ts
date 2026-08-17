@@ -109,7 +109,23 @@ export async function createPaymentIntent(
     }
   }
 
+  let taxAmount = 0;
+  if (input.shippingAddress && input.shippingAddress.country && input.shippingAddress.state && input.shippingAddress.postalCode) {
+    try {
+      const taxResult = await calculateStripeTaxOnServer({
+        items: input.items,
+        shippingAddress: input.shippingAddress,
+        couponCode: input.couponCode,
+      });
+      taxAmount = taxResult.taxAmount;
+    } catch (err) {
+      logger.warn("Initial tax calculation failed", { error: String(err) });
+    }
+  }
+
   const totals = calculateTotals(validation.items, { discountAmount });
+  totals.tax = taxAmount;
+  totals.total = Math.round((totals.subtotal - totals.discount + totals.shipping + totals.tax) * 100) / 100;
   const amountInCents = Math.round(totals.total * 100);
 
   const cartHash = validation.items
@@ -122,6 +138,7 @@ export async function createPaymentIntent(
     cart_hash: cartHash.length > 200 ? cartHash.substring(0, 200) : cartHash,
     item_count: String(validation.items.length),
     currency: totals.currency,
+    tax_amount: String(taxAmount),
   };
 
   if (input.couponCode) {
@@ -244,7 +261,65 @@ export async function updatePaymentIntent(
 ): Promise<{ clientSecret: string; id: string }> {
   const container = getContainer();
 
+  let couponCode: string | undefined = undefined;
+  let discountAmount = 0;
+  let existingItems: CheckoutItemInput[] = [];
+  try {
+    const sessionTable = container.supabase.from("payment_sessions") as unknown as {
+      select: (columns?: string) => {
+        eq: (
+          column: string,
+          value: string,
+        ) => {
+          maybeSingle: () => Promise<{ data: { metadata?: { items?: CheckoutItemInput[]; coupon_code?: string; discount_amount?: string } } | null }>;
+        };
+      };
+    };
+    const { data: existingSession } = await sessionTable
+      .select("metadata")
+      .eq("payment_intent_id", paymentIntentId)
+      .maybeSingle();
+    if (existingSession?.metadata?.items) {
+      existingItems = existingSession.metadata.items;
+      couponCode = existingSession.metadata.coupon_code;
+      discountAmount = Number(existingSession.metadata.discount_amount || 0);
+    }
+  } catch (err) {
+    logger.warn("Failed to fetch existing payment session metadata", { error: String(err) });
+  }
+
+  let taxAmount = 0;
+  if (existingItems.length > 0 && input.shippingAddress.country && input.shippingAddress.state && input.shippingAddress.postalCode) {
+    try {
+      const taxResult = await calculateStripeTaxOnServer({
+        items: existingItems,
+        shippingAddress: input.shippingAddress,
+        couponCode,
+      });
+      taxAmount = taxResult.taxAmount;
+    } catch (err) {
+      logger.warn("Updated tax calculation failed", { error: String(err) });
+    }
+  }
+
+  const itemsWithPrice: CartItemInput[] = existingItems.map((item) => ({
+    productId: item.productId,
+    variantId: item.variantId,
+    size: item.size,
+    quantity: item.quantity,
+  }));
+  const validation = await validateCartItems(itemsWithPrice);
+  if (!validation.ok) {
+    throw new PaymentError(validation.error ?? "Cart validation failed");
+  }
+
+  const totals = calculateTotals(validation.items, { discountAmount });
+  totals.tax = taxAmount;
+  totals.total = Math.round((totals.subtotal - totals.discount + totals.shipping + totals.tax) * 100) / 100;
+  const amountInCents = Math.round(totals.total * 100);
+
   const params: Stripe.PaymentIntentUpdateParams = {
+    amount: amountInCents,
     receipt_email: input.email,
     shipping: {
       name: `${input.shippingAddress.firstName} ${input.shippingAddress.lastName}`,
@@ -260,43 +335,25 @@ export async function updatePaymentIntent(
     },
     metadata: {
       email: input.email,
+      tax_amount: String(taxAmount),
     },
   };
 
   const paymentIntent = await container.stripe.paymentIntents.update(paymentIntentId, params);
-
-  let existingItems: unknown[] = [];
-  try {
-    const sessionTable = container.supabase.from("payment_sessions") as unknown as {
-      select: (columns?: string) => {
-        eq: (
-          column: string,
-          value: string,
-        ) => {
-          maybeSingle: () => Promise<{ data: { metadata?: { items?: unknown[] } } | null }>;
-        };
-      };
-    };
-    const { data: existingSession } = await sessionTable
-      .select("metadata")
-      .eq("payment_intent_id", paymentIntentId)
-      .maybeSingle();
-    if (existingSession?.metadata?.items) {
-      existingItems = existingSession.metadata.items;
-    }
-  } catch (err) {
-    logger.warn("Failed to fetch existing payment session metadata", { error: String(err) });
-  }
 
   try {
     const sessionTable = container.supabase.from("payment_sessions") as unknown as {
       update: (values: {
         email: string;
         status: string;
+        amount: number;
         metadata: {
           shippingAddress: CheckoutAddress;
           billingAddress: CheckoutAddress;
           items: unknown[];
+          coupon_code?: string;
+          discount_amount?: string;
+          tax_amount?: string;
         };
       }) => {
         eq: (column: string, value: string) => Promise<{ error: Error | null }>;
@@ -306,10 +363,14 @@ export async function updatePaymentIntent(
       .update({
         email: input.email,
         status: "pending",
+        amount: amountInCents,
         metadata: {
           shippingAddress: input.shippingAddress,
           billingAddress: input.billingAddress ?? input.shippingAddress,
           items: existingItems,
+          coupon_code: couponCode,
+          discount_amount: String(discountAmount),
+          tax_amount: String(taxAmount),
         },
       })
       .eq("payment_intent_id", paymentIntentId);
@@ -596,4 +657,83 @@ export function verifyStripeWebhookSignature(payload: string, signatureHeader: s
 
   const currentWindow = Math.abs(Date.now() / 1000 - Number(timestamp));
   return currentWindow <= 300 && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+}
+
+export async function calculateStripeTaxOnServer(input: {
+  items: CheckoutItemInput[];
+  shippingAddress: CheckoutAddress;
+  couponCode?: string;
+}): Promise<{ taxAmount: number; currency: string }> {
+  const itemsWithPrice: CartItemInput[] = input.items.map((item) => ({
+    productId: item.productId,
+    variantId: item.variantId,
+    size: item.size,
+    quantity: item.quantity,
+  }));
+  const validation = await validateCartItems(itemsWithPrice);
+  if (!validation.ok) {
+    throw new PaymentError(validation.error ?? "Cart validation failed");
+  }
+
+  let discountAmount = 0;
+  const totalsTemp = calculateTotals(validation.items);
+  if (input.couponCode) {
+    const { validateCoupon } = await import("./cart-validation");
+    const couponVal = await validateCoupon(input.couponCode, totalsTemp.subtotal);
+    if (couponVal.ok) {
+      if (couponVal.discountType === "percentage") {
+        discountAmount = totalsTemp.subtotal * (couponVal.discountValue! / 100);
+      } else if (couponVal.discountType === "fixed") {
+        discountAmount = couponVal.discountValue!;
+      }
+    }
+  }
+
+  const { country, state, postalCode } = input.shippingAddress;
+  const normalizedCountry = (country || "").trim().toUpperCase();
+  const isUS = normalizedCountry === "US" || normalizedCountry === "USA" || normalizedCountry.includes("UNITED STATES");
+
+  if (isUS && state && postalCode) {
+    try {
+      const container = getContainer();
+      const subtotal = totalsTemp.subtotal;
+      const stripeLineItems = validation.items.map((item, idx) => {
+        const itemDiscount = subtotal > 0 ? (item.subtotal / subtotal) * discountAmount : 0;
+        const discountedAmount = Math.max(0, item.subtotal - itemDiscount);
+        return {
+          amount: Math.round(discountedAmount * 100),
+          reference: `item_${idx}_${item.productId}`,
+          tax_behavior: "exclusive" as const,
+        };
+      });
+
+      const taxCalculation = await container.stripe.tax.calculations.create({
+        currency: "usd",
+        line_items: stripeLineItems,
+        customer_details: {
+          address: {
+            line1: input.shippingAddress.line1 || undefined,
+            line2: input.shippingAddress.line2 || undefined,
+            city: input.shippingAddress.city || undefined,
+            state: state,
+            postal_code: postalCode,
+            country: "US",
+          },
+          address_source: "shipping",
+        },
+      });
+
+      const taxAmount = (taxCalculation.tax_amount_exclusive || 0) / 100;
+      return { taxAmount, currency: "usd" };
+    } catch (stripeErr) {
+      logger.error("Stripe Tax calculation failed", {
+        error: stripeErr instanceof Error ? stripeErr.message : String(stripeErr),
+        shippingAddress: input.shippingAddress,
+      });
+      // Return 0 tax amount instead of throwing so checkout does not completely break
+      return { taxAmount: 0, currency: "usd" };
+    }
+  }
+
+  return { taxAmount: 0, currency: "usd" };
 }

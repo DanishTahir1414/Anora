@@ -205,6 +205,79 @@ export function CheckoutForm() {
   const [stripeLoadFailed, setStripeLoadFailed] = useState(false);
   const [orderCreating, setOrderCreating] = useState(false);
   const orderAttempted = useRef(false);
+
+  const [taxAmount, setTaxAmount] = useState(0);
+  const [taxLoading, setTaxLoading] = useState(false);
+
+  const calculateTaxDebounced = useCallback(async () => {
+    if (!formRef.current) return;
+    const form = formRef.current;
+
+    const country = getFormValue(form, "country") || "";
+    const state = getFormValue(form, "state") || "";
+    const postalCode = getFormValue(form, "postalCode") || "";
+    const city = getFormValue(form, "city") || "";
+    const line1 = getFormValue(form, "address") || "";
+
+    const normalizedCountry = country.trim().toUpperCase();
+    const isUS = normalizedCountry === "US" || normalizedCountry === "USA" || normalizedCountry.includes("UNITED STATES");
+
+    if (isUS && state.trim().length >= 2 && postalCode.trim().length >= 5) {
+      setTaxLoading(true);
+      try {
+        const { calculateTax } = await import("@/lib/payments");
+        const res = await calculateTax({
+          data: {
+            items: cart.items.map((i) => ({
+              productId: i.productId,
+              variantId: i.variantId ?? null,
+              size: i.size,
+              quantity: i.quantity,
+            })),
+            shippingAddress: {
+              firstName: getFormValue(form, "firstName") || "",
+              lastName: getFormValue(form, "lastName") || "",
+              line1,
+              line2: getFormValue(form, "address2") || "",
+              city,
+              state: state.trim(),
+              postalCode: postalCode.trim(),
+              country: "US",
+              phone: getFormValue(form, "phone") || "",
+            },
+          },
+        });
+        setTaxAmount(res.taxAmount);
+      } catch (err) {
+        console.error("Tax calculation failed:", err);
+      } finally {
+        setTaxLoading(false);
+      }
+    } else {
+      setTaxAmount(0);
+    }
+  }, [cart.items]);
+
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleFormChange = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      calculateTaxDebounced();
+    }, 500);
+  };
+
+  useEffect(() => {
+    if (isMounted) {
+      calculateTaxDebounced();
+    }
+  }, [isMounted, calculateTaxDebounced]);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
   const checkoutRequestId = useRef(
     cachedCartHash === cartHash && cachedCheckoutRequestId
       ? cachedCheckoutRequestId
@@ -420,7 +493,7 @@ export function CheckoutForm() {
     };
   }, [billingSame]);
 
-  const total = cart.subtotal;
+  const total = Math.round((cart.subtotal + taxAmount) * 100) / 100;
 
   if (!isMounted || cart.isRestoring || authLoading || signingInAnonymously) {
     return (
@@ -475,6 +548,7 @@ export function CheckoutForm() {
 
       <form
         ref={formRef}
+        onChange={handleFormChange}
         onSubmit={async (e) => {
           e.preventDefault();
           const form = e.currentTarget;
@@ -793,6 +867,14 @@ export function CheckoutForm() {
               <div className="flex items-center justify-between text-muted-foreground text-xs">
                 <span>Shipping</span>
                 <span>Complimentary</span>
+              </div>
+              <div className="flex items-center justify-between text-muted-foreground text-xs">
+                <span>Sales Tax</span>
+                {taxLoading ? (
+                  <span className="inline-block h-3 w-10 animate-pulse bg-foreground/20 rounded" />
+                ) : (
+                  <span>${taxAmount.toFixed(2)}</span>
+                )}
               </div>
               <div className="h-px bg-border/40 my-3" />
               <div className="flex items-center justify-between text-foreground font-bold font-sans">

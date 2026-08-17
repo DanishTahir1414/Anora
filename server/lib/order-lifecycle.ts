@@ -525,6 +525,67 @@ export async function runCheckoutPipeline(
 
     logger.info("Transaction Committed", { orderId, orderNumber, invoiceId });
 
+    // Authoritative Server-side Tax calculation and database write
+    let calculatedTax = 0;
+    const isUS = params.shippingAddress?.country && (
+      params.shippingAddress.country.trim().toUpperCase() === "US" ||
+      params.shippingAddress.country.trim().toUpperCase() === "USA" ||
+      params.shippingAddress.country.trim().toUpperCase().includes("UNITED STATES")
+    );
+
+    if (isUS && params.shippingAddress?.state && (params.shippingAddress?.postalCode || params.shippingAddress?.postal_code)) {
+      try {
+        const { calculateStripeTaxOnServer } = await import("./payments");
+        const taxResult = await calculateStripeTaxOnServer({
+          items: params.items.map((i) => ({
+            productId: i.productId,
+            variantId: i.variantId ?? null,
+            size: i.size,
+            quantity: i.quantity,
+          })),
+          shippingAddress: {
+            firstName: params.shippingAddress.first_name || params.shippingAddress.firstName || "",
+            lastName: params.shippingAddress.last_name || params.shippingAddress.lastName || "",
+            line1: params.shippingAddress.line1 || "",
+            line2: params.shippingAddress.line2 || "",
+            city: params.shippingAddress.city || "",
+            state: params.shippingAddress.state || "",
+            postalCode: params.shippingAddress.postal_code || params.shippingAddress.postalCode || "",
+            country: "US",
+            phone: params.shippingAddress.phone || "",
+          },
+          couponCode: params.couponCode,
+        });
+        calculatedTax = taxResult.taxAmount;
+      } catch (err) {
+        logger.warn("Server-side order tax calculation failed", { error: String(err) });
+      }
+    }
+
+    // Update orders table with tax_amount, subtotal, and total
+    const dbSubtotal = params.total - calculatedTax + (params.discountAmount || 0);
+
+    try {
+      await (supabase.from("orders") as any)
+        .update({
+          tax_amount: calculatedTax,
+          subtotal: dbSubtotal,
+          total: params.total,
+        })
+        .eq("id", orderId);
+
+      // Update invoices table with tax_amount and subtotal/total_amount
+      await (supabase.from("invoices") as any)
+        .update({
+          tax_amount: calculatedTax,
+          subtotal: dbSubtotal,
+          total_amount: params.total,
+        })
+        .eq("order_id", orderId);
+    } catch (err) {
+      logger.error("Failed to update tax_amount on order or invoice record", { error: String(err), orderId });
+    }
+
     // Server-side Coupon Verification & Redemption
     if (params.couponCode) {
       try {
@@ -579,12 +640,13 @@ export async function runCheckoutPipeline(
     let subtotal = params.total;
     let shippingCost = 0;
     let discountVal = 0;
+    let taxVal = 0;
     let grandTotal = params.total;
     let shippingMethodName = "Standard Delivery";
 
     try {
       const { data: orderDetails } = await (supabase.from("orders") as any)
-        .select("subtotal, shipping_cost, discount, total, shipping_method")
+        .select("subtotal, shipping_cost, discount, total, shipping_method, tax_amount")
         .eq("id", orderId)
         .maybeSingle();
 
@@ -592,6 +654,7 @@ export async function runCheckoutPipeline(
         subtotal = Number(orderDetails.subtotal);
         shippingCost = Number(orderDetails.shipping_cost);
         discountVal = Number(orderDetails.discount);
+        taxVal = Number(orderDetails.tax_amount || 0);
         grandTotal = Number(orderDetails.total);
         if (orderDetails.shipping_method === "express") {
           shippingMethodName = "Express Delivery";
@@ -670,7 +733,7 @@ export async function runCheckoutPipeline(
       })),
       subtotal: subtotal,
       shipping: shippingCost,
-      tax: 0,
+      tax: taxVal,
       total: grandTotal,
       paymentMethod: params.paymentMethod,
       paymentStatus: "completed",
