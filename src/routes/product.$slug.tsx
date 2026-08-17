@@ -187,6 +187,7 @@ function ProductPage() {
   useEffect(() => {
     if (!product) return;
     setImgIdx((prev) => (prev !== 0 ? 0 : prev));
+    setGuideOpen(false);
   }, [activeColor, product]);
 
   const [qty, setQty] = useState(1);
@@ -716,13 +717,15 @@ function ProductPage() {
                 <span className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground font-semibold">
                   Size
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setGuideOpen(true)}
-                  className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground/75 hover:text-foreground transition-colors duration-300 focus:outline-none hover-underline"
-                >
-                  Size Guide
-                </button>
+                {product.subcategory?.trim().toLowerCase() !== "unstitched" && (
+                  <button
+                    type="button"
+                    onClick={() => setGuideOpen(true)}
+                    className="text-[10px] tracking-[0.24em] uppercase text-muted-foreground/75 hover:text-foreground transition-colors duration-300 focus:outline-none hover-underline"
+                  >
+                    Size Guide
+                  </button>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
                 {activeSizes.map((s) => {
@@ -1009,7 +1012,7 @@ function ProductPage() {
       )}
 
       {/* ─── Size Guide ─── */}
-      {guideOpen && (
+      {guideOpen && product.subcategory?.trim().toLowerCase() !== "unstitched" && (
         <div
           onClick={() => setGuideOpen(false)}
           className="fixed inset-0 z-[70] bg-ink/40 backdrop-blur-sm animate-fade flex items-center justify-center p-4"
