@@ -14,6 +14,7 @@ import { useActiveCategories } from "@/lib/categories";
 import { getProductBySlug } from "@/lib/products-db";
 import { mapDbProductToStatic } from "@/lib/product-mapper";
 import { SITE_URL } from "@/lib/config";
+import { ReviewsSection, useProductReviews } from "@/components/site/ReviewsSection";
 
 interface ProductSearch {
   color?: string;
@@ -117,6 +118,7 @@ function ProductPage() {
   const { data: product, isLoading, error } = useProductDetailQuery(slug);
   const { data: catalog = [] } = useProductsCatalog();
   const { data: allCategories = [] } = useActiveCategories();
+  const { data: reviews = [] } = useProductReviews(product?.id || "");
 
   const [openAccordion, setOpenAccordion] = useState<string | null>("details");
 
@@ -230,7 +232,7 @@ function ProductPage() {
       : product.price;
     const isAvailable = ((active?.stock ?? product.stock) || 0) > 0;
 
-    const productSchema = {
+    const productSchema: any = {
       "@context": "https://schema.org",
       "@type": "Product",
       name: product.name,
@@ -253,6 +255,37 @@ function ProductPage() {
         availability: isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
       },
     };
+
+    const totalReviews = reviews.length;
+    const avgRating = totalReviews > 0
+      ? Number((reviews.reduce((acc, curr) => acc + curr.rating, 0) / totalReviews).toFixed(1))
+      : 0;
+
+    if (totalReviews > 0) {
+      productSchema.aggregateRating = {
+        "@type": "AggregateRating",
+        ratingValue: String(avgRating),
+        reviewCount: String(totalReviews),
+        bestRating: "5",
+        worstRating: "1",
+      };
+      productSchema.review = reviews.slice(0, 5).map((r) => ({
+        "@type": "Review",
+        author: {
+          "@type": "Person",
+          name: r.reviewer_name,
+        },
+        datePublished: r.created_at.split("T")[0],
+        reviewBody: r.review_text,
+        name: r.title || undefined,
+        reviewRating: {
+          "@type": "Rating",
+          ratingValue: String(r.rating),
+          bestRating: "5",
+          worstRating: "1",
+        },
+      }));
+    }
 
     const breadcrumbs: { "@type": string; position: number; name: string; item: string }[] = [
       {
@@ -301,7 +334,7 @@ function ProductPage() {
     };
 
     return { productSchema, breadcrumbSchema };
-  }, [product, priceInfo, active, categoryPathSlugs]);
+  }, [product, priceInfo, active, categoryPathSlugs, reviews]);
 
   // Conditional early returns
   if (isLoading) {
@@ -907,6 +940,9 @@ function ProductPage() {
           </div>
         </div>
       </div>
+
+      {/* ─── Reviews Section ─── */}
+      <ReviewsSection productId={product.id} />
 
       {/* ─── 5. Premium Divider ─── */}
       <div className="my-20 h-px w-full bg-border/20 max-w-7xl mx-auto" />

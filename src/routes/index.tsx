@@ -15,6 +15,7 @@ import { ProductCard } from "@/components/site/ProductCard";
 import { useProductsCatalog, useParentCategories } from "@/lib/products-query";
 import { SITE_URL } from "@/lib/config";
 import { getProductPriceInfo } from "@/lib/products";
+import { ReviewsCarousel } from "@/components/site/ReviewsCarousel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -394,6 +395,9 @@ function Home() {
           ))}
         </div>
       </section>
+
+      {/* ─── Reviews Carousel ─── */}
+      <ReviewsCarousel />
 
       {/* ─── Newsletter ─── */}
       <section className="px-5 py-24 lg:py-32">

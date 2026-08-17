@@ -10,7 +10,8 @@ export type JobType =
   | "send_invoice_email"
   | "send_admin_email"
   | "analytics_events"
-  | "application_logs";
+  | "application_logs"
+  | "send_review_email";
 
 export type JobRecord = {
   id: string;
@@ -22,6 +23,7 @@ export type JobRecord = {
   retry_count: number;
   max_retries: number;
   next_retry_at: string | null;
+  scheduled_at: string | null;
   created_at: string;
   completed_at: string | null;
   error_message: string | null;
@@ -30,6 +32,17 @@ export type JobRecord = {
 type JobHandler = (job: JobRecord) => Promise<void>;
 
 const JOB_TYPES: JobType[] = [
+  "generate_invoice",
+  "generate_invoice_pdf",
+  "send_thank_you_email",
+  "send_invoice_email",
+  "send_admin_email",
+  "analytics_events",
+  "application_logs",
+  "send_review_email",
+];
+
+const DEFAULT_ORDER_JOBS: JobType[] = [
   "generate_invoice",
   "generate_invoice_pdf",
   "send_thank_you_email",
@@ -47,6 +60,7 @@ const JOB_SEQUENCE: Record<JobType, number> = {
   send_admin_email: 5,
   analytics_events: 6,
   application_logs: 7,
+  send_review_email: 8,
 };
 
 export class QueueService {
@@ -68,7 +82,7 @@ export class QueueService {
   }
 
   async enqueue(orderId: string, payload: Record<string, unknown>): Promise<void> {
-    const jobs = JOB_TYPES.map((jobType) => ({
+    const jobs = DEFAULT_ORDER_JOBS.map((jobType) => ({
       order_id: orderId,
       job_type: jobType,
       sequence: JOB_SEQUENCE[jobType],
@@ -87,6 +101,23 @@ export class QueueService {
     this.processPending().catch((err) => {
       logger.error("Failed to process enqueued jobs in background", { orderId, error: String(err) });
     });
+  }
+
+  async enqueueSingle(orderId: string, jobType: JobType, payload: Record<string, unknown>, scheduledAt?: string): Promise<void> {
+    const job = {
+      order_id: orderId,
+      job_type: jobType,
+      sequence: JOB_SEQUENCE[jobType] || 1,
+      status: "pending" as const,
+      payload,
+      max_retries: config.queue.maxRetries,
+      scheduled_at: scheduledAt || null,
+    };
+
+    const { error } = await (this.supabase.from("background_jobs") as any).insert(job);
+    if (error) throw new QueueError(`Failed to enqueue single job: ${error.message}`, error);
+
+    logger.info("Single job enqueued", { orderId, jobType, scheduledAt });
   }
 
   async processPending(limit: number = config.queue.batchSize): Promise<number> {

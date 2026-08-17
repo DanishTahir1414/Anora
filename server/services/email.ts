@@ -259,6 +259,24 @@ export class EmailService {
       orderId,
     });
   }
+
+  async sendReviewRequest(
+    to: string,
+    customerName: string,
+    products: Array<{ name: string; imageUrl?: string; reviewUrl: string }>,
+    orderId: string,
+  ): Promise<void> {
+    const { buildReviewRequestHtml } = await import("../templates");
+    const html = buildReviewRequestHtml({ customerName, products });
+
+    return this.sendWithLogging({
+      to,
+      subject: `How was your purchase? — ANORA`,
+      html,
+      emailType: "review_request",
+      orderId,
+    });
+  }
 }
 
 // Lazy init — supabase admin client is created after env validation

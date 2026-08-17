@@ -216,6 +216,91 @@ export class ServerContainer {
         created_at: new Date().toISOString(),
       });
     });
+
+    // send_review_email
+    this._queue.register("send_review_email", async (job: JobRecord) => {
+      logger.info("Job: send_review_email", { orderId: job.order_id });
+
+      const { data: order, error: orderErr } = await (this.supabase
+        .from("orders") as any)
+        .select("id, email, shipping_address, user_id")
+        .eq("id", job.order_id)
+        .single();
+
+      if (orderErr || !order) {
+        throw new Error(`Order not found for review request: ${orderErr?.message || "empty"}`);
+      }
+
+      const { data: items, error: itemsErr } = await (this.supabase
+        .from("order_items") as any)
+        .select("id, name, product_id, image_url")
+        .eq("order_id", job.order_id);
+
+      if (itemsErr || !items) {
+        throw new Error(`Order items not found for review request: ${itemsErr?.message || "empty"}`);
+      }
+
+      const eligibleProducts: Array<{ name: string; imageUrl?: string; reviewUrl: string }> = [];
+
+      for (const item of items) {
+        const { count, error: reviewCheckErr } = await (this.supabase
+          .from("reviews") as any)
+          .select("id", { count: "exact", head: true })
+          .eq("order_item_id", item.id);
+
+        if (reviewCheckErr) continue;
+
+        if ((count ?? 0) === 0) {
+          // Create a cryptographically secure token
+          const { data: tokenRec, error: tokenErr } = await (this.supabase
+            .from("review_tokens") as any)
+            .insert({
+              order_id: job.order_id,
+              order_item_id: item.id,
+              email: order.email,
+            })
+            .select("token")
+            .single();
+
+          if (tokenErr || !tokenRec) {
+            logger.error("Failed to generate review token", { orderItemId: item.id, error: tokenErr?.message });
+            continue;
+          }
+
+          eligibleProducts.push({
+            name: item.name,
+            imageUrl: item.image_url || undefined,
+            reviewUrl: `${env.publicAppUrl || "https://anora-sooty.vercel.app"}/review/${tokenRec.token}`,
+          });
+        }
+      }
+
+      if (eligibleProducts.length === 0) {
+        logger.info("No eligible products found for review request — skipping email", { orderId: job.order_id });
+        return;
+      }
+
+      let customerName = "Valued Customer";
+      if (order.user_id) {
+        const { data: profile } = await (this.supabase
+          .from("profiles") as any)
+          .select("first_name, last_name")
+          .eq("id", order.user_id)
+          .single();
+        if (profile?.first_name) {
+          customerName = profile.first_name;
+        }
+      } else {
+        const sa = order.shipping_address as any;
+        if (sa?.firstName) {
+          customerName = sa.firstName;
+        } else if (sa?.first_name) {
+          customerName = sa.first_name;
+        }
+      }
+
+      await this.email.sendReviewRequest(order.email, customerName, eligibleProducts, job.order_id);
+    });
   }
 
   // Accessors

@@ -33,6 +33,7 @@ import { Route as ShopIndexRouteImport } from './routes/shop.index'
 import { Route as BlogsIndexRouteImport } from './routes/blogs.index'
 import { Route as ShopSaleRouteImport } from './routes/shop.sale'
 import { Route as ShopSplatRouteImport } from './routes/shop.$'
+import { Route as ReviewTokenRouteImport } from './routes/review.$token'
 import { Route as ProductSlugRouteImport } from './routes/product.$slug'
 import { Route as OrderSuccessRouteImport } from './routes/order.success'
 import { Route as BlogsSlugRouteImport } from './routes/blogs.$slug'
@@ -175,6 +176,11 @@ const ShopSplatRoute = ShopSplatRouteImport.update({
   id: '/$',
   path: '/$',
   getParentRoute: () => ShopRoute,
+} as any)
+const ReviewTokenRoute = ReviewTokenRouteImport.update({
+  id: '/review/$token',
+  path: '/review/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ProductSlugRoute = ProductSlugRouteImport.update({
   id: '/product/$slug',
@@ -327,6 +333,7 @@ export interface FileRoutesByFullPath {
   '/blogs/$slug': typeof BlogsSlugRoute
   '/order/success': typeof OrderSuccessRoute
   '/product/$slug': typeof ProductSlugRoute
+  '/review/$token': typeof ReviewTokenRoute
   '/shop/$': typeof ShopSplatRoute
   '/shop/sale': typeof ShopSaleRoute
   '/blogs/': typeof BlogsIndexRoute
@@ -373,6 +380,7 @@ export interface FileRoutesByTo {
   '/blogs/$slug': typeof BlogsSlugRoute
   '/order/success': typeof OrderSuccessRoute
   '/product/$slug': typeof ProductSlugRoute
+  '/review/$token': typeof ReviewTokenRoute
   '/shop/$': typeof ShopSplatRoute
   '/shop/sale': typeof ShopSaleRoute
   '/blogs': typeof BlogsIndexRoute
@@ -422,6 +430,7 @@ export interface FileRoutesById {
   '/blogs/$slug': typeof BlogsSlugRoute
   '/order/success': typeof OrderSuccessRoute
   '/product/$slug': typeof ProductSlugRoute
+  '/review/$token': typeof ReviewTokenRoute
   '/shop/$': typeof ShopSplatRoute
   '/shop/sale': typeof ShopSaleRoute
   '/blogs/': typeof BlogsIndexRoute
@@ -472,6 +481,7 @@ export interface FileRouteTypes {
     | '/blogs/$slug'
     | '/order/success'
     | '/product/$slug'
+    | '/review/$token'
     | '/shop/$'
     | '/shop/sale'
     | '/blogs/'
@@ -518,6 +528,7 @@ export interface FileRouteTypes {
     | '/blogs/$slug'
     | '/order/success'
     | '/product/$slug'
+    | '/review/$token'
     | '/shop/$'
     | '/shop/sale'
     | '/blogs'
@@ -566,6 +577,7 @@ export interface FileRouteTypes {
     | '/blogs/$slug'
     | '/order/success'
     | '/product/$slug'
+    | '/review/$token'
     | '/shop/$'
     | '/shop/sale'
     | '/blogs/'
@@ -598,6 +610,7 @@ export interface RootRouteChildren {
   WishlistRoute: typeof WishlistRoute
   OrderSuccessRoute: typeof OrderSuccessRoute
   ProductSlugRoute: typeof ProductSlugRoute
+  ReviewTokenRoute: typeof ReviewTokenRoute
   ApiAdminProductsUploadRoute: typeof ApiAdminProductsUploadRoute
 }
 
@@ -770,6 +783,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/shop/$'
       preLoaderRoute: typeof ShopSplatRouteImport
       parentRoute: typeof ShopRoute
+    }
+    '/review/$token': {
+      id: '/review/$token'
+      path: '/review/$token'
+      fullPath: '/review/$token'
+      preLoaderRoute: typeof ReviewTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/product/$slug': {
       id: '/product/$slug'
@@ -1041,6 +1061,7 @@ const rootRouteChildren: RootRouteChildren = {
   WishlistRoute: WishlistRoute,
   OrderSuccessRoute: OrderSuccessRoute,
   ProductSlugRoute: ProductSlugRoute,
+  ReviewTokenRoute: ReviewTokenRoute,
   ApiAdminProductsUploadRoute: ApiAdminProductsUploadRoute,
 }
 export const routeTree = rootRouteImport

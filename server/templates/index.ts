@@ -1125,3 +1125,54 @@ export function buildNotificationEmailHtml(data: NotificationEmailData): string 
   return wrap(body);
 }
 
+export interface ReviewRequestProduct {
+  name: string;
+  imageUrl?: string;
+  reviewUrl: string;
+}
+
+export interface ReviewRequestData {
+  customerName?: string;
+  products: ReviewRequestProduct[];
+}
+
+export function buildReviewRequestHtml(data: ReviewRequestData): string {
+  const resolvedName = data.customerName || "Valued Customer";
+  
+  const productRows = data.products.map(p => `
+    <tr style="border-bottom:1px solid ${BORDER};">
+      <td style="padding:24px 0;width:80px;vertical-align:middle;">
+        ${p.imageUrl ? `<img src="${p.imageUrl}" alt="${escapeHtml(p.name)}" width="80" style="width:80px;height:auto;display:block;border:1px solid ${BORDER};" />` : `<div style="width:80px;height:80px;background-color:${LIGHT_BG};border:1px solid ${BORDER};"></div>`}
+      </td>
+      <td style="padding:24px 0 24px 20px;vertical-align:middle;text-align:left;">
+        <h4 style="font-family:'Didot','Playfair Display','Times New Roman',serif;font-size:16px;color:${DARK};margin:0 0 8px;font-weight:400;letter-spacing:0.5px;">${escapeHtml(p.name)}</h4>
+        <a href="${p.reviewUrl}" style="display:inline-block;background-color:${DARK};color:${WHITE};text-decoration:none;padding:10px 20px;font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;margin-top:4px;">Review Purchase</a>
+      </td>
+    </tr>
+  `).join("");
+
+  const body = `
+    ${header()}
+    <tr>
+      <td class="content" style="padding:0 48px;background-color:${WHITE};">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:40px 0 24px;text-align:left;">
+              <h2 style="font-family:'Didot','Playfair Display','Times New Roman',serif;font-size:24px;color:${DARK};margin:0 0 16px;font-weight:400;letter-spacing:1px;text-align:center;">Your ANORA Experience</h2>
+              <p style="font-size:14px;color:${TEXT};margin:0 0 16px;line-height:1.6;">Dear ${escapeHtml(resolvedName)},</p>
+              <p style="font-size:14px;color:${TEXT};margin:0 0 24px;line-height:1.6;">
+                We hope your recent ANORA pieces are serving you beautifully. We invite you to share your thoughts on the fit, fabric, and craftsmanship of your selection.
+              </p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                ${productRows}
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    ${footer()}
+  `;
+  return wrap(body);
+}
+
