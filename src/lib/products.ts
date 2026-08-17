@@ -48,7 +48,13 @@ export interface Product {
   metadata?: Record<string, unknown>;
   selectedVariantId?: string;
   category_id?: string;
+  category_slug?: string;
   short_description?: string | null;
+  featured?: boolean;
+  is_new?: boolean;
+  is_best_seller?: boolean;
+  popularity_score?: number;
+  created_at?: string;
 }
 
 export interface ProductPriceInfo {
@@ -337,3 +343,47 @@ export const faqs = [
     a: "Store each piece separately in the pouch provided. Avoid contact with perfumes, lotions and chlorine. A soft polishing cloth restores shine in moments.",
   },
 ];
+
+export function sortProducts(products: Product[], sortOption?: string): Product[] {
+  const items = [...products];
+  if (!sortOption) return items;
+
+  switch (sortOption) {
+    case "featured":
+      return items.sort((a, b) => {
+        const featA = a.featured ? 1 : 0;
+        const featB = b.featured ? 1 : 0;
+        if (featA !== featB) {
+          return featB - featA; // Featured first
+        }
+        const popA = a.popularity_score ?? 0;
+        const popB = b.popularity_score ?? 0;
+        return popB - popA; // Sub-sort by popularity score
+      });
+    case "newest":
+      return items.sort((a, b) => {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return timeB - timeA; // Newest first
+      });
+    case "price-asc":
+      return items.sort((a, b) => {
+        const priceA = getProductPriceInfo(a).salePrice;
+        const priceB = getProductPriceInfo(b).salePrice;
+        return priceA - priceB;
+      });
+    case "price-desc":
+      return items.sort((a, b) => {
+        const priceA = getProductPriceInfo(a).salePrice;
+        const priceB = getProductPriceInfo(b).salePrice;
+        return priceB - priceA;
+      });
+    case "name-asc":
+      return items.sort((a, b) => a.name.localeCompare(b.name));
+    case "name-desc":
+      return items.sort((a, b) => b.name.localeCompare(a.name));
+    default:
+      return items;
+  }
+}
+

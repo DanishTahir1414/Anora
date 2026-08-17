@@ -11,8 +11,22 @@ import {
   type CategoryInfo,
 } from "@/lib/categories";
 import { SITE_URL } from "@/lib/config";
+import { sortProducts } from "@/lib/products";
+
+interface ShopSearch {
+  sort?: "featured" | "newest" | "price-asc" | "price-desc" | "name-asc" | "name-desc";
+  q?: string;
+}
 
 export const Route = createFileRoute("/shop/$")({
+  validateSearch: (search: Record<string, unknown>): ShopSearch => {
+    return {
+      sort: (["featured", "newest", "price-asc", "price-desc", "name-asc", "name-desc"].includes(search.sort as string))
+        ? (search.sort as any)
+        : undefined,
+      q: typeof search.q === "string" ? search.q : undefined,
+    };
+  },
   head: ({ params }) => {
     const splat = params._splat || "";
     const segments = splat.split("/").filter(Boolean);
@@ -119,14 +133,83 @@ function ShopNestedCategory() {
     return slugs;
   };
 
+  const { sort, q } = Route.useSearch();
+  const navigate = Route.useNavigate();
+
+  const mappedProducts = useMemo(() => {
+    return dbProducts.map(toProductProps);
+  }, [dbProducts]);
+
+  const searchedProducts = useMemo(() => {
+    if (!q) return mappedProducts;
+    const query = q.toLowerCase().trim();
+    return mappedProducts.filter(
+      (p) =>
+        p.name.toLowerCase().includes(query) ||
+        p.description.toLowerCase().includes(query) ||
+        p.subcategory.toLowerCase().includes(query)
+    );
+  }, [mappedProducts, q]);
+
+  const sortedDbProducts = useMemo(() => {
+    return sortProducts(searchedProducts, sort);
+  }, [searchedProducts, sort]);
+
   const filtered = useMemo(() => {
-    if (subFilter === "All") return dbProducts;
+    if (subFilter === "All") return sortedDbProducts;
     const selectedChild = children.find((c) => c.name === subFilter);
-    if (!selectedChild) return dbProducts;
+    if (!selectedChild) return sortedDbProducts;
 
     const descendantSlugs = getDescendantSlugs(selectedChild);
-    return dbProducts.filter((p) => descendantSlugs.includes(p.category_slug));
-  }, [subFilter, dbProducts, children]);
+    return sortedDbProducts.filter((p) => p.category_slug && descendantSlugs.includes(p.category_slug));
+  }, [subFilter, sortedDbProducts, children]);
+
+  const renderSortBar = (totalItems: number) => {
+    if (dbProducts.length === 0) return null;
+    return (
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 max-w-7xl mx-auto mb-8 border-b border-border/20 pb-4 animate-fade">
+        <span className="text-[11px] tracking-widest text-muted-foreground uppercase font-medium">
+          Showing {totalItems} {totalItems === 1 ? "piece" : "pieces"} {q && `for "${q}"`}
+        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] tracking-widest text-muted-foreground uppercase font-bold font-sans">Sort By</span>
+          <div className="relative">
+            <select
+              id="sort-select"
+              value={sort || "featured"}
+              onChange={(e) => {
+                const val = e.target.value;
+                void navigate({
+                  search: (old) => {
+                    const next = { ...old };
+                    if (val === "featured") {
+                      delete next.sort;
+                    } else {
+                      next.sort = val as any;
+                    }
+                    return next;
+                  }
+                });
+              }}
+              className="appearance-none bg-background border border-border/80 px-4 py-2 pr-10 text-[11px] tracking-wider uppercase focus:outline-none focus:border-foreground transition-colors cursor-pointer rounded-none font-sans text-foreground"
+            >
+              <option value="featured">Featured</option>
+              <option value="newest">Newest</option>
+              <option value="price-asc">Price: Low to High</option>
+              <option value="price-desc">Price: High to Low</option>
+              <option value="name-asc">Name: A–Z</option>
+              <option value="name-desc">Name: Z–A</option>
+            </select>
+            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-muted-foreground">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const isLoading = isProductsLoading || isCatsLoading || isInfoLoading;
 
@@ -162,7 +245,7 @@ function ShopNestedCategory() {
   if (isRootCategory) {
     const descendantCats = catNode ? collectDescendants(catNode) : [];
     const subCount = descendantCats.length;
-    const totalProducts = dbProducts.length;
+    const totalProducts = sortedDbProducts.length;
 
     return (
       <div className="px-5 lg:px-10 pt-16 pb-24">
@@ -205,6 +288,8 @@ function ShopNestedCategory() {
           </div>
         )}
 
+        {renderSortBar(totalProducts)}
+
         {/* Product listing grid or Coming Soon UI */}
         {dbProducts.length === 0 ? (
           <div className="py-20 text-center max-w-md mx-auto px-6">
@@ -223,8 +308,8 @@ function ShopNestedCategory() {
         ) : (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14 max-w-7xl mx-auto animate-fade">
-              {dbProducts.map((p) => (
-                <ProductCard key={p.id} product={toProductProps(p)} />
+              {sortedDbProducts.map((p) => (
+                <ProductCard key={p.id} product={p} />
               ))}
             </div>
             <p className="text-center text-xs text-muted-foreground mt-16">
@@ -265,6 +350,8 @@ function ShopNestedCategory() {
           </div>
         )}
 
+        {renderSortBar(filtered.length)}
+
         {dbProducts.length === 0 ? (
           <div className="py-20 text-center max-w-md mx-auto px-6">
             <span className="eyebrow text-gold">{heading}</span>
@@ -286,7 +373,7 @@ function ShopNestedCategory() {
         ) : (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14 max-w-7xl mx-auto animate-fade">
             {filtered.map((p) => (
-              <ProductCard key={p.id} product={toProductProps(p)} />
+              <ProductCard key={p.id} product={p} />
             ))}
           </div>
         )}

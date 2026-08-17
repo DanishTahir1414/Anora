@@ -49,6 +49,8 @@ export interface PublicProduct {
   color?: string;
   sale_active?: boolean;
   discount_percent?: number;
+  featured?: boolean;
+  popularity_score?: number;
 }
 
 export function buildCategoryTree(flatList: any[]): CategoryNode[] {
@@ -237,6 +239,10 @@ export function toProductProps(p: PublicProduct): Product {
     sale_active: p.sale_active,
     discount_percent: p.discount_percent,
     colorVariants: (p as any).colorVariants,
+    featured: p.featured,
+    popularity_score: p.popularity_score,
+    created_at: p.created_at,
+    category_slug: p.category_slug,
   };
   registerProduct(product);
   return product;
