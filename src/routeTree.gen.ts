@@ -31,6 +31,7 @@ import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ShopIndexRouteImport } from './routes/shop.index'
 import { Route as BlogsIndexRouteImport } from './routes/blogs.index'
+import { Route as ShopSaleRouteImport } from './routes/shop.sale'
 import { Route as ShopSplatRouteImport } from './routes/shop.$'
 import { Route as ProductSlugRouteImport } from './routes/product.$slug'
 import { Route as OrderSuccessRouteImport } from './routes/order.success'
@@ -164,6 +165,11 @@ const BlogsIndexRoute = BlogsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => BlogsRoute,
+} as any)
+const ShopSaleRoute = ShopSaleRouteImport.update({
+  id: '/sale',
+  path: '/sale',
+  getParentRoute: () => ShopRoute,
 } as any)
 const ShopSplatRoute = ShopSplatRouteImport.update({
   id: '/$',
@@ -322,6 +328,7 @@ export interface FileRoutesByFullPath {
   '/order/success': typeof OrderSuccessRoute
   '/product/$slug': typeof ProductSlugRoute
   '/shop/$': typeof ShopSplatRoute
+  '/shop/sale': typeof ShopSaleRoute
   '/blogs/': typeof BlogsIndexRoute
   '/shop/': typeof ShopIndexRoute
   '/admin/finance/invoices': typeof AdminFinanceInvoicesRoute
@@ -367,6 +374,7 @@ export interface FileRoutesByTo {
   '/order/success': typeof OrderSuccessRoute
   '/product/$slug': typeof ProductSlugRoute
   '/shop/$': typeof ShopSplatRoute
+  '/shop/sale': typeof ShopSaleRoute
   '/blogs': typeof BlogsIndexRoute
   '/shop': typeof ShopIndexRoute
   '/admin/finance/invoices': typeof AdminFinanceInvoicesRoute
@@ -415,6 +423,7 @@ export interface FileRoutesById {
   '/order/success': typeof OrderSuccessRoute
   '/product/$slug': typeof ProductSlugRoute
   '/shop/$': typeof ShopSplatRoute
+  '/shop/sale': typeof ShopSaleRoute
   '/blogs/': typeof BlogsIndexRoute
   '/shop/': typeof ShopIndexRoute
   '/admin/finance/invoices': typeof AdminFinanceInvoicesRoute
@@ -464,6 +473,7 @@ export interface FileRouteTypes {
     | '/order/success'
     | '/product/$slug'
     | '/shop/$'
+    | '/shop/sale'
     | '/blogs/'
     | '/shop/'
     | '/admin/finance/invoices'
@@ -509,6 +519,7 @@ export interface FileRouteTypes {
     | '/order/success'
     | '/product/$slug'
     | '/shop/$'
+    | '/shop/sale'
     | '/blogs'
     | '/shop'
     | '/admin/finance/invoices'
@@ -556,6 +567,7 @@ export interface FileRouteTypes {
     | '/order/success'
     | '/product/$slug'
     | '/shop/$'
+    | '/shop/sale'
     | '/blogs/'
     | '/shop/'
     | '/admin/finance/invoices'
@@ -744,6 +756,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/blogs/'
       preLoaderRoute: typeof BlogsIndexRouteImport
       parentRoute: typeof BlogsRoute
+    }
+    '/shop/sale': {
+      id: '/shop/sale'
+      path: '/sale'
+      fullPath: '/shop/sale'
+      preLoaderRoute: typeof ShopSaleRouteImport
+      parentRoute: typeof ShopRoute
     }
     '/shop/$': {
       id: '/shop/$'
@@ -987,11 +1006,13 @@ const BlogsRouteWithChildren = BlogsRoute._addFileChildren(BlogsRouteChildren)
 
 interface ShopRouteChildren {
   ShopSplatRoute: typeof ShopSplatRoute
+  ShopSaleRoute: typeof ShopSaleRoute
   ShopIndexRoute: typeof ShopIndexRoute
 }
 
 const ShopRouteChildren: ShopRouteChildren = {
   ShopSplatRoute: ShopSplatRoute,
+  ShopSaleRoute: ShopSaleRoute,
   ShopIndexRoute: ShopIndexRoute,
 }
 

@@ -83,6 +83,13 @@ export function ProductCard({ product }: { product: Product }) {
       <div className="group flex flex-col h-full">
         {/* PART 1: Large product image */}
         <div className="relative overflow-hidden bg-neutral aspect-[3/5] sm:aspect-[3/4] w-full">
+          {priceInfo.isOnSale && (
+            <div className="absolute top-3.5 left-3.5 z-30">
+              <span className="text-[10px] font-bold tracking-widest uppercase bg-foreground text-background px-2.5 py-1 font-sans">
+                Sale
+              </span>
+            </div>
+          )}
           {/* Mobile view with slider/swipe container */}
           <div className="sm:hidden relative w-full h-full">
             {product.images.length > 1 ? (

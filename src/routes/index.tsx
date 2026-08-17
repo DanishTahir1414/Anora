@@ -14,6 +14,7 @@ import p6 from "@/assets/p6.webp";
 import { ProductCard } from "@/components/site/ProductCard";
 import { useProductsCatalog, useParentCategories } from "@/lib/products-query";
 import { SITE_URL } from "@/lib/config";
+import { getProductPriceInfo } from "@/lib/products";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -124,6 +125,10 @@ function Home() {
           ...list,
           ...products.filter((p) => !p.badge).slice(4 - list.length, 8 - list.length),
         ].slice(0, 4);
+  }, [products]);
+
+  const saleProducts = useMemo(() => {
+    return products.filter((p) => getProductPriceInfo(p).isOnSale).slice(0, 4);
   }, [products]);
 
   const heroSrc = settings?.hero_image || hero;
@@ -309,6 +314,39 @@ function Home() {
             <div className="mt-12 text-center sm:hidden">
               <Link to="/shop" className="text-[11px] tracking-[0.32em] uppercase hover-underline">
                 View All
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ─── Sale Section ─── */}
+      {saleProducts.length > 0 && (
+        <section className="px-5 lg:px-10 py-24 lg:py-32 bg-neutral/10 border-t border-border/20">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-end justify-between mb-14">
+              <div>
+                <span className="eyebrow text-gold">Exclusive Offers</span>
+                <h2 className="mt-3 font-serif text-4xl md:text-5xl">Selected Pieces</h2>
+                <p className="text-muted-foreground text-sm mt-2 max-w-md font-sans">
+                  A curated collection of our finest pieces, currently offered at special prices.
+                </p>
+              </div>
+              <Link
+                to="/shop/sale"
+                className="hidden sm:inline text-[11px] tracking-[0.32em] uppercase hover-underline"
+              >
+                View All Sale
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-10 sm:gap-x-6 sm:gap-y-14">
+              {saleProducts.map((p) => (
+                <ProductCard key={p.id} product={p as any} />
+              ))}
+            </div>
+            <div className="mt-12 text-center sm:hidden">
+              <Link to="/shop/sale" className="text-[11px] tracking-[0.32em] uppercase hover-underline">
+                View All Sale
               </Link>
             </div>
           </div>

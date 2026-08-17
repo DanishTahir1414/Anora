@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "./supabase";
-import type { Product } from "./products";
+import { getProductPriceInfo, type Product } from "./products";
 import { getProductBySlug } from "./products-db";
 import { mapDbProductToStatic } from "./product-mapper";
 import { BlogService } from "@/modules/blog";
@@ -84,6 +84,31 @@ export function useProductsCatalog() {
     },
     staleTime: 0, // Bypass cache to ensure fresh stock levels
     gcTime: 1000 * 60 * 30, // 30 minutes garbage collection
+  });
+}
+
+export function useSaleProductsCatalog() {
+  return useQuery({
+    queryKey: ["products", "sale-catalog"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select(`
+          id, slug, name, price, compare_price, stock, size_stock, sizes, sku, colors, fabric, material, is_new, is_best_seller, featured, status, is_active, sale_active, discount_percent, description, category_id, popularity_score, created_at,
+          product_images (image_url, sort_order, variant_id),
+          product_variants (id, name, sku, price, compare_price, stock, sizes, size_stock, color_hex, is_active)
+        `)
+        .eq("is_active", true)
+        .eq("status", "active")
+        .or("sale_active.eq.true,compare_price.not.is.null");
+
+      if (error) throw error;
+      return (data || [])
+        .map(mapDbProduct)
+        .filter((p) => getProductPriceInfo(p).isOnSale);
+    },
+    staleTime: 0,
+    gcTime: 1000 * 60 * 30,
   });
 }
 

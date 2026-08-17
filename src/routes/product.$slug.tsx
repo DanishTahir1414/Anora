@@ -549,6 +549,11 @@ function ProductPage() {
 
             {/* Product Title */}
             <div>
+              {priceInfo?.isOnSale && (
+                <span className="inline-flex items-center justify-center text-[10px] font-extrabold tracking-[0.25em] uppercase text-background bg-foreground px-3 py-1 mb-3 leading-none antialiased mr-2 font-sans">
+                  Sale
+                </span>
+              )}
               {product.badge && (
                 <span className="inline-flex items-center justify-center text-[10px] font-extrabold tracking-[0.25em] uppercase text-gold bg-gold/5 border border-gold/15 px-3 py-1 rounded-full mb-3 leading-none antialiased">
                   {product.badge}
