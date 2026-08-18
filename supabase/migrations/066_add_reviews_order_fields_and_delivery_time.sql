@@ -151,7 +151,7 @@ CREATE OR REPLACE FUNCTION public.get_pending_jobs(
 )
 RETURNS JSONB
 LANGUAGE plpgsql
-STABLE
+VOLATILE
 SECURITY DEFINER
 SET search_path = public
 AS $$
