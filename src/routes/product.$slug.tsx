@@ -944,26 +944,26 @@ function ProductPage() {
         </div>
       </div>
 
-      {/* ─── Reviews Section ─── */}
-      <ReviewsSection productId={product.id} />
-
-      {/* ─── 5. Premium Divider ─── */}
-      <div className="my-20 h-px w-full bg-border/20 max-w-7xl mx-auto" />
-
       {/* ─── 6 & 7. Related Products ("YOU MAY ALSO LIKE") Carousel ─── */}
       {related.length > 0 && (
-        <section className="mt-8">
+        <section className="mt-10 md:mt-14 lg:mt-20">
           <div className="max-w-7xl mx-auto text-center mb-12">
-            <h2 className="font-serif text-2xl md:text-3xl tracking-[0.3em] uppercase text-foreground leading-none">
+            <h2 className="font-serif text-base md:text-lg lg:text-[22px] tracking-[0.25em] uppercase text-foreground leading-none">
               You May Also Like
             </h2>
-            <p className="text-[10px] tracking-[0.2em] text-gold uppercase mt-3 font-semibold">
+            <p className="text-[10px] md:text-[11px] lg:text-[12px] tracking-[0.2em] text-gold uppercase mt-3 font-semibold">
               Curated for your style
             </p>
           </div>
           <RelatedCarousel products={related} />
         </section>
       )}
+
+      {/* ─── 5. Premium Divider ─── */}
+      <div className="my-20 h-px w-full bg-border/20 max-w-7xl mx-auto" />
+
+      {/* ─── Reviews Section ─── */}
+      <ReviewsSection productId={product.id} />
 
       {/* ─── Lightbox ─── */}
       {lightboxOpen && (
